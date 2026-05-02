@@ -145,3 +145,4 @@ challenges/
 
 # Logs
 logs/
+.venv/
