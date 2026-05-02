@@ -1,12 +1,15 @@
 import atexit
 import signal
 from pathlib import Path
+from typing import Never
 
 import typer
 import uvicorn
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
+
+from pydantic import BaseModel as PydanticBaseModel
 
 from benchmark_platform.base import Challenge
 from benchmark_platform.base import CompetitionStage
@@ -19,6 +22,20 @@ from benchmark_platform.utils.logger import get_logger
 
 
 app = FastAPI()
+
+# ── tch Response helpers ──────────────────────────────────────────────────────
+
+def _ok(data=None, message: str = "success") -> dict:
+    return {"code": 0, "message": message, "data": data}
+
+
+def _err(message: str, status_code: int = 400) -> Never:
+    raise HTTPException(
+        status_code=status_code,
+        detail={"code": -1, "message": message, "data": None},
+    )
+
+
 CHALLENGES: list[Challenge] = []
 manager: ChallengeManager | None = None
 logger = get_logger(Path('logs/competition-platform-server-logs.jsonl'))
@@ -115,6 +132,175 @@ async def submit_answer(payload: SubmitAnswerRequest) -> SubmitAnswerResponse:
 @app.get('/')
 async def index():
     return RedirectResponse(url='/docs')
+
+
+# ── tch-compatible API routes ─────────────────────────────────────────────────
+
+@app.get("/api/challenges")
+async def tch_get_challenges():
+    if manager is None:
+        _err("Server not initialized", 503)
+        return  # unreachable, but makes control flow explicit
+
+    all_challenges = manager.challenges
+    challenge_list = []
+    for c in all_challenges:
+        bm = c.get_benchmark()
+        status = manager.get_instance_status(c.challenge_code)
+        entrypoint = None
+        if status == "running":
+            entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
+        challenge_list.append({
+            "title": bm.name,
+            "code": c.challenge_code,
+            "difficulty": c.difficulty.value,
+            "description": bm.description,
+            "level": bm.level,
+            "total_score": c.points,
+            "total_got_score": c.points if c.solved else 0,
+            "flag_count": 1,
+            "flag_got_count": 1 if c.solved else 0,
+            "hint_viewed": c.hint_viewed,
+            "instance_status": status,
+            "entrypoint": entrypoint,
+        })
+
+    solved = sum(1 for c in all_challenges if c.solved)
+    return _ok({
+        "total_challenges": len(all_challenges),
+        "solved_challenges": solved,
+        "challenges": challenge_list,
+    })
+
+
+class StartChallengeRequest(PydanticBaseModel):
+    code: str
+
+
+@app.post("/api/start_challenge")
+async def tch_start_challenge(payload: StartChallengeRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        challenge = manager._find_by_code(payload.code)
+    except KeyError:
+        _err(f"Challenge {payload.code} not found", 404)
+        return  # unreachable, but makes control flow explicit
+
+    if challenge.solved:
+        return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
+
+    if manager.get_instance_status(payload.code) == "running":
+        entrypoints = [f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port]
+        return _ok(entrypoints, "赛题实例已在运行中")
+
+    try:
+        entrypoints = manager.start_challenge_instance(payload.code)
+    except Exception as e:
+        _err(f"赛题启动失败: {e}", 502)
+        return  # unreachable, but makes control flow explicit
+
+    return _ok(entrypoints, "赛题实例启动成功")
+
+
+class StopChallengeRequest(PydanticBaseModel):
+    code: str
+
+
+@app.post("/api/stop_challenge")
+async def tch_stop_challenge(payload: StopChallengeRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        manager._find_by_code(payload.code)
+    except KeyError:
+        _err(f"Challenge {payload.code} not found", 404)
+        return  # unreachable, but makes control flow explicit
+
+    if manager.get_instance_status(payload.code) != "running":
+        _err("赛题实例未运行", 400)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        manager.stop_challenge_instance(payload.code)
+    except Exception as e:
+        _err(f"停止失败: {e}", 502)
+        return  # unreachable, but makes control flow explicit
+
+    return _ok(None, "赛题实例已停止")
+
+
+class SubmitFlagRequest(PydanticBaseModel):
+    code: str
+    flag: str
+
+
+@app.post("/api/submit")
+async def tch_submit(payload: SubmitFlagRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        challenge = manager._find_by_code(payload.code)
+    except KeyError:
+        _err(f"Challenge {payload.code} not found", 404)
+        return  # unreachable, but makes control flow explicit
+
+    if manager.get_instance_status(payload.code) != "running":
+        _err("赛题实例未运行", 400)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        expected = challenge.get_expected_answer()
+    except Exception as e:
+        _err(f"Failed to get expected answer: {e}", 500)
+        return  # unreachable, but makes control flow explicit
+
+    is_correct = expected == payload.flag
+    if is_correct:
+        challenge.solved = True
+
+    return _ok({
+        "correct": is_correct,
+        "message": "恭喜！答案正确" if is_correct else "答案错误，请继续尝试",
+        "flag_count": 1,
+        "flag_got_count": 1 if challenge.solved else 0,
+    })
+
+
+class HintRequest(PydanticBaseModel):
+    code: str
+
+
+@app.post("/api/hint")
+async def tch_hint(payload: HintRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        challenge = manager._find_by_code(payload.code)
+    except KeyError:
+        _err(f"Challenge {payload.code} not found", 404)
+        return  # unreachable, but makes control flow explicit
+
+    if manager.get_instance_status(payload.code) != "running":
+        _err("请先启动赛题实例", 400)
+        return  # unreachable, but makes control flow explicit
+
+    try:
+        hint = challenge.get_hint()
+    except Exception as e:
+        _err(f"Failed to get hint: {e}", 500)
+        return  # unreachable, but makes control flow explicit
+
+    challenge.hint_viewed = True
+    return _ok({"code": payload.code, "hint_content": hint})
 
 
 app_cli = typer.Typer()

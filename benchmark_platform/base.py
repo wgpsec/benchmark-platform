@@ -45,14 +45,6 @@ class Challenge(BaseModel):
     def get_base_path(benchmark_id: str, challenge_code: str) -> Path:
         return Path('challenges') / benchmark_id / challenge_code
 
-    def get_benchmark(self) -> Benchmark:
-        metadata_path = Challenge.get_base_path(
-            self.get_benchmark_id(), self.challenge_code,
-        ) / 'benchmark.json'
-        with open(metadata_path, encoding='utf-8') as f:
-            metadata = json.load(f)
-            return Benchmark.model_validate(metadata)
-
     def get_expected_answer(self) -> str:
         env_path = Challenge.get_base_path(
             self.get_benchmark_id(), self.challenge_code,
