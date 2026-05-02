@@ -31,7 +31,7 @@ class ChallengeManager:
         self.benchmark_folders = benchmark_folders
         self.benchmark_ids = benchmark_ids
         self.public_accessible_host = public_accessible_host
-        self.no_level_gate = no_level_gate
+        self.no_level_gate = no_level_gate  # level gate enforcement not yet implemented; all challenges are always visible
         self.challenges: list[Challenge] = []
         self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"
 
