@@ -21,11 +21,19 @@ console = Console()
 
 
 class ChallengeManager:
-    def __init__(self, xbow_benchmark_folder: Path, benchmark_ids: list[str], public_accessible_host: str) -> None:
-        self.xbow_benchmark_folder = xbow_benchmark_folder
+    def __init__(
+        self,
+        benchmark_folders: list[Path],
+        benchmark_ids: list[str],
+        public_accessible_host: str,
+        no_level_gate: bool = False,
+    ) -> None:
+        self.benchmark_folders = benchmark_folders
         self.benchmark_ids = benchmark_ids
         self.public_accessible_host = public_accessible_host
+        self.no_level_gate = no_level_gate
         self.challenges: list[Challenge] = []
+        self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"
 
     def __enter__(self) -> 'ChallengeManager':
         self.start()
@@ -35,89 +43,60 @@ class ChallengeManager:
         self.stop()
 
     def start(self) -> 'ChallengeManager':
-        # Create challenges
-        for benchmark_id in self.benchmark_ids:
-            try:
-                self.challenges.append(self._create_challenge(benchmark_id))
-            except Exception as e:
-                logger.error(
-                    'failed to create challenge',
-                    benchmark_id=benchmark_id, error=str(e),
-                )
-                raise
+        discovered = self._discover_challenges()
+        if not discovered:
+            logger.warning("no challenges found in any benchmark folder")
+            return self
 
-        logger.info('starting challenges', count=len(self.challenges))
-
-        # Start challenges
-        started = []
         errors = []
-        with ThreadPoolExecutor() as executor:
-            futures = {
-                executor.submit(self._compose, c.get_benchmark_id(), c.challenge_code, 'up', '-d'): c
-                for c in self.challenges
-            }
-            for f in futures:
-                c = futures[f]
-                try:
-                    f.result()
-                    started.append(c)
-                except Exception as e:
-                    errors.append((c, e))
-                    logger.error(
-                        'failed to start',
-                        code=c.challenge_code, error=str(e),
-                    )
+        for folder, benchmark_id in discovered:
+            try:
+                challenge = self._create_challenge(folder, benchmark_id)
+                self.challenges.append(challenge)
+                self._instance_status[challenge.challenge_code] = "stopped"
+            except Exception as e:
+                errors.append((benchmark_id, e))
+                logger.error("failed to prepare challenge",
+                             benchmark_id=benchmark_id, error=str(e))
 
         if errors:
-            self._cleanup(started)
+            self.stop()
             raise RuntimeError(
-                f"Failed to start {len(errors)} challenges: {[str(e) for _, e in errors]}",
+                f"Failed to prepare {len(errors)} challenges: "
+                f"{[f'{bid}: {e}' for bid, e in errors]}"
             )
-
-        logger.info('challenges started', count=len(self.challenges))
+        logger.info("challenges prepared (not yet started)",
+                    count=len(self.challenges))
         return self
 
     def stop(self) -> None:
         self._cleanup(self.challenges)
         self.challenges.clear()
+        self._instance_status.clear()
 
-    def _cleanup(self, challenges: list[Challenge]) -> None:
-        if not challenges:
-            return
-        logger.info('cleaning up challenges', count=len(challenges))
+    def _discover_challenges(self) -> list[tuple[Path, str]]:
+        """Return (folder, benchmark_id) for every challenge in all benchmark_folders."""
+        result: list[tuple[Path, str]] = []
+        for folder in self.benchmark_folders:
+            if not folder.is_dir():
+                logger.warning("benchmark folder not found, skipping",
+                               folder=str(folder))
+                continue
+            for entry in sorted(folder.iterdir()):
+                if not entry.is_dir():
+                    continue
+                if not (entry / "benchmark.json").exists():
+                    continue
+                if self.benchmark_ids and entry.name not in self.benchmark_ids:
+                    continue
+                result.append((folder, entry.name))
+        return result
 
-        with ThreadPoolExecutor() as executor:
-            # Stop containers
-            list(
-                executor.map(
-                    lambda c: self._compose(
-                        c.get_benchmark_id(), c.challenge_code, 'down',
-                    ), challenges,
-                ),
-            )
-            # Remove directories
-
-            list(
-                executor.map(
-                    lambda c: self._compose(
-                        c.get_benchmark_id(), c.challenge_code, 'down',
-                    ), challenges,
-                ),
-            )
-            # Remove directories
-
-            def remove_dir(c):
-                shutil.rmtree(
-                    Challenge.get_base_path(c.get_benchmark_id(), c.challenge_code),
-                    ignore_errors=True,
-                )
-            list(executor.map(remove_dir, challenges))
-
-    def _create_challenge(self, benchmark_id: str) -> Challenge:
+    def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
         challenge_id = str(uuid.uuid4())
         path = Challenge.get_base_path(benchmark_id, challenge_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        src = self.xbow_benchmark_folder / benchmark_id
+        src = benchmark_folder / benchmark_id
 
         try:
             shutil.copytree(src, path)
@@ -143,17 +122,17 @@ class ChallengeManager:
             with open(compose_path, 'w') as f:
                 yaml.dump(data, f)
 
-            # Load metadata
             meta = json.loads((path / 'benchmark.json').read_text())
             meta['id'] = benchmark_id
             bm = Benchmark.model_validate(meta)
 
+            _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD}
+            if bm.level not in _level_map:
+                raise ValueError(f"Unknown level {bm.level!r} in benchmark {benchmark_id!r}")
+
             challenge = Challenge(
                 challenge_code=challenge_id,
-                difficulty={
-                    1: Difficulty.EASY, 2: Difficulty.MEDIUM,
-                    3: Difficulty.HARD,
-                }[bm.level],
+                difficulty=_level_map[bm.level],
                 points=bm.points,
                 hint_viewed=False,
                 solved=False,
@@ -168,11 +147,52 @@ class ChallengeManager:
                 shutil.rmtree(path)
             raise
 
+    def start_challenge_instance(self, challenge_code: str) -> list[str]:
+        """Start docker containers for one challenge. Return entrypoint list."""
+        challenge = self._find_by_code(challenge_code)
+        self._compose(challenge.get_benchmark_id(), challenge_code, 'up', '-d')
+        self._instance_status[challenge_code] = "running"
+        return [
+            f"{self.public_accessible_host}:{p}"
+            for p in challenge.target_info.port
+        ]
+
+    def stop_challenge_instance(self, challenge_code: str) -> None:
+        """Stop docker containers for one challenge."""
+        challenge = self._find_by_code(challenge_code)
+        self._compose(challenge.get_benchmark_id(), challenge_code, 'down')
+        self._instance_status[challenge_code] = "stopped"
+
+    def get_instance_status(self, challenge_code: str) -> str:
+        self._find_by_code(challenge_code)  # raises KeyError if not found
+        return self._instance_status.get(challenge_code, "stopped")
+
+    def _find_by_code(self, challenge_code: str) -> Challenge:
+        for c in self.challenges:
+            if c.challenge_code == challenge_code:
+                return c
+        raise KeyError(f"Challenge {challenge_code!r} not found")
+
+    def _cleanup(self, challenges: list[Challenge]) -> None:
+        if not challenges:
+            return
+        logger.info('cleaning up challenges', count=len(challenges))
+        with ThreadPoolExecutor() as executor:
+            list(executor.map(
+                lambda c: self._compose(c.get_benchmark_id(), c.challenge_code, 'down'),
+                challenges,
+            ))
+            def remove_dir(c):
+                shutil.rmtree(
+                    Challenge.get_base_path(c.get_benchmark_id(), c.challenge_code),
+                    ignore_errors=True,
+                )
+            list(executor.map(remove_dir, challenges))
+
     def _compose(self, benchmark_id: str, code: str, *args) -> None:
         path = Challenge.get_base_path(benchmark_id, code)
         if not (path / 'docker-compose.yml').exists():
             return
-
         res = subprocess.run(
             ['docker', 'compose'] + list(args),
             cwd=path, capture_output=True, text=True,
@@ -191,13 +211,13 @@ class ChallengeManager:
         table.add_column('Challenge Code', style='cyan', no_wrap=True)
         table.add_column('IP', style='green')
         table.add_column('Port', style='yellow')
-        table.add_column('URL', style='blue')
+        table.add_column('Status', style='blue')
 
         for c in self.challenges:
+            status = self._instance_status.get(c.challenge_code, 'stopped')
             for p in c.target_info.port:
                 table.add_row(
                     c.get_benchmark_id(), c.challenge_code,
-                    c.target_info.ip, str(p),
-                    f'http://{c.target_info.ip}:{p}',
+                    c.target_info.ip, str(p), status,
                 )
         console.print('\n', table, '\n')
