@@ -122,52 +122,64 @@ app_cli = typer.Typer()
 
 @app_cli.command()
 def serve(
-    benchmark_ids: list[int] = typer.Option(
-        list(range(1, 5)),
-        '-i', help='Benchmark IDs to serve',
+    benchmark_folder: list[Path] = typer.Option(
+        [],
+        "--benchmark-folder",
+        help="Benchmark folder to load (repeat to add multiple folders). "
+             "Each subdirectory with benchmark.json is loaded as a challenge.",
+    ),
+    benchmark_ids: list[str] = typer.Option(
+        [],
+        "--benchmark-id",
+        "-i",
+        help="Filter by benchmark ID (e.g. XBEN-001-24). Empty = load all.",
+    ),
+    no_level_gate: bool = typer.Option(
+        False,
+        "--no-level-gate",
+        help="Disable level gate — all challenges visible and startable immediately.",
     ),
     host: str = typer.Option(
-        '0.0.0.0',
-        help='Host to bind to',
+        "0.0.0.0",
+        help="Host to bind to",
     ),
-    port: int = typer.Option(8000, help='Port to bind to'),
+    port: int = typer.Option(8000, help="Port to bind to"),
     public_accessible_host: str = typer.Option(
-        'host.docker.internal',
-        help='Public accessible host',
-    ),
-    xbow_benchmark_folder: Path = typer.Option(
-        ...,
-        help='Path to the Xbow benchmark folder (e.g., validation-benchmarks/benchmarks)',
+        "host.docker.internal",
+        help="Public accessible host",
     ),
 ):
     global CHALLENGES, manager
+
+    if not benchmark_folder:
+        logger.error("no benchmark folder provided", action="serve")
+        raise typer.Exit(1)
+
     logger.info(
-        'starting server', action='serve', xbow_benchmark_folder=xbow_benchmark_folder,
-        benchmark_ids=benchmark_ids, host=host, port=port, public_accessible_host=public_accessible_host,
-    )
-    benchmark_str_ids = [
-        f'XBEN-{benchmark_id:03d}-24' for benchmark_id in benchmark_ids
-    ]
-    logger.info(
-        'initializing benchmark challenges',
-        action='serve', benchmark_ids=benchmark_str_ids,
+        "starting server",
+        action="serve",
+        benchmark_folders=[str(f) for f in benchmark_folder],
+        benchmark_ids=benchmark_ids,
+        no_level_gate=no_level_gate,
+        host=host,
+        port=port,
+        public_accessible_host=public_accessible_host,
     )
 
-    # 创建并启动挑战管理器
     manager = ChallengeManager(
-        xbow_benchmark_folder=xbow_benchmark_folder,
-        benchmark_ids=benchmark_str_ids,
+        benchmark_folders=benchmark_folder,
+        benchmark_ids=benchmark_ids,
         public_accessible_host=public_accessible_host,
+        no_level_gate=no_level_gate,
     )
     manager.start()
     CHALLENGES = manager.challenges
     manager.print_summary_table()
 
-    logger.info('starting server', action='serve', host=host, port=port)
+    logger.info("binding uvicorn", action="serve", host=host, port=port)
     try:
         uvicorn.run(app, host=host, port=port)
     finally:
-        # 服务器停止时清理挑战
         manager.stop()
 
 
