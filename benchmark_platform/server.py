@@ -1,7 +1,7 @@
 import atexit
 import signal
 from pathlib import Path
-from typing import Never
+from typing import NoReturn
 
 import typer
 import uvicorn
@@ -29,7 +29,7 @@ def _ok(data=None, message: str = "success") -> dict:
     return {"code": 0, "message": message, "data": data}
 
 
-def _err(message: str, status_code: int = 400) -> Never:
+def _err(message: str, status_code: int = 400) -> NoReturn:
     raise HTTPException(
         status_code=status_code,
         detail={"code": -1, "message": message, "data": None},
