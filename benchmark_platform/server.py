@@ -151,6 +151,7 @@ async def tch_get_challenges():
         if status == "running":
             entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
         challenge_list.append({
+            "benchmark_id": c.get_benchmark_id(),
             "title": bm.name,
             "code": c.challenge_code,
             "difficulty": c.difficulty.value,

@@ -150,7 +150,7 @@ class ChallengeManager:
     def start_challenge_instance(self, challenge_code: str) -> list[str]:
         """Start docker containers for one challenge. Return entrypoint list."""
         challenge = self._find_by_code(challenge_code)
-        self._compose(challenge.get_benchmark_id(), challenge_code, 'up', '-d')
+        self._compose(challenge.get_benchmark_id(), challenge_code, 'up', '-d', '--wait')
         self._instance_status[challenge_code] = "running"
         return [
             f"{self.public_accessible_host}:{p}"

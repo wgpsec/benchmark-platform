@@ -147,3 +147,7 @@ challenges/
 logs/
 .venv/
 .worktrees/
+
+# Docker image tarballs
+scripts/images/*.tar
+.DS_Store
