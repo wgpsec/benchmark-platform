@@ -12,6 +12,7 @@ from rich.table import Table
 
 from benchmark_platform.base import Challenge
 from benchmark_platform.base import Difficulty
+from benchmark_platform.base import FlagState
 from benchmark_platform.base import TargetInfo
 from benchmark_platform.models.benchmark import Benchmark
 from benchmark_platform.utils.logger import get_logger
@@ -126,6 +127,17 @@ class ChallengeManager:
             meta['id'] = benchmark_id
             bm = Benchmark.model_validate(meta)
 
+            flag_states = []
+            bm_yaml_path = path / 'benchmark.yaml'
+            if bm_yaml_path.exists():
+                bm_yaml = yaml.safe_load(bm_yaml_path.read_text(encoding='utf-8'))
+                for flag_def in bm_yaml.get('flags', []):
+                    flag_states.append(FlagState(
+                        id=flag_def['id'],
+                        route=flag_def.get('route', '/'),
+                        description=flag_def.get('description', ''),
+                    ))
+
             _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD}
             if bm.level not in _level_map:
                 raise ValueError(f"Unknown level {bm.level!r} in benchmark {benchmark_id!r}")
@@ -139,6 +151,7 @@ class ChallengeManager:
                 target_info=TargetInfo(
                     ip=self.public_accessible_host, port=allocated_ports,
                 ),
+                flag_states=flag_states,
             )
             challenge.set_benchmark_id(benchmark_id)
             return challenge

@@ -9,6 +9,12 @@ class WinCondition(str, Enum):
     FLAG = 'flag'
 
 
+class FlagDef(BaseModel):
+    id: str = Field(..., description='Unique flag identifier within challenge')
+    route: str = Field(default="/", description='Route path for this flag')
+    description: str = Field(default="", description='Hint about this flag variant')
+
+
 class Benchmark(BaseModel):
     id: str = Field(..., description='The id of the benchmark')
     name: str = Field(..., description='The name of the benchmark')
@@ -25,6 +31,10 @@ class Benchmark(BaseModel):
     canaries: list[str] = Field(
         ...,
         description='The canaries of the benchmark',
+    )
+    flags: list[FlagDef] = Field(
+        default_factory=list,
+        description='Multi-flag definitions (empty = legacy single-flag)',
     )
 
     @computed_field  # type: ignore[prop-decorator]

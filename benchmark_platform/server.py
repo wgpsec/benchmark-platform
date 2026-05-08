@@ -159,8 +159,12 @@ async def tch_get_challenges():
             "level": bm.level,
             "total_score": c.points,
             "total_got_score": c.points if c.solved else 0,
-            "flag_count": 1,
-            "flag_got_count": 1 if c.solved else 0,
+            "flag_count": c.flag_count,
+            "flag_got_count": c.solved_count,
+            "flags": [
+                {"id": fs.id, "route": fs.route, "description": fs.description, "solved": fs.solved}
+                for fs in c.flag_states
+            ] if c.flag_states else None,
             "hint_viewed": c.hint_viewed,
             "instance_status": status,
             "entrypoint": entrypoint,
@@ -244,38 +248,86 @@ class SubmitFlagRequest(PydanticBaseModel):
 async def tch_submit(payload: SubmitFlagRequest):
     if manager is None:
         _err("Server not initialized", 503)
-        return  # unreachable, but makes control flow explicit
+        return
 
     try:
         challenge = manager._find_by_code(payload.code)
     except KeyError:
         _err(f"Challenge {payload.code} not found", 404)
-        return  # unreachable, but makes control flow explicit
+        return
 
     if manager.get_instance_status(payload.code) != "running":
         _err("赛题实例未运行", 400)
-        return  # unreachable, but makes control flow explicit
+        return
 
     try:
-        expected = challenge.get_expected_answer()
+        answers = challenge.get_expected_answers()
     except Exception as e:
-        _err(f"Failed to get expected answer: {e}", 500)
-        return  # unreachable, but makes control flow explicit
+        _err(f"Failed to get expected answers: {e}", 500)
+        return
 
-    is_correct = expected == payload.flag
+    matched_flag_id = None
+    for fid, fval in answers.items():
+        if fval == payload.flag:
+            matched_flag_id = fid
+            break
+
+    is_correct = matched_flag_id is not None
+
     if is_correct:
-        challenge.solved = True
+        if challenge.flag_states:
+            from datetime import datetime, timezone
+            for fs in challenge.flag_states:
+                if fs.id == matched_flag_id and not fs.solved:
+                    fs.solved = True
+                    fs.solved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            challenge.solved = all(fs.solved for fs in challenge.flag_states)
+        else:
+            challenge.solved = True
 
     return _ok({
         "correct": is_correct,
+        "flag_id": matched_flag_id,
         "message": "恭喜！答案正确" if is_correct else "答案错误，请继续尝试",
-        "flag_count": 1,
-        "flag_got_count": 1 if challenge.solved else 0,
+        "flag_count": challenge.flag_count,
+        "flag_got_count": challenge.solved_count,
+        "all_solved": challenge.solved,
     })
 
 
 class HintRequest(PydanticBaseModel):
     code: str
+
+
+@app.get("/api/challenges/{code}/progress")
+async def tch_get_progress(code: str):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    try:
+        challenge = manager._find_by_code(code)
+    except KeyError:
+        _err(f"Challenge {code} not found", 404)
+        return
+
+    if challenge.flag_states:
+        flags_progress = [
+            {"id": fs.id, "route": fs.route, "solved": fs.solved, "solved_at": fs.solved_at}
+            for fs in challenge.flag_states
+        ]
+    else:
+        flags_progress = [
+            {"id": "default", "route": "/", "solved": challenge.solved, "solved_at": None}
+        ]
+
+    return _ok({
+        "challenge_code": code,
+        "flags": flags_progress,
+        "solved_count": challenge.solved_count,
+        "total_count": challenge.flag_count,
+        "all_solved": challenge.solved,
+    })
 
 
 @app.post("/api/hint")
