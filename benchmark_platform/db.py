@@ -80,7 +80,6 @@ def list_teams() -> list:
                COALESCE(SUM(p.solved), 0) as solved_flags
         FROM teams t
         LEFT JOIN team_progress p ON t.id = p.team_id AND p.solved = 1
-        WHERE t.name != 'default'
         GROUP BY t.id
         ORDER BY solved_flags DESC, t.created_at ASC
     """).fetchall()
