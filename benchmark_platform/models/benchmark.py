@@ -12,7 +12,8 @@ class WinCondition(str, Enum):
 class FlagDef(BaseModel):
     id: str = Field(..., description='Unique flag identifier within challenge')
     route: str = Field(default="/", description='Route path for this flag')
-    description: str = Field(default="", description='Hint about this flag variant')
+    description: str = Field(default="", description='Scenario description (no spoilers)')
+    hint: str = Field(default="", description='Technical hint, only revealed on request')
 
 
 class Benchmark(BaseModel):

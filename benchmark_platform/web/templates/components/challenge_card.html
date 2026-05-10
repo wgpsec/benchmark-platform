@@ -57,24 +57,35 @@
   {% endif %}
 
   <!-- Actions -->
-  <div class="flex items-center gap-2 pt-2 border-t border-gray-100">
+  <div class="flex items-center gap-2 pt-2 border-t border-gray-100" x-data="{loading: false}">
     {% if card.solved %}
     <span class="text-[12px] text-gray-400">全部完成</span>
     {% elif card.instance_status == 'running' %}
     <button
-      hx-post="/api/stop_challenge"
-      hx-vals='{"code": "{{ card.challenge_code }}"}'
-      hx-swap="none"
-      hx-on::after-request="
-        if(event.detail.successful) {
-          $dispatch('toast', {type:'success', message:'靶机已停止'});
-          htmx.ajax('GET', '/web/partials/challenge_card?code={{ card.challenge_code }}', '#card-{{ card.challenge_code }}');
-        } else {
-          $dispatch('toast', {type:'error', message:'停止失败'});
-        }
+      :disabled="loading"
+      @click="
+        loading = true;
+        fetch('/api/stop_challenge', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'{{ card.challenge_code }}'})})
+        .then(r => {
+          if(r.ok) {
+            $dispatch('toast', {type:'success', message:'靶机已停止'});
+          } else {
+            return r.json().then(d => { $dispatch('toast', {type:'error', message: d.detail?.message || '停止失败'}); });
+          }
+        })
+        .catch(() => $dispatch('toast', {type:'error', message:'停止失败'}))
+        .finally(() => {
+          fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+          });
+        });
       "
-      class="h-8 px-3 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 text-[12px] font-medium rounded-lg transition-colors cursor-pointer">
-      停止
+      class="h-8 px-3 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 text-[12px] font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+      <span x-show="!loading">停止</span>
+      <span x-show="loading" class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        停止中...
+      </span>
     </button>
     <button
       @click="$dispatch('open-submit-modal', {code: '{{ card.challenge_code }}', name: '{{ card.name }}', solved_count: {{ card.solved_count }}, flag_count: {{ card.flag_count }}})"
@@ -83,17 +94,20 @@
     </button>
     {% if not card.hint_viewed %}
     <button
-      hx-post="/api/hint"
-      hx-vals='{"code": "{{ card.challenge_code }}"}'
-      hx-swap="none"
-      hx-on::after-request="
-        if(event.detail.successful) {
-          const data = JSON.parse(event.detail.xhr.responseText);
+      @click="
+        fetch('/api/hint', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'{{ card.challenge_code }}'})})
+        .then(r => r.json())
+        .then(data => {
           if(data.data && data.data.hint_content) {
             $dispatch('toast', {type:'info', message: data.data.hint_content});
+          } else if(data.detail) {
+            $dispatch('toast', {type:'error', message: data.detail.message || '获取提示失败'});
           }
-          htmx.ajax('GET', '/web/partials/challenge_card?code={{ card.challenge_code }}', '#card-{{ card.challenge_code }}');
-        }
+          fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+          });
+        })
+        .catch(() => $dispatch('toast', {type:'error', message:'获取提示失败'}));
       "
       class="h-8 px-3 text-gray-500 hover:text-gray-700 text-[12px] font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
       查看提示
@@ -101,19 +115,30 @@
     {% endif %}
     {% else %}
     <button
-      hx-post="/api/start_challenge"
-      hx-vals='{"code": "{{ card.challenge_code }}"}'
-      hx-swap="none"
-      hx-on::after-request="
-        if(event.detail.successful) {
-          $dispatch('toast', {type:'success', message:'靶机启动成功'});
-          htmx.ajax('GET', '/web/partials/challenge_card?code={{ card.challenge_code }}', '#card-{{ card.challenge_code }}');
-        } else {
-          $dispatch('toast', {type:'error', message:'启动失败'});
-        }
+      :disabled="loading"
+      @click="
+        loading = true;
+        fetch('/api/start_challenge', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'{{ card.challenge_code }}'})})
+        .then(r => {
+          if(r.ok) {
+            $dispatch('toast', {type:'success', message:'靶机启动成功'});
+          } else {
+            return r.json().then(d => { $dispatch('toast', {type:'error', message: d.detail?.message || '启动失败'}); });
+          }
+        })
+        .catch(() => $dispatch('toast', {type:'error', message:'启动失败'}))
+        .finally(() => {
+          fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+          });
+        });
       "
-      class="h-8 px-3 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
-      启动
+      class="h-8 px-3 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+      <span x-show="!loading">启动</span>
+      <span x-show="loading" class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        启动中...
+      </span>
     </button>
     {% endif %}
   </div>

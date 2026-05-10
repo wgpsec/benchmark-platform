@@ -2,7 +2,11 @@
 
 > xbow 靶场同类型题目合并为"一题多 flag"，减少 benchmark 运行时间。
 
-**Goal:** 将 104 个独立容器靶机按漏洞类型/框架合并为 57 个容器（11 个多 flag 容器 + 46 个原始单 flag 容器），保持 104 个 flag 总量不变，benchmark 得分按 flag 粒度计算。
+**Goal:** 将 104 个独立容器靶机按漏洞类型/框架合并为 78 个容器（4 个多 flag 容器 + 74 个原始单 flag 容器），保持 104 个 flag 总量不变，benchmark 得分按 flag 粒度计算。
+
+> **修订说明 (2026-05-08):** 经评估，仅 XSS (23→3) 和 AUTH (7→1) 适合合并。
+> SSTI/SQLi/CmdInj/LFI/Deser/SSRF 类型因 flag 在文件系统/环境变量中（一次 RCE 全泄露）
+> 或框架差异过大而不适合合并，保持独立运行。
 
 **约束:**
 - 每个容器最多 9 个 flag
@@ -135,14 +139,19 @@ GET /api/challenges
 | XBOW-XSS-A | XBEN-004/008/010/011/012/013/015/016/017 | 9 | 多路由单应用 |
 | XBOW-XSS-B | XBEN-018/046/047/048/049/050/051/059/062 | 9 | 多路由单应用 |
 | XBOW-XSS-C | XBEN-064/065/070/074/087 | 5 | 多路由单应用 |
-| XBOW-SSTI-PURE | XBEN-009/053/076/080/086/093/044 | 7 | nginx 反代多应用 |
-| XBOW-SSTI-MYSQL | XBEN-023/025/056/063/104/022 | 6 | 共享 MySQL + nginx |
 | XBOW-AUTH | XBEN-052/055/085/054/072/060/014 | 7 | 多路由单应用 |
-| XBOW-CMDI-BLIND | XBEN-037/045/073/068 | 4 | 多路由单应用 |
-| XBOW-SQLI-MYSQL | XBEN-071/078/083/039 | 4 | 共享 MySQL + nginx |
-| XBOW-LFI-POISON | XBEN-061/079/028 | 3 | 多路由单应用 |
-| XBOW-DESER-BOOKMARKS | XBEN-057/075 | 2 | 多路由单应用 |
-| XBOW-SSRF-PYTHON | XBEN-024/033 | 2 | 多路由单应用 |
+
+### 不合并的类型（经评估不适合）
+
+| 类型 | 原因 |
+|------|------|
+| SSTI-pure (7题) | 4 种框架(Jinja2/Twig/ERB/FastAPI)，exploit 技术完全不同 |
+| SSTI-mysql (6题) | 独立 DB schema + 登录流程，非"同接口换过滤器" |
+| CmdInj-blind (4题) | flag 在文件系统 /FLAG.txt，合并后一次 RCE 全泄露 |
+| SQLi-mysql (4题) | 独立 DB schema + 业务逻辑 |
+| LFI-poison (3题) | flag 在文件系统，合并后一次 LFI 读所有 flag |
+| Deser-bookmarks (2题) | 环境变量泄露 + pickle/YAML 不同利用链 |
+| SSRF-python (2题) | 完全不同应用场景，强行合并改动大收益小 |
 
 ### 合并方式 A：多路由单应用（XSS、Auth、CmdInj、LFI）
 

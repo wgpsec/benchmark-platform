@@ -92,12 +92,28 @@ class Challenge(BaseModel):
         return sum(1 for f in self.flag_states if f.solved)
 
     def get_hint(self) -> str:
-        metadata_path = Challenge.get_base_path(
+        base_path = Challenge.get_base_path(
             self.get_benchmark_id(), self.challenge_code,
-        ) / 'benchmark.json'
+        )
+        metadata_path = base_path / 'benchmark.json'
         with open(metadata_path, encoding='utf-8') as f:
             metadata = json.load(f)
-            return metadata.get('description', '')
+
+        if self.flag_states:
+            yaml_path = base_path / 'benchmark.yaml'
+            if yaml_path.exists():
+                import yaml
+                with open(yaml_path, encoding='utf-8') as yf:
+                    bm = yaml.safe_load(yf)
+                unsolved_ids = {fs.id for fs in self.flag_states if not fs.solved}
+                hints = []
+                for flag_def in bm.get('flags', []):
+                    if flag_def['id'] in unsolved_ids and flag_def.get('hint'):
+                        hints.append(f"{flag_def.get('route','/')}: {flag_def['hint']}")
+                if hints:
+                    return "Hints for unsolved routes:\n" + "\n".join(hints)
+
+        return metadata.get('description', '')
 
     def get_benchmark(self) -> Benchmark:
         metadata_path = Challenge.get_base_path(self.get_benchmark_id(), self.challenge_code) / 'benchmark.json'

@@ -209,6 +209,7 @@ async def tch_start_challenge(payload: StartChallengeRequest):
     try:
         entrypoints = manager.start_challenge_instance(payload.code)
     except Exception as e:
+        logger.error("start_challenge failed", action="api", challenge_code=payload.code, error=str(e))
         _err(f"赛题启动失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
 
@@ -420,10 +421,10 @@ def serve(
         "0.0.0.0",
         help="Host to bind to",
     ),
-    port: int = typer.Option(8000, help="Port to bind to"),
+    port: int = typer.Option(8088, help="Port to bind to"),
     public_accessible_host: str = typer.Option(
-        "host.docker.internal",
-        help="Public accessible host",
+        "localhost",
+        help="Public accessible host for entrypoint URLs",
     ),
 ):
     global CHALLENGES, manager

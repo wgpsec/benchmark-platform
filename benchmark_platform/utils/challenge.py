@@ -163,7 +163,7 @@ class ChallengeManager:
     def start_challenge_instance(self, challenge_code: str) -> list[str]:
         """Start docker containers for one challenge. Return entrypoint list."""
         challenge = self._find_by_code(challenge_code)
-        self._compose(challenge.get_benchmark_id(), challenge_code, 'up', '-d', '--wait')
+        self._compose(challenge.get_benchmark_id(), challenge_code, 'up', '-d')
         self._instance_status[challenge_code] = "running"
         return [
             f"{self.public_accessible_host}:{p}"
@@ -206,11 +206,15 @@ class ChallengeManager:
         path = Challenge.get_base_path(benchmark_id, code)
         if not (path / 'docker-compose.yml').exists():
             return
+        cmd = ['docker', 'compose'] + list(args)
+        logger.info("docker compose", action="compose", cmd=" ".join(cmd), cwd=str(path))
         res = subprocess.run(
-            ['docker', 'compose'] + list(args),
+            cmd,
             cwd=path, capture_output=True, text=True,
         )
         if res.returncode != 0:
+            logger.error("docker compose failed", action="compose",
+                         cmd=" ".join(cmd), stderr=res.stderr[:500], stdout=res.stdout[:200])
             raise RuntimeError(f"Docker compose failed: {res.stderr}")
 
     def print_summary_table(self) -> None:

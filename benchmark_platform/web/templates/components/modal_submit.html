@@ -59,7 +59,9 @@
                     } else {
                       $dispatch('toast', {type:'error', message: (data.data && data.data.message) || '答案错误'});
                     }
-                    htmx.ajax('GET', '/web/partials/challenge_card?code=' + code, '#card-' + code);
+                    fetch('/web/partials/challenge_card?code=' + code).then(r=>r.text()).then(html => {
+                      document.getElementById('card-' + code).outerHTML = html;
+                    });
                   })
                   .catch(() => {
                     submitting = false;

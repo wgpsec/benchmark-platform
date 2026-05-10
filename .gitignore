@@ -140,9 +140,6 @@ cython_debug/
 # Visual Studio Code
 .vscode/
 
-# Testing challenge
-challenges/
-
 # Logs
 logs/
 .venv/
