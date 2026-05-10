@@ -27,8 +27,10 @@ def _get_store(request: Request):
 
 
 def _render(request: Request, template: str, ctx: dict):
+    from benchmark_platform import __version__
     manager = _get_manager(request)
     ctx.setdefault("no_level_gate", manager.no_level_gate if manager else False)
+    ctx.setdefault("version", __version__)
     return templates.TemplateResponse(request, template, context=ctx)
 
 
