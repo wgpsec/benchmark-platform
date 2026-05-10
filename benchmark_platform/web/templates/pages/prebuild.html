@@ -30,6 +30,14 @@
         </button>
       </template>
 
+      <!-- Clean all button -->
+      <template x-if="!building && cachedCount > 0">
+        <button @click="removeAll()"
+                class="h-9 px-4 text-red-600 bg-white border border-red-200 text-[12px] font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+          清理所有镜像
+        </button>
+      </template>
+
       <!-- Stop button -->
       <template x-if="building">
         <button @click="stopBuild()"
@@ -48,21 +56,25 @@
           <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Benchmark ID</th>
           <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">名称</th>
           <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">状态</th>
+          <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">操作</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         <template x-for="item in challenges" :key="item.code">
           <tr>
-            <td colspan="3" class="p-0">
+            <td colspan="4" class="p-0">
               <div>
                 <!-- Row -->
-                <div @click="toggle(item.code)"
-                     class="flex items-center cursor-pointer hover:bg-gray-50 transition-colors px-4 py-3">
-                  <div class="flex-1 text-[12px] text-gray-700 font-mono" x-text="item.benchmark_id"></div>
-                  <div class="flex-1 text-[12px] text-gray-700" x-text="item.name"></div>
-                  <div class="flex-1">
+                <div class="flex items-center hover:bg-gray-50 transition-colors px-4 py-3">
+                  <div @click="toggle(item.code)" class="flex-1 text-[12px] text-gray-700 font-mono cursor-pointer" x-text="item.benchmark_id"></div>
+                  <div @click="toggle(item.code)" class="flex-1 text-[12px] text-gray-700 cursor-pointer" x-text="item.name"></div>
+                  <div @click="toggle(item.code)" class="flex-1 cursor-pointer">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
                           :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
+                  </div>
+                  <div class="w-16 text-right">
+                    <button x-show="item.status === 'cached'" @click.stop="removeOne(item.code)"
+                            class="text-[11px] text-red-500 hover:text-red-700 cursor-pointer">删除</button>
                   </div>
                 </div>
                 <!-- Expandable log -->
@@ -155,6 +167,42 @@ function prebuildPage() {
         await fetch('/api/prebuild/stop', {method: 'POST'});
       } catch (e) {
         console.error('stopBuild error', e);
+      }
+    },
+
+    async removeOne(code) {
+      if (!confirm('确认删除该题目的镜像？')) return;
+      try {
+        const res = await fetch('/api/prebuild/remove', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({code}),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          this.$dispatch('toast', {type:'success', message: data.message});
+          this.fetchStatus();
+        } else {
+          this.$dispatch('toast', {type:'error', message: data.detail?.message || '删除失败'});
+        }
+      } catch (e) {
+        this.$dispatch('toast', {type:'error', message:'删除失败'});
+      }
+    },
+
+    async removeAll() {
+      if (!confirm('确认清理所有已缓存的镜像？')) return;
+      try {
+        const res = await fetch('/api/prebuild/remove_all', {method: 'POST'});
+        const data = await res.json();
+        if (data.code === 0) {
+          this.$dispatch('toast', {type:'success', message: data.message});
+          this.fetchStatus();
+        } else {
+          this.$dispatch('toast', {type:'error', message: '清理失败'});
+        }
+      } catch (e) {
+        this.$dispatch('toast', {type:'error', message:'清理失败'});
       }
     },
 

@@ -513,6 +513,35 @@ async def prebuild_status():
     })
 
 
+class PrebuildRemoveRequest(PydanticBaseModel):
+    code: str
+
+
+@app.post("/api/prebuild/remove")
+async def prebuild_remove(payload: PrebuildRemoveRequest):
+    prebuild_mgr = getattr(app.state, "prebuild_manager", None)
+    if prebuild_mgr is None:
+        _err("Prebuild manager not initialized", 400)
+        return
+
+    ok, msg = prebuild_mgr.remove_images(payload.code)
+    if not ok:
+        _err(msg, 400)
+        return
+    return _ok(None, msg)
+
+
+@app.post("/api/prebuild/remove_all")
+async def prebuild_remove_all():
+    prebuild_mgr = getattr(app.state, "prebuild_manager", None)
+    if prebuild_mgr is None:
+        _err("Prebuild manager not initialized", 400)
+        return
+
+    removed, failed = prebuild_mgr.remove_all_images()
+    return _ok({"removed": removed, "failed": failed}, f"已清理 {removed} 个题目的镜像")
+
+
 app_cli = typer.Typer()
 
 

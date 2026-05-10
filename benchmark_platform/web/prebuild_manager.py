@@ -128,6 +128,62 @@ class PrebuildManager:
     def total_count(self) -> int:
         return len(self._statuses)
 
+    def remove_images(self, challenge_code: str) -> tuple[bool, str]:
+        """Remove Docker images for a single challenge. Returns (success, message)."""
+        cs = self._statuses.get(challenge_code)
+        if not cs:
+            return False, "Challenge not found"
+
+        challenge = next((c for c in self._challenges if c.challenge_code == challenge_code), None)
+        if not challenge:
+            return False, "Challenge not found"
+
+        path = Challenge.get_base_path(challenge.get_benchmark_id(), challenge.challenge_code)
+        if not (path / "docker-compose.yml").exists():
+            return False, "docker-compose.yml not found"
+
+        try:
+            res = subprocess.run(
+                ["docker", "compose", "config", "--images"],
+                cwd=path, capture_output=True, text=True, timeout=15,
+            )
+            if res.returncode != 0:
+                return False, "Failed to get image list"
+
+            images = [img.strip() for img in res.stdout.strip().splitlines() if img.strip()]
+            if not images:
+                return False, "No images found"
+
+            removed = []
+            for img in images:
+                rmi = subprocess.run(
+                    ["docker", "rmi", "-f", img],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if rmi.returncode == 0:
+                    removed.append(img)
+
+            cs.status = "pending"
+            cs.log_lines.clear()
+            return True, f"已删除 {len(removed)} 个镜像"
+        except Exception as e:
+            return False, str(e)
+
+    def remove_all_images(self) -> tuple[int, int]:
+        """Remove images for all cached challenges. Returns (removed_count, failed_count)."""
+        removed = 0
+        failed = 0
+        for c in self._challenges:
+            cs = self._statuses[c.challenge_code]
+            if cs.status != "cached":
+                continue
+            ok, _ = self.remove_images(c.challenge_code)
+            if ok:
+                removed += 1
+            else:
+                failed += 1
+        return removed, failed
+
     # ── Internal ────────────────────────────────────────────────────────
 
     def _run_builds(self, concurrency: int) -> None:
