@@ -172,3 +172,33 @@ async def partial_sidebar_summary(request: Request):
     else:
         ctx = {}
     return _render(request, "components/_sidebar_summary_content.html", ctx)
+
+
+# -- Team management routes ----------------------------------------------------
+
+@web_router.get("/teams")
+async def page_teams(request: Request):
+    from benchmark_platform.db import list_teams
+    teams = list_teams()
+    return _render(request, "pages/teams.html", {"page": "teams", "teams": teams})
+
+
+@web_router.post("/api/teams/create")
+async def api_create_team(request: Request):
+    from benchmark_platform.db import create_team
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        return {"code": -1, "message": "队伍名称不能为空", "data": None}
+    try:
+        team = create_team(name)
+    except ValueError as e:
+        return {"code": -1, "message": str(e), "data": None}
+    return {"code": 0, "message": "创建成功", "data": team}
+
+
+@web_router.get("/api/teams")
+async def api_list_teams(request: Request):
+    from benchmark_platform.db import list_teams
+    teams = list_teams()
+    return {"code": 0, "message": "success", "data": teams}

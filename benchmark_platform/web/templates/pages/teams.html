@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}队伍管理 — Benchmark Platform{% endblock %}
+{% block content %}
+<div x-data="teamsPage()" x-init="init()">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="text-[13px] text-gray-500">
+      共 <span x-text="teams.length" class="font-medium text-gray-700">{{ teams|length }}</span> 支队伍
+    </div>
+    <button @click="showCreate = true"
+            class="h-9 px-4 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
+      创建队伍
+    </button>
+  </div>
+
+  <!-- Leaderboard Table -->
+  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50 border-b border-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500 w-12">#</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">队伍名称</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Token</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">解题数</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">创建时间</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <template x-for="(team, idx) in teams" :key="team.id">
+          <tr class="hover:bg-gray-50 transition-colors">
+            <td class="px-4 py-3 text-[12px] text-gray-500 font-medium" x-text="idx + 1"></td>
+            <td class="px-4 py-3 text-[12px] text-gray-900 font-medium" x-text="team.name"></td>
+            <td class="px-4 py-3">
+              <code class="text-[11px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-600"
+                    x-text="team.token.slice(0, 8) + '...'"></code>
+              <button @click="copyToken(team.token)"
+                      class="ml-1 text-[11px] text-gray-400 hover:text-gray-600 cursor-pointer">复制</button>
+            </td>
+            <td class="px-4 py-3 text-[12px] text-gray-700" x-text="team.solved_flags + ' flags'"></td>
+            <td class="px-4 py-3 text-[12px] text-gray-500" x-text="team.created_at"></td>
+          </tr>
+        </template>
+        <template x-if="teams.length === 0">
+          <tr><td colspan="5" class="px-4 py-8 text-center text-[12px] text-gray-400">暂无队伍，点击右上角创建</td></tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Create Modal -->
+  <div x-show="showCreate" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+       @click.self="showCreate = false">
+    <div class="bg-white rounded-xl shadow-xl w-96 p-6">
+      <h3 class="text-[14px] font-semibold text-gray-900 mb-4">创建队伍</h3>
+      <input x-model="newName" type="text" placeholder="输入队伍名称"
+             class="w-full h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300"
+             @keydown.enter="doCreate()">
+      <div class="flex justify-end gap-2 mt-4">
+        <button @click="showCreate = false"
+                class="h-8 px-3 text-[12px] text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">取消</button>
+        <button @click="doCreate()"
+                class="h-8 px-3 text-[12px] text-white bg-gray-900 rounded-lg hover:bg-gray-800 cursor-pointer">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token Display Modal -->
+  <div x-show="showToken" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+       @click.self="showToken = false">
+    <div class="bg-white rounded-xl shadow-xl w-[480px] p-6">
+      <h3 class="text-[14px] font-semibold text-gray-900 mb-2">队伍创建成功</h3>
+      <p class="text-[12px] text-gray-500 mb-4">请保存以下 Token，它只会显示一次：</p>
+      <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+        <code class="flex-1 text-[12px] font-mono text-gray-900 break-all" x-text="createdToken"></code>
+        <button @click="copyToken(createdToken)"
+                class="text-[11px] text-gray-500 hover:text-gray-700 shrink-0 cursor-pointer">复制</button>
+      </div>
+      <div class="flex justify-end mt-4">
+        <button @click="showToken = false"
+                class="h-8 px-3 text-[12px] text-white bg-gray-900 rounded-lg hover:bg-gray-800 cursor-pointer">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function teamsPage() {
+  return {
+    teams: [],
+    showCreate: false,
+    showToken: false,
+    newName: '',
+    createdToken: '',
+
+    init() { this.fetchTeams(); },
+
+    async fetchTeams() {
+      try {
+        const res = await fetch('/web/api/teams');
+        const data = await res.json();
+        if (data.code === 0) this.teams = data.data;
+      } catch(e) { console.error(e); }
+    },
+
+    async doCreate() {
+      const name = this.newName.trim();
+      if (!name) return;
+      try {
+        const res = await fetch('/web/api/teams/create', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name}),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          this.createdToken = data.data.token;
+          this.showCreate = false;
+          this.showToken = true;
+          this.newName = '';
+          this.fetchTeams();
+        } else {
+          alert(data.message);
+        }
+      } catch(e) {
+        alert('创建失败');
+      }
+    },
+
+    copyToken(token) {
+      navigator.clipboard.writeText(token);
+    },
+  };
+}
+</script>
+{% endblock %}
