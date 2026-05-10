@@ -5,7 +5,7 @@ from benchmark_platform.db import (
     init_db, create_team, list_teams, get_team_by_token,
     get_or_create_default_team, mark_flag_solved,
     get_team_solved_count, is_hint_viewed, mark_hint_viewed,
-    get_team_progress, _set_db_path,
+    get_team_progress, reset_team_progress, _set_db_path,
 )
 
 
@@ -90,3 +90,14 @@ def test_get_team_progress():
     assert progress["XBEN-001-24"]["flag1"] is True
     assert progress["XBEN-001-24"]["flag2"] is True
     assert progress["XBEN-002-24"]["default"] is True
+
+
+def test_reset_team_progress():
+    team = create_team("Team1")
+    mark_flag_solved(team["id"], "XBEN-001-24", "flag1")
+    mark_hint_viewed(team["id"], "XBEN-001-24")
+    assert get_team_solved_count(team["id"], "XBEN-001-24") == 1
+    assert is_hint_viewed(team["id"], "XBEN-001-24") is True
+    reset_team_progress(team["id"])
+    assert get_team_solved_count(team["id"], "XBEN-001-24") == 0
+    assert is_hint_viewed(team["id"], "XBEN-001-24") is False

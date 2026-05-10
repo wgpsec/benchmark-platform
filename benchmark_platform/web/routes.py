@@ -202,3 +202,14 @@ async def api_list_teams(request: Request):
     from benchmark_platform.db import list_teams
     teams = list_teams()
     return {"code": 0, "message": "success", "data": teams}
+
+
+@web_router.post("/api/teams/reset")
+async def api_reset_team(request: Request):
+    from benchmark_platform.db import reset_team_progress
+    body = await request.json()
+    team_id = body.get("team_id", "").strip()
+    if not team_id:
+        return {"code": -1, "message": "缺少 team_id", "data": None}
+    reset_team_progress(team_id)
+    return {"code": 0, "message": "进度已重置", "data": None}

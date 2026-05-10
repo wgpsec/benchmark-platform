@@ -155,3 +155,10 @@ def get_team_progress(team_id: str) -> dict:
             result[code] = {}
         result[code][r["flag_id"]] = bool(r["solved"])
     return result
+
+
+def reset_team_progress(team_id: str) -> None:
+    conn = _get_conn()
+    conn.execute("DELETE FROM team_progress WHERE team_id = ?", (team_id,))
+    conn.execute("DELETE FROM team_hints WHERE team_id = ?", (team_id,))
+    conn.commit()
