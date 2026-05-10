@@ -155,6 +155,13 @@ async def tch_get_challenges():
         entrypoint = None
         if status in ("running", "unhealthy"):
             entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
+
+        if c.flag_count > 0:
+            per_flag_score = c.points // c.flag_count
+            got_score = per_flag_score * c.solved_count
+        else:
+            got_score = c.points if c.solved else 0
+
         challenge_list.append({
             "benchmark_id": c.get_benchmark_id(),
             "title": bm.name,
@@ -163,7 +170,7 @@ async def tch_get_challenges():
             "description": bm.description,
             "level": bm.level,
             "total_score": c.points,
-            "total_got_score": c.points if c.solved else 0,
+            "total_got_score": got_score,
             "flag_count": c.flag_count,
             "flag_got_count": c.solved_count,
             "flags": [
@@ -177,6 +184,7 @@ async def tch_get_challenges():
 
     solved = sum(1 for c in all_challenges if c.solved)
     return _ok({
+        "current_level": manager.get_current_level(),
         "total_challenges": len(all_challenges),
         "solved_challenges": solved,
         "challenges": challenge_list,
@@ -307,10 +315,16 @@ async def tch_submit(payload: SubmitFlagRequest):
             points=challenge.points if is_correct and matched_flag_id else 0,
         ))
 
+    if is_correct:
+        per_flag_score = challenge.points // challenge.flag_count if challenge.flag_count > 0 else challenge.points
+        msg = f"恭喜！答案正确（{challenge.solved_count}/{challenge.flag_count}），获得{per_flag_score}分"
+    else:
+        msg = "答案错误，请继续尝试"
+
     return _ok({
         "correct": is_correct,
         "flag_id": matched_flag_id,
-        "message": "恭喜！答案正确" if is_correct else "答案错误，请继续尝试",
+        "message": msg,
         "flag_count": challenge.flag_count,
         "flag_got_count": challenge.solved_count,
         "all_solved": challenge.solved,
