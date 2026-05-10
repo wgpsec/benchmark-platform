@@ -137,6 +137,12 @@ bash scripts/prebuild_on_vm.sh
 - **容器**: Docker Compose
 - **日志**: 结构化 JSONL
 
+## 参考项目
+
+- [xbow-engineering/validation-benchmarks](https://github.com/xbow-engineering/validation-benchmarks)
+- [Neuro-Sploit/xbow-validation-benchmarks](https://github.com/Neuro-Sploit/xbow-validation-benchmarks)
+- [Yeti-791/Tsec-Hackathon](https://github.com/Yeti-791/Tsec-Hackathon)
+
 ## WgpSec Agentic Ecosystem
 
 benchmark-platform 是 **WgpSec Agentic Ecosystem** 的评估层 — 衡量 AI Agent 在真实攻防场景中的表现。
