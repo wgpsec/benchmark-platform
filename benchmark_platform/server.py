@@ -454,6 +454,65 @@ async def tch_stop_level(payload: BatchLevelRequest):
     return _ok({"stopped": len(stopped)}, f"已停止 {len(stopped)} 个实例")
 
 
+# ── Prebuild/Cache API ──────────────────────────────────────────────────────
+
+class PrebuildStartRequest(PydanticBaseModel):
+    concurrency: int = 1
+
+
+@app.post("/api/prebuild/start")
+async def prebuild_start(payload: PrebuildStartRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    from benchmark_platform.web.prebuild_manager import PrebuildManager
+
+    # Create or reuse existing manager
+    prebuild_mgr = getattr(app.state, "prebuild_manager", None)
+    if prebuild_mgr is None or not prebuild_mgr.is_running:
+        prebuild_mgr = PrebuildManager(manager.challenges)
+        prebuild_mgr.check_cached()
+        app.state.prebuild_manager = prebuild_mgr
+
+    if not prebuild_mgr.is_running:
+        concurrency = max(1, min(3, payload.concurrency))
+        prebuild_mgr.start(concurrency)
+
+    return _ok(None, "预构建已启动")
+
+
+@app.post("/api/prebuild/stop")
+async def prebuild_stop():
+    prebuild_mgr = getattr(app.state, "prebuild_manager", None)
+    if prebuild_mgr is None:
+        _err("No prebuild in progress", 400)
+        return
+    prebuild_mgr.stop()
+    return _ok(None, "已发送停止信号")
+
+
+@app.get("/api/prebuild/status")
+async def prebuild_status():
+    prebuild_mgr = getattr(app.state, "prebuild_manager", None)
+    if prebuild_mgr is None:
+        # No manager yet — return empty state
+        if manager is None:
+            return _ok({"challenges": [], "cached_count": 0, "total_count": 0, "building": False})
+        # Create one on-the-fly for status check
+        from benchmark_platform.web.prebuild_manager import PrebuildManager
+        prebuild_mgr = PrebuildManager(manager.challenges)
+        prebuild_mgr.check_cached()
+        app.state.prebuild_manager = prebuild_mgr
+
+    return _ok({
+        "challenges": prebuild_mgr.get_status(),
+        "cached_count": prebuild_mgr.cached_count,
+        "total_count": prebuild_mgr.total_count,
+        "building": prebuild_mgr.is_running,
+    })
+
+
 app_cli = typer.Typer()
 
 

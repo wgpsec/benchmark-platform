@@ -79,6 +79,27 @@ async def page_status(request: Request):
     return _render(request, "pages/status.html", {"page": "status", **ctx})
 
 
+@web_router.get("/prebuild")
+async def page_prebuild(request: Request):
+    manager = _get_manager(request)
+    prebuild_mgr = getattr(request.app.state, "prebuild_manager", None)
+
+    if manager and prebuild_mgr is None:
+        from benchmark_platform.web.prebuild_manager import PrebuildManager
+        prebuild_mgr = PrebuildManager(manager.challenges)
+        prebuild_mgr.check_cached()
+        request.app.state.prebuild_manager = prebuild_mgr
+
+    cached_count = prebuild_mgr.cached_count if prebuild_mgr else 0
+    total_count = prebuild_mgr.total_count if prebuild_mgr else 0
+
+    return _render(request, "pages/prebuild.html", {
+        "page": "prebuild",
+        "cached_count": cached_count,
+        "total_count": total_count,
+    })
+
+
 # -- Partial routes (HTMX) ---------------------------------------------------
 
 @web_router.get("/partials/dashboard_stats")

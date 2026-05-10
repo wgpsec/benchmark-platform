@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}镜像预热 — Benchmark Platform{% endblock %}
+{% block content %}
+<div x-data="prebuildPage()" x-init="init()">
+  <!-- Stats bar -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="text-[13px] text-gray-500">
+      <span class="text-emerald-600 font-medium">已缓存 <span x-text="cachedCount">{{ cached_count }}</span></span> /
+      总共 <span x-text="totalCount">{{ total_count }}</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Concurrency selector -->
+      <template x-if="!building">
+        <div class="flex items-center gap-2">
+          <span class="text-[12px] text-gray-500">并发数:</span>
+          <select x-model.number="concurrency"
+                  class="h-8 px-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-gray-300">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </div>
+      </template>
+
+      <!-- Start button -->
+      <template x-if="!building">
+        <button @click="startBuild()"
+                class="h-9 px-4 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
+          开始预构建
+        </button>
+      </template>
+
+      <!-- Stop button -->
+      <template x-if="building">
+        <button @click="stopBuild()"
+                class="h-9 px-4 bg-red-500 text-white text-[12px] font-medium rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
+          停止
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50 border-b border-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Benchmark ID</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">名称</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">状态</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <template x-for="item in challenges" :key="item.code">
+          <tr>
+            <td colspan="3" class="p-0">
+              <div>
+                <!-- Row -->
+                <div @click="toggle(item.code)"
+                     class="flex items-center cursor-pointer hover:bg-gray-50 transition-colors px-4 py-3">
+                  <div class="flex-1 text-[12px] text-gray-700 font-mono" x-text="item.benchmark_id"></div>
+                  <div class="flex-1 text-[12px] text-gray-700" x-text="item.name"></div>
+                  <div class="flex-1">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                          :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
+                  </div>
+                </div>
+                <!-- Expandable log -->
+                <div x-show="expanded[item.code]" x-collapse
+                     class="border-t border-gray-100 bg-gray-900 px-4 py-3 max-h-60 overflow-y-auto"
+                     :id="'log-' + item.code"
+                     x-effect="if(expanded[item.code]) scrollLog(item.code)">
+                  <template x-if="item.log_lines.length === 0">
+                    <p class="text-gray-500 text-[11px] font-mono">暂无日志</p>
+                  </template>
+                  <template x-for="(line, idx) in item.log_lines" :key="idx">
+                    <div class="text-[11px] font-mono text-gray-300 leading-5 whitespace-pre-wrap" x-text="line"></div>
+                  </template>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function prebuildPage() {
+  return {
+    challenges: [],
+    building: false,
+    concurrency: 1,
+    cachedCount: {{ cached_count }},
+    totalCount: {{ total_count }},
+    expanded: {},
+    pollTimer: null,
+
+    init() {
+      this.fetchStatus();
+    },
+
+    async fetchStatus() {
+      try {
+        const res = await fetch('/api/prebuild/status');
+        const data = await res.json();
+        if (data.code === 0) {
+          this.challenges = data.data.challenges;
+          this.cachedCount = data.data.cached_count;
+          this.totalCount = data.data.total_count;
+          this.building = data.data.building;
+
+          if (this.building && !this.pollTimer) {
+            this.startPolling();
+          } else if (!this.building && this.pollTimer) {
+            this.stopPolling();
+          }
+        }
+      } catch (e) {
+        console.error('fetchStatus error', e);
+      }
+    },
+
+    startPolling() {
+      this.pollTimer = setInterval(() => this.fetchStatus(), 2000);
+    },
+
+    stopPolling() {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
+      }
+    },
+
+    async startBuild() {
+      try {
+        const res = await fetch('/api/prebuild/start', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({concurrency: this.concurrency}),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          this.building = true;
+          this.startPolling();
+        }
+      } catch (e) {
+        console.error('startBuild error', e);
+      }
+    },
+
+    async stopBuild() {
+      try {
+        await fetch('/api/prebuild/stop', {method: 'POST'});
+      } catch (e) {
+        console.error('stopBuild error', e);
+      }
+    },
+
+    toggle(code) {
+      this.expanded[code] = !this.expanded[code];
+    },
+
+    scrollLog(code) {
+      this.$nextTick(() => {
+        const el = document.getElementById('log-' + code);
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    },
+
+    statusClass(status) {
+      switch(status) {
+        case 'cached': return 'bg-emerald-50 text-emerald-700';
+        case 'building': return 'bg-blue-50 text-blue-700';
+        case 'failed': return 'bg-red-50 text-red-700';
+        default: return 'bg-gray-100 text-gray-600';
+      }
+    },
+
+    statusLabel(status) {
+      switch(status) {
+        case 'cached': return '已缓存';
+        case 'building': return '构建中';
+        case 'failed': return '失败';
+        default: return '未缓存';
+      }
+    },
+  };
+}
+</script>
+{% endblock %}
