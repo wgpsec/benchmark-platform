@@ -31,10 +31,11 @@
             <td class="px-4 py-3 text-[12px] text-gray-500 font-medium" x-text="idx + 1"></td>
             <td class="px-4 py-3 text-[12px] text-gray-900 font-medium" x-text="team.name"></td>
             <td class="px-4 py-3">
-              <code class="text-[11px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-600"
-                    x-text="team.token.slice(0, 8) + '...'"></code>
+              <code class="text-[11px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 select-all"
+                    x-text="team.token"></code>
               <button @click="copyToken(team.token)"
-                      class="ml-1 text-[11px] text-gray-400 hover:text-gray-600 cursor-pointer">复制</button>
+                      class="ml-1 text-[11px] text-gray-400 hover:text-gray-600 cursor-pointer"
+                      x-text="copied === team.token ? '已复制' : '复制'"></button>
             </td>
             <td class="px-4 py-3 text-[12px] text-gray-700" x-text="team.solved_flags + ' flags'"></td>
             <td class="px-4 py-3 text-[12px] text-gray-500" x-text="team.created_at"></td>
@@ -71,7 +72,7 @@
        @click.self="showToken = false">
     <div class="bg-white rounded-xl shadow-xl w-[480px] p-6">
       <h3 class="text-[14px] font-semibold text-gray-900 mb-2">队伍创建成功</h3>
-      <p class="text-[12px] text-gray-500 mb-4">请保存以下 Token，它只会显示一次：</p>
+      <p class="text-[12px] text-gray-500 mb-4">队伍 Token 如下，可在列表中随时查看和复制：</p>
       <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
         <code class="flex-1 text-[12px] font-mono text-gray-900 break-all" x-text="createdToken"></code>
         <button @click="copyToken(createdToken)"
@@ -93,6 +94,7 @@ function teamsPage() {
     showToken: false,
     newName: '',
     createdToken: '',
+    copied: '',
 
     init() { this.fetchTeams(); },
 
@@ -129,7 +131,16 @@ function teamsPage() {
     },
 
     copyToken(token) {
-      navigator.clipboard.writeText(token);
+      const ta = document.createElement('textarea');
+      ta.value = token;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      this.copied = token;
+      setTimeout(() => { this.copied = ''; }, 2000);
     },
   };
 }
