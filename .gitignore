@@ -153,3 +153,5 @@ scripts/images/*.tar
 
 # Challenge runtime data
 challenges/
+
+docs/
