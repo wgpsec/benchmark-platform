@@ -110,7 +110,7 @@ class ChallengeManager:
                 data = yaml.safe_load(f)
 
             allocated_ports = []
-            for svc in data.get('services', {}).values():
+            for svc_name, svc in data.get('services', {}).items():
                 new_ports = []
                 for p in svc.get('ports', []):
                     if isinstance(p, str) and ':' in p:
@@ -121,6 +121,8 @@ class ChallengeManager:
                     else:
                         new_ports.append(p)
                 svc['ports'] = new_ports
+                if 'build' in svc and 'image' not in svc:
+                    svc['image'] = f"{benchmark_id}-{svc_name}".lower()
 
             with open(compose_path, 'w') as f:
                 yaml.dump(data, f)

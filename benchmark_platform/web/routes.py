@@ -86,7 +86,7 @@ async def page_prebuild(request: Request):
 
     if manager and prebuild_mgr is None:
         from benchmark_platform.web.prebuild_manager import PrebuildManager
-        prebuild_mgr = PrebuildManager(manager.challenges)
+        prebuild_mgr = PrebuildManager(manager.challenges, manager.benchmark_folders)
         prebuild_mgr.check_cached()
         request.app.state.prebuild_manager = prebuild_mgr
 

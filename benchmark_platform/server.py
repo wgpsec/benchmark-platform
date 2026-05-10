@@ -471,7 +471,7 @@ async def prebuild_start(payload: PrebuildStartRequest):
     # Create or reuse existing manager
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
     if prebuild_mgr is None or not prebuild_mgr.is_running:
-        prebuild_mgr = PrebuildManager(manager.challenges)
+        prebuild_mgr = PrebuildManager(manager.challenges, manager.benchmark_folders)
         prebuild_mgr.check_cached()
         app.state.prebuild_manager = prebuild_mgr
 
@@ -501,7 +501,7 @@ async def prebuild_status():
             return _ok({"challenges": [], "cached_count": 0, "total_count": 0, "building": False})
         # Create one on-the-fly for status check
         from benchmark_platform.web.prebuild_manager import PrebuildManager
-        prebuild_mgr = PrebuildManager(manager.challenges)
+        prebuild_mgr = PrebuildManager(manager.challenges, manager.benchmark_folders)
         prebuild_mgr.check_cached()
         app.state.prebuild_manager = prebuild_mgr
 
