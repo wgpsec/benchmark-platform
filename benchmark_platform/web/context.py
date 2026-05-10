@@ -38,6 +38,12 @@ def _challenge_to_card(manager: ChallengeManager, challenge) -> dict:
     }
 
 
+def leaderboard_context() -> list:
+    """Get team leaderboard data for dashboard."""
+    from benchmark_platform.db import list_teams
+    return list_teams()
+
+
 def dashboard_context(manager: ChallengeManager, store: SubmissionStore) -> dict:
     challenges = manager.challenges
     total_challenges = len(challenges)
@@ -75,6 +81,8 @@ def dashboard_context(manager: ChallengeManager, store: SubmissionStore) -> dict
 
     recent = store.query(limit=10)
 
+    leaderboard = leaderboard_context()
+
     return {
         "total_challenges": total_challenges,
         "solved_challenges": solved_challenges,
@@ -89,6 +97,7 @@ def dashboard_context(manager: ChallengeManager, store: SubmissionStore) -> dict
         "submission_total": store.total_count,
         "submission_correct": store.correct_count,
         "submission_incorrect": store.incorrect_count,
+        "leaderboard": leaderboard,
     }
 
 

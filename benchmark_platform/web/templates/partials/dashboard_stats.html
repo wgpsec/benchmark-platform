@@ -97,3 +97,31 @@
     {% endfor %}
   </div>
 </div>
+
+<!-- Leaderboard -->
+<div class="bg-white rounded-xl border border-gray-100 overflow-hidden mt-6">
+  <div class="px-4 py-3 border-b border-gray-100">
+    <h3 class="text-[13px] font-semibold text-gray-900">队伍排行榜</h3>
+  </div>
+  <table class="w-full">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="px-4 py-2 text-left text-[11px] font-medium text-gray-500 w-10">#</th>
+        <th class="px-4 py-2 text-left text-[11px] font-medium text-gray-500">队伍</th>
+        <th class="px-4 py-2 text-right text-[11px] font-medium text-gray-500">解题 Flags</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for team in leaderboard %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2 text-[11px] text-gray-500">{{ loop.index }}</td>
+        <td class="px-4 py-2 text-[12px] text-gray-900 font-medium">{{ team.name }}</td>
+        <td class="px-4 py-2 text-[12px] text-gray-700 text-right">{{ team.solved_flags }}</td>
+      </tr>
+      {% endfor %}
+      {% if not leaderboard %}
+      <tr><td colspan="3" class="px-4 py-4 text-center text-[11px] text-gray-400">暂无队伍数据</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
