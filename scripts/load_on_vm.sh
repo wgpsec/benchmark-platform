@@ -1,11 +1,13 @@
 #!/bin/bash
 # 在 Mac 上运行：把保存好的镜像传到 VM 并 load
-# 用法：bash scripts/load_on_vm.sh
+# 用法：VM_HOST=x VM_USER=x VM_PASS=x bash scripts/load_on_vm.sh
 
-VM_HOST="10.211.55.7"
-VM_PORT="2222"
-VM_USER="root"
-VM_PASS="Abcd1234"
+set -e
+
+: "${VM_HOST:?请设置 VM_HOST 环境变量}"
+: "${VM_PORT:=22}"
+: "${VM_USER:?请设置 VM_USER 环境变量}"
+: "${VM_PASS:?请设置 VM_PASS 环境变量}"
 SAVE_DIR="$(dirname "$0")/images"
 
 if [ ! -d "$SAVE_DIR" ] || [ -z "$(ls -A $SAVE_DIR/*.tar 2>/dev/null)" ]; then
