@@ -132,6 +132,31 @@ bash scripts/prebuild_on_vm.sh
 - **容器**: Docker Compose
 - **日志**: 结构化 JSONL
 
+## WgpSec Agentic Ecosystem
+
+benchmark-platform is the evaluation layer of the **WgpSec Agentic Ecosystem** — measuring how well AI agents perform in real offensive security scenarios.
+
+```
+┌───────────────────── WgpSec Agentic Ecosystem ─────────────────────┐
+│                                                                     │
+│  Knowledge ➜ Service ➜ Execution ➜ Evaluation                      │
+│                                                                     │
+│  AboutSecurity ──▶ context1337 ──▶ tchkiller ──▶ benchmark-platform │
+│  (Knowledge Base)  (MCP Server)    (Pentest Agent)  (this repo)    │
+│                                         ▲                           │
+│                                    PoJun (通用求解引擎)              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Project | Role |
+|---------|------|
+| [AboutSecurity](https://github.com/wgpsec/AboutSecurity) | Structured pentest knowledge base (Skills, Dic, Payload, Vuln) |
+| [context1337](https://github.com/wgpsec/context1337) | MCP Server — turns AboutSecurity into a searchable API for AI agents |
+| [tchkiller](https://github.com/wgpsec/tchkiller) | Autonomous pentest agent with multi-round decision-making and team collaboration |
+| [benchmark-platform](https://github.com/wgpsec/benchmark-platform) | CTF challenge platform for evaluating agent offensive capabilities |
+| PoJun | General-purpose AI problem-solving engine (private) |
+
 ## License
 
 Internal use only.
