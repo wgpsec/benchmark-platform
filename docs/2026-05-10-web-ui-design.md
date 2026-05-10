@@ -79,7 +79,8 @@ benchmark-platform/
 │   ├── web/                       # 新增：Web 界面模块
 │   │   ├── __init__.py
 │   │   ├── routes.py              # 页面路由 + partials 路由
-│   │   └── context.py             # 模板上下文构建
+│   │   ├── context.py             # 模板上下文构建：从 manager/store 读取状态，
+│   │   │                          #   组装各页面所需的 dict 供 Jinja2 渲染
 │   │   └── templates/
 │   │       ├── base.html          # 骨架：侧边栏 + 主内容区 + CDN
 │   │       ├── components/
