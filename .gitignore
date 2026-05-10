@@ -147,4 +147,9 @@ logs/
 
 # Docker image tarballs
 scripts/images/*.tar
+
+# OS
 .DS_Store
+
+# Challenge runtime data
+challenges/
