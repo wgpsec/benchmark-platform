@@ -14,6 +14,8 @@ class SubmissionRecord:
     flag_value: str
     correct: bool
     points: int
+    team_id: str = ""
+    team_name: str = ""
 
 
 class SubmissionStore:

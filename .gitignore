@@ -155,3 +155,6 @@ scripts/images/*.tar
 challenges/
 
 docs/
+
+# Database
+data/

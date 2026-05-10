@@ -5,7 +5,7 @@ from typing import NoReturn
 
 import typer
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +22,12 @@ from benchmark_platform.utils.challenge import ChallengeManager
 from benchmark_platform.utils.logger import get_logger
 from benchmark_platform.web.routes import web_router
 from benchmark_platform.web.submission_store import SubmissionStore
+from benchmark_platform.auth import get_current_team
+from benchmark_platform.db import (
+    init_db, get_or_create_default_team,
+    mark_flag_solved, get_team_solved_count,
+    is_hint_viewed, mark_hint_viewed, get_team_progress,
+)
 
 
 app = FastAPI()
@@ -142,13 +148,15 @@ async def index():
 # ── tch-compatible API routes ─────────────────────────────────────────────────
 
 @app.get("/api/challenges")
-async def tch_get_challenges():
+async def tch_get_challenges(team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return  # unreachable, but makes control flow explicit
 
     all_challenges = manager.challenges
+    team_progress = get_team_progress(team["id"])
     challenge_list = []
+    total_solved_challenges = 0
     for c in all_challenges:
         bm = c.get_benchmark()
         status = manager.get_instance_status(c.challenge_code)
@@ -156,11 +164,27 @@ async def tch_get_challenges():
         if status in ("running", "unhealthy"):
             entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
 
+        team_solved = get_team_solved_count(team["id"], c.challenge_code)
+        all_solved = team_solved >= c.flag_count
+        hint_viewed = is_hint_viewed(team["id"], c.challenge_code)
+
+        if all_solved:
+            total_solved_challenges += 1
+
         if c.flag_count > 0:
             per_flag_score = c.points // c.flag_count
-            got_score = per_flag_score * c.solved_count
+            got_score = per_flag_score * team_solved
         else:
-            got_score = c.points if c.solved else 0
+            got_score = c.points if all_solved else 0
+
+        # Per-flag solved status from DB
+        progress_for_challenge = team_progress.get(c.challenge_code, {})
+        flags_info = None
+        if c.flag_states:
+            flags_info = [
+                {"id": fs.id, "route": fs.route, "description": fs.description, "solved": progress_for_challenge.get(fs.id, False)}
+                for fs in c.flag_states
+            ]
 
         challenge_list.append({
             "benchmark_id": c.get_benchmark_id(),
@@ -172,21 +196,17 @@ async def tch_get_challenges():
             "total_score": c.points,
             "total_got_score": got_score,
             "flag_count": c.flag_count,
-            "flag_got_count": c.solved_count,
-            "flags": [
-                {"id": fs.id, "route": fs.route, "description": fs.description, "solved": fs.solved}
-                for fs in c.flag_states
-            ] if c.flag_states else None,
-            "hint_viewed": c.hint_viewed,
+            "flag_got_count": team_solved,
+            "flags": flags_info,
+            "hint_viewed": hint_viewed,
             "instance_status": status,
             "entrypoint": entrypoint,
         })
 
-    solved = sum(1 for c in all_challenges if c.solved)
     return _ok({
         "current_level": manager.get_current_level(),
         "total_challenges": len(all_challenges),
-        "solved_challenges": solved,
+        "solved_challenges": total_solved_challenges,
         "challenges": challenge_list,
     })
 
@@ -196,7 +216,7 @@ class StartChallengeRequest(PydanticBaseModel):
 
 
 @app.post("/api/start_challenge")
-async def tch_start_challenge(payload: StartChallengeRequest):
+async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return  # unreachable, but makes control flow explicit
@@ -207,7 +227,8 @@ async def tch_start_challenge(payload: StartChallengeRequest):
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
 
-    if challenge.solved:
+    team_solved = get_team_solved_count(team["id"], challenge.challenge_code)
+    if team_solved >= challenge.flag_count:
         return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
 
     if manager.get_instance_status(payload.code) in ("running", "unhealthy"):
@@ -229,7 +250,7 @@ class StopChallengeRequest(PydanticBaseModel):
 
 
 @app.post("/api/stop_challenge")
-async def tch_stop_challenge(payload: StopChallengeRequest):
+async def tch_stop_challenge(payload: StopChallengeRequest, team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return  # unreachable, but makes control flow explicit
@@ -259,7 +280,7 @@ class SubmitFlagRequest(PydanticBaseModel):
 
 
 @app.post("/api/submit")
-async def tch_submit(payload: SubmitFlagRequest):
+async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -289,15 +310,10 @@ async def tch_submit(payload: SubmitFlagRequest):
     is_correct = matched_flag_id is not None
 
     if is_correct:
-        if challenge.flag_states:
-            from datetime import datetime, timezone
-            for fs in challenge.flag_states:
-                if fs.id == matched_flag_id and not fs.solved:
-                    fs.solved = True
-                    fs.solved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            challenge.solved = all(fs.solved for fs in challenge.flag_states)
-        else:
-            challenge.solved = True
+        mark_flag_solved(team["id"], challenge.challenge_code, matched_flag_id)
+
+    team_solved = get_team_solved_count(team["id"], challenge.challenge_code)
+    all_solved = team_solved >= challenge.flag_count
 
     # Record submission
     from datetime import datetime, timezone as _tz
@@ -312,12 +328,14 @@ async def tch_submit(payload: SubmitFlagRequest):
             flag_id=matched_flag_id,
             flag_value=payload.flag[:8] + "..." + payload.flag[-4:] if len(payload.flag) > 16 else payload.flag,
             correct=is_correct,
-            points=challenge.points if is_correct and matched_flag_id else 0,
+            points=challenge.points // challenge.flag_count if is_correct and challenge.flag_count > 0 else 0,
+            team_id=team["id"],
+            team_name=team["name"],
         ))
 
     if is_correct:
         per_flag_score = challenge.points // challenge.flag_count if challenge.flag_count > 0 else challenge.points
-        msg = f"恭喜！答案正确（{challenge.solved_count}/{challenge.flag_count}），获得{per_flag_score}分"
+        msg = f"恭喜！答案正确（{team_solved}/{challenge.flag_count}），获得{per_flag_score}分"
     else:
         msg = "答案错误，请继续尝试"
 
@@ -326,8 +344,8 @@ async def tch_submit(payload: SubmitFlagRequest):
         "flag_id": matched_flag_id,
         "message": msg,
         "flag_count": challenge.flag_count,
-        "flag_got_count": challenge.solved_count,
-        "all_solved": challenge.solved,
+        "flag_got_count": team_solved,
+        "all_solved": all_solved,
     })
 
 
@@ -336,7 +354,7 @@ class HintRequest(PydanticBaseModel):
 
 
 @app.get("/api/challenges/{code}/progress")
-async def tch_get_progress(code: str):
+async def tch_get_progress(code: str, team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -347,27 +365,32 @@ async def tch_get_progress(code: str):
         _err(f"Challenge {code} not found", 404)
         return
 
+    team_progress = get_team_progress(team["id"])
+    progress_for_challenge = team_progress.get(code, {})
+    team_solved = get_team_solved_count(team["id"], code)
+    all_solved = team_solved >= challenge.flag_count
+
     if challenge.flag_states:
         flags_progress = [
-            {"id": fs.id, "route": fs.route, "solved": fs.solved, "solved_at": fs.solved_at}
+            {"id": fs.id, "route": fs.route, "solved": progress_for_challenge.get(fs.id, False), "solved_at": None}
             for fs in challenge.flag_states
         ]
     else:
         flags_progress = [
-            {"id": "default", "route": "/", "solved": challenge.solved, "solved_at": None}
+            {"id": "default", "route": "/", "solved": all_solved, "solved_at": None}
         ]
 
     return _ok({
         "challenge_code": code,
         "flags": flags_progress,
-        "solved_count": challenge.solved_count,
+        "solved_count": team_solved,
         "total_count": challenge.flag_count,
-        "all_solved": challenge.solved,
+        "all_solved": all_solved,
     })
 
 
 @app.post("/api/hint")
-async def tch_hint(payload: HintRequest):
+async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return  # unreachable, but makes control flow explicit
@@ -388,12 +411,12 @@ async def tch_hint(payload: HintRequest):
         _err(f"Failed to get hint: {e}", 500)
         return  # unreachable, but makes control flow explicit
 
-    challenge.hint_viewed = True
+    mark_hint_viewed(team["id"], payload.code)
     return _ok({"code": payload.code, "hint_content": hint})
 
 
 @app.post("/api/stop_all")
-async def tch_stop_all():
+async def tch_stop_all(team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -613,6 +636,9 @@ def serve(
     )
     manager.start()
     CHALLENGES = manager.challenges
+
+    init_db()
+    get_or_create_default_team()
 
     submission_store = SubmissionStore(
         log_path=Path("logs/submissions.jsonl"),
