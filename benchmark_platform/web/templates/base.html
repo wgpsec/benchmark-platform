@@ -10,11 +10,11 @@
   <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
-<body class="bg-gray-50 min-h-screen flex" x-data hx-ext="json-enc">
+<body class="bg-gray-50 h-screen flex overflow-hidden" x-data hx-ext="json-enc">
 
   {% include "components/sidebar.html" %}
 
-  <main class="flex-1 min-h-screen overflow-auto">
+  <main class="flex-1 h-screen overflow-y-auto">
     {% include "components/topbar.html" %}
     <div class="p-6">
       {% block content %}{% endblock %}

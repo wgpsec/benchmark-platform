@@ -49,6 +49,32 @@
         需通过 Level {{ lg.level - 1 }} 解锁
       </span>
       {% endif %}
+      {% if lg.unlocked %}
+      <div class="ml-auto flex items-center gap-2" x-data="{loading: false}">
+        <button :disabled="loading" @click="
+          loading = true;
+          fetch('/api/start_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
+          .then(r => r.json())
+          .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
+          .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}))
+          .finally(() => { loading = false; setTimeout(() => location.reload(), 1000); });
+        " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+          <span x-show="!loading">全部启动</span>
+          <span x-show="loading">启动中...</span>
+        </button>
+        <button :disabled="loading" @click="
+          loading = true;
+          fetch('/api/stop_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
+          .then(r => r.json())
+          .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
+          .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
+          .finally(() => { loading = false; setTimeout(() => location.reload(), 1000); });
+        " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+          <span x-show="!loading">全部停止</span>
+          <span x-show="loading">停止中...</span>
+        </button>
+      </div>
+      {% endif %}
     </div>
 
     <div class="grid grid-cols-3 gap-4 {% if not lg.unlocked %}opacity-40 pointer-events-none{% endif %}">

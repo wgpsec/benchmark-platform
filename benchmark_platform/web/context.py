@@ -30,6 +30,7 @@ def _challenge_to_card(manager: ChallengeManager, challenge) -> dict:
         "hint_viewed": challenge.hint_viewed,
         "instance_status": status,
         "entrypoint": entrypoint,
+        "emulated": challenge.emulated,
         "flag_states": [
             {"id": fs.id, "route": fs.route, "description": fs.description, "solved": fs.solved}
             for fs in challenge.flag_states

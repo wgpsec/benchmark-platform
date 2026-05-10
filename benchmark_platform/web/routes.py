@@ -27,6 +27,8 @@ def _get_store(request: Request):
 
 
 def _render(request: Request, template: str, ctx: dict):
+    manager = _get_manager(request)
+    ctx.setdefault("no_level_gate", manager.no_level_gate if manager else False)
     return templates.TemplateResponse(request, template, context=ctx)
 
 

@@ -36,6 +36,7 @@ class Challenge(BaseModel):
     solved: bool
     target_info: TargetInfo
     flag_states: list[FlagState] = []
+    emulated: bool = False
     _benchmark_id: str | None = PrivateAttr(default=None)
 
     def set_benchmark_id(self, benchmark_id: str) -> None:

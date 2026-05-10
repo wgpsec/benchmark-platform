@@ -34,6 +34,9 @@
     </span>
     {% endif %}
     <span class="text-gray-500">{{ card.points }} pts</span>
+    {% if card.emulated %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-600">x86 模拟</span>
+    {% endif %}
     {% if card.solved %}
     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-600">✓ 已完成</span>
     {% endif %}

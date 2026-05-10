@@ -395,6 +395,65 @@ async def tch_stop_all():
     return _ok({"stopped_count": len(stopped)}, f"已停止 {len(stopped)} 个实例")
 
 
+@app.post("/api/toggle_level_gate")
+async def tch_toggle_level_gate():
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+    manager.no_level_gate = not manager.no_level_gate
+    return _ok({"no_level_gate": manager.no_level_gate})
+
+
+class BatchLevelRequest(PydanticBaseModel):
+    level: int
+
+
+@app.post("/api/start_level")
+async def tch_start_level(payload: BatchLevelRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    started = []
+    errors = []
+    for c in manager.challenges:
+        if manager.get_level_for_challenge(c) != payload.level:
+            continue
+        if c.solved:
+            continue
+        if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
+            continue
+        try:
+            manager.start_challenge_instance(c.challenge_code)
+            started.append(c.challenge_code)
+        except Exception as e:
+            errors.append(c.challenge_code)
+            logger.error("batch start failed", challenge_code=c.challenge_code, error=str(e))
+
+    return _ok({"started": len(started), "errors": len(errors)}, f"已启动 {len(started)} 个实例")
+
+
+@app.post("/api/stop_level")
+async def tch_stop_level(payload: BatchLevelRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    stopped = []
+    for c in manager.challenges:
+        if manager.get_level_for_challenge(c) != payload.level:
+            continue
+        if manager.get_instance_status(c.challenge_code) not in ("running", "unhealthy"):
+            continue
+        try:
+            manager.stop_challenge_instance(c.challenge_code)
+            stopped.append(c.challenge_code)
+        except Exception:
+            pass
+
+    return _ok({"stopped": len(stopped)}, f"已停止 {len(stopped)} 个实例")
+
+
 app_cli = typer.Typer()
 
 

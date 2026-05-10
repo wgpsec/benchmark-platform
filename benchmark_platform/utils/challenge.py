@@ -144,6 +144,13 @@ class ChallengeManager:
             if bm.level not in _level_map:
                 raise ValueError(f"Unknown level {bm.level!r} in benchmark {benchmark_id!r}")
 
+            import platform as _platform
+            host_is_arm = _platform.machine() in ('arm64', 'aarch64')
+            is_emulated = host_is_arm and any(
+                svc.get('platform', '').endswith('amd64')
+                for svc in data.get('services', {}).values()
+            )
+
             challenge = Challenge(
                 challenge_code=challenge_id,
                 difficulty=_level_map[bm.level],
@@ -154,6 +161,7 @@ class ChallengeManager:
                     ip=self.public_accessible_host, port=allocated_ports,
                 ),
                 flag_states=flag_states,
+                emulated=is_emulated,
             )
             challenge.set_benchmark_id(benchmark_id)
             return challenge
