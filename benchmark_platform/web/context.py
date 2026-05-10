@@ -46,7 +46,7 @@ def dashboard_context(manager: ChallengeManager, store: SubmissionStore) -> dict
     total_points = sum(c.points for c in challenges)
     earned_points = sum(c.points for c in challenges if c.solved)
     running_count = sum(
-        1 for c in challenges if manager.get_instance_status(c.challenge_code) == "running"
+        1 for c in challenges if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy")
     )
 
     levels_seen: dict[int, dict] = {}
@@ -124,7 +124,7 @@ def status_context(manager: ChallengeManager) -> dict:
     stopped = []
     for c in manager.challenges:
         card = _challenge_to_card(manager, c)
-        if card["instance_status"] == "running":
+        if card["instance_status"] in ("running", "unhealthy"):
             running.append(card)
         else:
             stopped.append(card)

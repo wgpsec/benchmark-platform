@@ -153,7 +153,7 @@ async def tch_get_challenges():
         bm = c.get_benchmark()
         status = manager.get_instance_status(c.challenge_code)
         entrypoint = None
-        if status == "running":
+        if status in ("running", "unhealthy"):
             entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
         challenge_list.append({
             "benchmark_id": c.get_benchmark_id(),
@@ -202,7 +202,7 @@ async def tch_start_challenge(payload: StartChallengeRequest):
     if challenge.solved:
         return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
 
-    if manager.get_instance_status(payload.code) == "running":
+    if manager.get_instance_status(payload.code) in ("running", "unhealthy"):
         entrypoints = [f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port]
         return _ok(entrypoints, "赛题实例已在运行中")
 
@@ -232,7 +232,7 @@ async def tch_stop_challenge(payload: StopChallengeRequest):
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
 
-    if manager.get_instance_status(payload.code) != "running":
+    if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
         _err("赛题实例未运行", 400)
         return  # unreachable, but makes control flow explicit
 
@@ -262,7 +262,7 @@ async def tch_submit(payload: SubmitFlagRequest):
         _err(f"Challenge {payload.code} not found", 404)
         return
 
-    if manager.get_instance_status(payload.code) != "running":
+    if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
         _err("赛题实例未运行", 400)
         return
 
@@ -364,7 +364,7 @@ async def tch_hint(payload: HintRequest):
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
 
-    if manager.get_instance_status(payload.code) != "running":
+    if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
         _err("请先启动赛题实例", 400)
         return  # unreachable, but makes control flow explicit
 
@@ -386,7 +386,7 @@ async def tch_stop_all():
 
     stopped = []
     for c in manager.challenges:
-        if manager.get_instance_status(c.challenge_code) == "running":
+        if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
             try:
                 manager.stop_challenge_instance(c.challenge_code)
                 stopped.append(c.challenge_code)

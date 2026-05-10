@@ -177,8 +177,32 @@ class ChallengeManager:
         self._instance_status[challenge_code] = "stopped"
 
     def get_instance_status(self, challenge_code: str) -> str:
-        self._find_by_code(challenge_code)  # raises KeyError if not found
-        return self._instance_status.get(challenge_code, "stopped")
+        challenge = self._find_by_code(challenge_code)
+        status = self._instance_status.get(challenge_code, "stopped")
+        if status != "running":
+            return status
+        return self._check_container_health(challenge)
+
+    def _check_container_health(self, challenge: Challenge) -> str:
+        path = Challenge.get_base_path(challenge.get_benchmark_id(), challenge.challenge_code)
+        if not (path / 'docker-compose.yml').exists():
+            return "running"
+        try:
+            res = subprocess.run(
+                ['docker', 'compose', 'ps', '--format', 'json'],
+                cwd=path, capture_output=True, text=True, timeout=5,
+            )
+            if res.returncode != 0:
+                return "running"
+            import json as _json
+            for line in res.stdout.strip().splitlines():
+                info = _json.loads(line)
+                health = info.get("Health", "")
+                if health == "unhealthy":
+                    return "unhealthy"
+        except Exception:
+            pass
+        return "running"
 
     def _find_by_code(self, challenge_code: str) -> Challenge:
         for c in self.challenges:
