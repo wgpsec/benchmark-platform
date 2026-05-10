@@ -86,6 +86,8 @@ class ChallengeManager:
             for entry in sorted(folder.iterdir()):
                 if not entry.is_dir():
                     continue
+                if entry.name.startswith('.'):
+                    continue
                 if not (entry / "benchmark.json").exists():
                     continue
                 if self.benchmark_ids and entry.name not in self.benchmark_ids:
