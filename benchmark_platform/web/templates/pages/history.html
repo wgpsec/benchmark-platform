@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}提交记录 — Benchmark Platform{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div class="text-[13px] text-gray-500">
+    共 {{ total }} 次提交 · <span class="text-emerald-600">{{ correct_count }} 正确</span> · <span class="text-red-500">{{ incorrect_count }} 错误</span>
+  </div>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+  <table class="w-full">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">时间</th>
+        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">题目</th>
+        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Flag ID</th>
+        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">提交值</th>
+        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">结果</th>
+        <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">得分</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100" hx-get="/web/partials/history_rows" hx-trigger="every 3s" hx-swap="innerHTML">
+      {% include "partials/history_rows.html" %}
+    </tbody>
+  </table>
+</div>
+
+{% if not records %}
+<div class="px-5 py-8 text-center text-[13px] text-gray-400">暂无提交记录</div>
+{% endif %}
+{% endblock %}

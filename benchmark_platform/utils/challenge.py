@@ -234,3 +234,25 @@ class ChallengeManager:
                     c.target_info.ip, str(p), status,
                 )
         console.print('\n', table, '\n')
+
+    def get_level_for_challenge(self, challenge: Challenge) -> int:
+        """Return the level (1/2/3) for a challenge based on its difficulty."""
+        level_map = {Difficulty.EASY: 1, Difficulty.MEDIUM: 2, Difficulty.HARD: 3}
+        return level_map[challenge.difficulty]
+
+    def get_current_level(self) -> int:
+        """Return the highest unlocked level based on solved challenges."""
+        if not self.challenges:
+            return 1
+        levels = sorted(set(self.get_level_for_challenge(c) for c in self.challenges))
+        for level in levels:
+            at_level = [c for c in self.challenges if self.get_level_for_challenge(c) == level]
+            if not all(c.solved for c in at_level):
+                return level
+        return levels[-1]
+
+    def is_level_unlocked(self, level: int) -> bool:
+        """Check if a level is accessible. Always True when no_level_gate is set."""
+        if self.no_level_gate:
+            return True
+        return level <= self.get_current_level()

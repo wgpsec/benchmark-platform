@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Benchmark Platform{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="bg-gray-50 min-h-screen flex" x-data>
+
+  {% include "components/sidebar.html" %}
+
+  <main class="flex-1 min-h-screen overflow-auto">
+    {% include "components/topbar.html" %}
+    <div class="p-6">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  {% include "components/toast.html" %}
+
+</body>
+</html>

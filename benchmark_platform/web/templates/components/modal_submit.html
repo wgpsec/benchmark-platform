@@ -1,0 +1,79 @@
+<div x-data="{
+       open: false,
+       code: '',
+       name: '',
+       solved_count: 0,
+       flag_count: 0,
+       flag_value: '',
+       submitting: false,
+     }"
+     @open-submit-modal.window="
+       open = true;
+       code = $event.detail.code;
+       name = $event.detail.name;
+       solved_count = $event.detail.solved_count;
+       flag_count = $event.detail.flag_count;
+       flag_value = '';
+     "
+     x-show="open"
+     x-cloak
+     class="fixed inset-0 z-50">
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+       @click.self="open = false">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" @click.stop>
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="text-[15px] font-semibold text-gray-900">提交 Flag</h3>
+        <button @click="open = false" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="px-5 py-4 space-y-4">
+        <div>
+          <div class="text-[13px] font-medium text-gray-900" x-text="name"></div>
+          <div class="text-[12px] text-gray-500 mt-0.5">进度: <span x-text="solved_count"></span>/<span x-text="flag_count"></span> flags</div>
+        </div>
+        <input type="text" x-model="flag_value" placeholder="flag{...}"
+               @keydown.enter="$refs.submitBtn.click()"
+               class="w-full h-10 px-3 text-[13px] bg-gray-50 border-0 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 transition-shadow font-mono">
+      </div>
+      <div class="px-5 py-4 bg-gray-50 flex justify-end gap-2">
+        <button @click="open = false"
+                class="h-10 px-5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 text-[13px] font-medium rounded-lg transition-colors cursor-pointer">
+          取消
+        </button>
+        <button x-ref="submitBtn"
+                :disabled="submitting || !flag_value.trim()"
+                @click="
+                  submitting = true;
+                  fetch('/api/submit', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({code: code, flag: flag_value.trim()})
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                    submitting = false;
+                    if(data.data && data.data.correct) {
+                      $dispatch('toast', {type:'success', message: data.data.message || '恭喜！答案正确'});
+                      open = false;
+                    } else {
+                      $dispatch('toast', {type:'error', message: (data.data && data.data.message) || '答案错误'});
+                    }
+                    htmx.ajax('GET', '/web/partials/challenge_card?code=' + code, '#card-' + code);
+                  })
+                  .catch(() => {
+                    submitting = false;
+                    $dispatch('toast', {type:'error', message:'提交失败'});
+                  });
+                "
+                class="h-10 px-5 bg-red-600 text-white text-[13px] font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <span x-show="!submitting">提交</span>
+          <span x-show="submitting" class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            提交中...
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,23 @@
+<div x-data="{
+       toasts: [],
+       addToast(detail) {
+         const id = Date.now();
+         const colorMap = {
+           success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+           error: 'bg-red-50 border-red-200 text-red-800',
+           warning: 'bg-amber-50 border-amber-200 text-amber-800',
+           info: 'bg-blue-50 border-blue-200 text-blue-800',
+         };
+         this.toasts.push({id, message: detail.message, classes: colorMap[detail.type] || colorMap.info});
+         setTimeout(() => this.toasts = this.toasts.filter(t => t.id !== id), 3000);
+       }
+     }"
+     @toast.window="addToast($event.detail)"
+     class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none" style="max-width: 380px;">
+  <template x-for="toast in toasts" :key="toast.id">
+    <div class="pointer-events-auto flex items-start gap-2.5 px-4 py-3 rounded-xl border shadow-lg animate-toast-in"
+         :class="toast.classes">
+      <span x-text="toast.message" class="text-[13px] font-medium"></span>
+    </div>
+  </template>
+</div>

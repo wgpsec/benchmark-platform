@@ -8,6 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -19,9 +20,13 @@ from benchmark_platform.base import SubmitAnswerRequest
 from benchmark_platform.base import SubmitAnswerResponse
 from benchmark_platform.utils.challenge import ChallengeManager
 from benchmark_platform.utils.logger import get_logger
+from benchmark_platform.web.routes import web_router
+from benchmark_platform.web.submission_store import SubmissionStore
 
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+app.include_router(web_router, prefix="/web")
 
 # ── tch Response helpers ──────────────────────────────────────────────────────
 
@@ -131,7 +136,7 @@ async def submit_answer(payload: SubmitAnswerRequest) -> SubmitAnswerResponse:
 
 @app.get('/')
 async def index():
-    return RedirectResponse(url='/docs')
+    return RedirectResponse(url='/web/dashboard')
 
 
 # ── tch-compatible API routes ─────────────────────────────────────────────────
@@ -285,6 +290,22 @@ async def tch_submit(payload: SubmitFlagRequest):
         else:
             challenge.solved = True
 
+    # Record submission
+    from datetime import datetime, timezone as _tz
+    from benchmark_platform.web.submission_store import SubmissionRecord
+    if hasattr(app.state, 'submission_store') and app.state.submission_store is not None:
+        bm = challenge.get_benchmark()
+        app.state.submission_store.add(SubmissionRecord(
+            timestamp=datetime.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            challenge_code=payload.code,
+            benchmark_id=challenge.get_benchmark_id(),
+            challenge_name=bm.name,
+            flag_id=matched_flag_id,
+            flag_value=payload.flag[:8] + "..." + payload.flag[-4:] if len(payload.flag) > 16 else payload.flag,
+            correct=is_correct,
+            points=challenge.points if is_correct and matched_flag_id else 0,
+        ))
+
     return _ok({
         "correct": is_correct,
         "flag_id": matched_flag_id,
@@ -356,6 +377,23 @@ async def tch_hint(payload: HintRequest):
     return _ok({"code": payload.code, "hint_content": hint})
 
 
+@app.post("/api/stop_all")
+async def tch_stop_all():
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    stopped = []
+    for c in manager.challenges:
+        if manager.get_instance_status(c.challenge_code) == "running":
+            try:
+                manager.stop_challenge_instance(c.challenge_code)
+                stopped.append(c.challenge_code)
+            except Exception:
+                pass
+    return _ok({"stopped_count": len(stopped)}, f"已停止 {len(stopped)} 个实例")
+
+
 app_cli = typer.Typer()
 
 
@@ -413,6 +451,13 @@ def serve(
     )
     manager.start()
     CHALLENGES = manager.challenges
+
+    submission_store = SubmissionStore(
+        log_path=Path("logs/submissions.jsonl"),
+    )
+    app.state.manager = manager
+    app.state.submission_store = submission_store
+
     manager.print_summary_table()
 
     logger.info("binding uvicorn", action="serve", host=host, port=port)

@@ -1,0 +1,33 @@
+<div x-data="{open: false, message: '', onConfirm: null}"
+     @open-confirm-modal.window="
+       open = true;
+       message = $event.detail.message;
+       onConfirm = $event.detail.onConfirm;
+     "
+     x-show="open" x-cloak class="fixed inset-0 z-50">
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4" @click.self="open = false">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden" @click.stop>
+      <div class="px-5 py-5">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+          </div>
+          <div>
+            <h3 class="text-[15px] font-semibold text-gray-900">确认操作</h3>
+            <p class="text-[13px] text-gray-500 mt-1" x-text="message"></p>
+          </div>
+        </div>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 flex justify-end gap-2">
+        <button @click="open = false"
+                class="h-10 px-5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 text-[13px] font-medium rounded-lg transition-colors cursor-pointer">
+          取消
+        </button>
+        <button @click="if(onConfirm) onConfirm(); open = false;"
+                class="h-10 px-5 bg-red-500 text-white text-[13px] font-medium rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
+          确认
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

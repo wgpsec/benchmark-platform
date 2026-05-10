@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 — Benchmark Platform{% endblock %}
+{% block content %}
+<div hx-get="/web/partials/dashboard_stats" hx-trigger="every 5s" hx-swap="innerHTML">
+  {% include "partials/dashboard_stats.html" %}
+</div>
+{% endblock %}

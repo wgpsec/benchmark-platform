@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}实例状态 — Benchmark Platform{% endblock %}
+{% block content %}
+<div x-data>
+  <div class="flex items-center justify-between mb-6">
+    <div class="text-[13px] text-gray-500">
+      <span class="text-emerald-600 font-medium">{{ running_count }} 运行中</span> ·
+      {{ stopped_count }} 已停止
+    </div>
+    <div class="flex gap-2">
+      {% if running_count %}
+      <button
+        @click="$dispatch('open-confirm-modal', {
+          message: '确认停止所有运行中的靶机实例？',
+          onConfirm: () => {
+            fetch('/api/stop_all', {method:'POST'})
+              .then(r => r.json())
+              .then(data => {
+                $dispatch('toast', {type:'success', message: data.message});
+                htmx.ajax('GET', '/web/partials/status_table', '#status-table-body');
+              });
+          }
+        })"
+        class="h-9 px-4 bg-red-500 text-white text-[12px] font-medium rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
+        全部停止
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50 border-b border-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">题目</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Benchmark ID</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">端口映射</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">状态</th>
+          <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">操作</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100" id="status-table-body"
+             hx-get="/web/partials/status_table" hx-trigger="every 5s" hx-swap="innerHTML">
+        {% include "partials/status_table.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "components/modal_confirm.html" %}
+{% endblock %}

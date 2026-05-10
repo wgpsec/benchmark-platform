@@ -1,0 +1,8 @@
+<div class="flex items-center gap-1.5">
+  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+  运行中 {{ running_count|default(0) }}/{{ total_challenges|default(0) }}
+</div>
+<div class="flex items-center gap-1.5">
+  <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+  已解决 {{ solved_flags|default(0) }}/{{ total_flags|default(0) }}
+</div>

@@ -1,0 +1,99 @@
+<!-- Stats cards -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-100 p-5">
+    <div class="text-[12px] text-gray-500">总题目</div>
+    <div class="text-2xl font-semibold text-gray-900 mt-1">{{ total_challenges }}</div>
+    <div class="text-[11px] text-gray-400 mt-1">{{ total_flags }} flags</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 p-5">
+    <div class="text-[12px] text-gray-500">已解决</div>
+    <div class="text-2xl font-semibold text-emerald-600 mt-1">{{ solved_challenges }}</div>
+    <div class="text-[11px] text-gray-400 mt-1">
+      {% if total_challenges > 0 %}{{ '%.1f' | format(solved_challenges / total_challenges * 100) }}%{% else %}0%{% endif %}
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 p-5">
+    <div class="text-[12px] text-gray-500">总得分</div>
+    <div class="text-2xl font-semibold text-gray-900 mt-1">{{ earned_points }}<span class="text-[14px] text-gray-400">/{{ total_points }}</span></div>
+    <div class="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+      <div class="h-full bg-emerald-500 rounded-full" style="width: {% if total_points > 0 %}{{ earned_points / total_points * 100 }}%{% else %}0%{% endif %}"></div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 p-5">
+    <div class="text-[12px] text-gray-500">运行中实例</div>
+    <div class="text-2xl font-semibold text-amber-600 mt-1">{{ running_count }}</div>
+    <div class="text-[11px] text-gray-400 mt-1">/ {{ total_challenges }}</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 gap-4 mb-6">
+  <!-- Level progress -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5">
+    <div class="text-[15px] font-medium text-gray-900 mb-4">关卡进度</div>
+    <div class="space-y-4">
+      {% for lp in level_progress %}
+      <div class="{% if not lp.unlocked %}opacity-40{% endif %}">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[13px] font-medium text-gray-900">
+            Level {{ lp.level }}
+            {% if not lp.unlocked %}
+            <svg class="w-3.5 h-3.5 inline ml-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+            {% endif %}
+          </span>
+          <span class="text-[12px] text-gray-500">{{ lp.solved }}/{{ lp.total }}</span>
+        </div>
+        <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-500 rounded-full transition-all" style="width: {% if lp.total > 0 %}{{ lp.solved / lp.total * 100 }}%{% else %}0%{% endif %}"></div>
+        </div>
+        {% if not lp.unlocked %}
+        <div class="text-[11px] text-gray-400 mt-1">需通过 Level {{ lp.level - 1 }} 解锁</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if not level_progress %}
+      <div class="text-[13px] text-gray-400 text-center py-4">暂无赛题数据</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent submissions -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5">
+    <div class="text-[15px] font-medium text-gray-900 mb-4">最近提交</div>
+    <div class="space-y-2">
+      {% for sub in recent_submissions %}
+      <div class="flex items-center gap-3 text-[12px]">
+        <span class="text-gray-400 font-mono w-16 flex-shrink-0">{{ sub.timestamp[11:19] if sub.timestamp|length > 19 else sub.timestamp }}</span>
+        <span class="text-gray-700 truncate flex-1">{{ sub.benchmark_id }}</span>
+        {% if sub.correct %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-600">✓ 正确</span>
+        {% else %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-600">✗ 错误</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if not recent_submissions %}
+      <div class="text-[13px] text-gray-400 text-center py-4">暂无提交记录</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Difficulty distribution -->
+<div class="bg-white rounded-xl border border-gray-100 p-5">
+  <div class="text-[15px] font-medium text-gray-900 mb-4">难度分布</div>
+  <div class="space-y-3">
+    {% set diff_labels = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'} %}
+    {% set diff_colors = {'easy': 'bg-emerald-500', 'medium': 'bg-amber-500', 'hard': 'bg-red-500'} %}
+    {% for ds in difficulty_stats %}
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-[13px] font-medium text-gray-700">{{ diff_labels.get(ds.difficulty, ds.difficulty) }}</span>
+        <span class="text-[12px] text-gray-500">{{ ds.solved }}/{{ ds.total }} &nbsp; {% if ds.total > 0 %}{{ '%.0f' | format(ds.solved / ds.total * 100) }}%{% else %}0%{% endif %}</span>
+      </div>
+      <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div class="h-full {{ diff_colors.get(ds.difficulty, 'bg-gray-500') }} rounded-full" style="width: {% if ds.total > 0 %}{{ ds.solved / ds.total * 100 }}%{% else %}0%{% endif %}"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>

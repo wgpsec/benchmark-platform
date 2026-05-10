@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}题目列表 — Benchmark Platform{% endblock %}
+{% block content %}
+<!-- Filter bar -->
+<div class="flex items-center justify-between mb-6" x-data="{filter: 'all', search: ''}">
+  <div class="text-[13px] text-gray-500">
+    共 {{ total_challenges }} 题 · {{ total_flags }} flags
+  </div>
+  <div class="flex items-center gap-3">
+    <select x-model="filter" @change="$dispatch('filter-change', {filter, search})"
+            class="h-9 px-3 text-[12px] bg-gray-50 border-0 rounded-lg text-gray-900 focus:ring-2 focus:ring-gray-900 cursor-pointer">
+      <option value="all">全部</option>
+      <option value="unsolved">未解决</option>
+      <option value="solved">已解决</option>
+      <option value="running">运行中</option>
+    </select>
+    <input type="text" x-model="search" @input.debounce.300ms="$dispatch('filter-change', {filter, search})"
+           placeholder="搜索题目..."
+           class="h-9 w-48 px-3 text-[12px] bg-gray-50 border-0 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-gray-900 transition-shadow">
+  </div>
+</div>
+
+<!-- Level groups -->
+<div class="space-y-8" x-data
+     @filter-change.window="
+       const f = $event.detail.filter;
+       const s = $event.detail.search.toLowerCase();
+       document.querySelectorAll('[data-challenge-card]').forEach(el => {
+         const d = el.dataset;
+         let show = true;
+         if(f === 'solved' && d.solved !== 'true') show = false;
+         if(f === 'unsolved' && d.solved === 'true') show = false;
+         if(f === 'running' && d.status !== 'running') show = false;
+         if(s && !d.name.toLowerCase().includes(s) && !d.benchmarkId.toLowerCase().includes(s)) show = false;
+         el.style.display = show ? '' : 'none';
+       });
+     ">
+  {% for lg in level_groups %}
+  <div>
+    <div class="flex items-center gap-3 mb-4">
+      <h2 class="text-[15px] font-semibold text-gray-900">Level {{ lg.level }}</h2>
+      <span class="text-[12px] text-gray-500">{{ lg.solved }}/{{ lg.total }}</span>
+      {% if lg.all_solved %}
+      <span class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-600">✓ 已通过</span>
+      {% endif %}
+      {% if not lg.unlocked %}
+      <span class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-100 text-gray-500">
+        <svg class="w-3 h-3 inline mr-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+        需通过 Level {{ lg.level - 1 }} 解锁
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-3 gap-4 {% if not lg.unlocked %}opacity-40 pointer-events-none{% endif %}">
+      {% for card in lg.challenges %}
+      <div data-challenge-card
+           data-solved="{{ 'true' if card.solved else 'false' }}"
+           data-status="{{ card.instance_status }}"
+           data-name="{{ card.name }}"
+           data-benchmark-id="{{ card.benchmark_id }}">
+        {% include "components/challenge_card.html" %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not level_groups %}
+  <div class="px-5 py-8 text-center text-[13px] text-gray-400">暂无赛题数据，请检查服务器启动参数</div>
+  {% endif %}
+</div>
+
+{% include "components/modal_submit.html" %}
+{% endblock %}

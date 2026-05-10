@@ -1,0 +1,13 @@
+{% set page_titles = {
+  'dashboard': ('仪表盘', '比赛概览与统计'),
+  'challenges': ('题目列表', '所有赛题管理'),
+  'history': ('提交记录', 'Flag 提交历史'),
+  'status': ('实例状态', '靶机容器运行状态'),
+} %}
+{% set title, subtitle = page_titles.get(page, ('Benchmark Platform', '')) %}
+<div class="px-6 py-4 border-b border-gray-100 bg-white">
+  <h1 class="text-lg font-semibold text-gray-900">{{ title }}</h1>
+  {% if subtitle %}
+  <p class="text-[12px] text-gray-500 mt-0.5">{{ subtitle }}</p>
+  {% endif %}
+</div>
