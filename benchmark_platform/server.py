@@ -209,7 +209,7 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
         })
 
     return _ok({
-        "current_level": manager.get_current_level(),
+        "current_level": manager.get_current_level(team["id"]),
         "total_challenges": len(all_challenges),
         "solved_challenges": total_solved_challenges,
         "challenges": challenge_list,
@@ -233,7 +233,7 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         return  # unreachable, but makes control flow explicit
 
     challenge_level = manager.get_level_for_challenge(challenge)
-    if not manager.is_level_unlocked(challenge_level):
+    if not manager.is_level_unlocked(challenge_level, team["id"]):
         _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
         return
 
@@ -302,7 +302,7 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
         return
 
     challenge_level = manager.get_level_for_challenge(challenge)
-    if not manager.is_level_unlocked(challenge_level):
+    if not manager.is_level_unlocked(challenge_level, team["id"]):
         _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
         return
 

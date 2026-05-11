@@ -16,7 +16,7 @@ from benchmark_platform.base import FlagState
 from benchmark_platform.base import TargetInfo
 from benchmark_platform.models.benchmark import Benchmark
 from benchmark_platform.utils.logger import get_logger
-from benchmark_platform.db import get_level_gate_config
+from benchmark_platform.db import get_level_gate_config, get_team_progress
 
 logger = get_logger(Path('logs/competition-platform-server-logs.jsonl'))
 console = Console()
@@ -291,24 +291,32 @@ class ChallengeManager:
         level_map = {Difficulty.EASY: 1, Difficulty.MEDIUM: 2, Difficulty.HARD: 3}
         return level_map[challenge.difficulty]
 
-    def get_current_level(self) -> int:
+    def get_current_level(self, team_id: str = None) -> int:
         """Return the highest unlocked level based on solved challenges and gate config."""
         if not self.challenges:
             return 1
         config = get_level_gate_config()
         mode = config["mode"]
         threshold = config["threshold"]
+
+        team_progress = get_team_progress(team_id) if team_id else None
+
         levels = sorted(set(self.get_level_for_challenge(c) for c in self.challenges))
         for level in levels:
             at_level = [c for c in self.challenges if self.get_level_for_challenge(c) == level]
-            solved_flags = sum(
-                sum(1 for f in c.flag_states if f.solved) for c in at_level
-            )
+            if team_progress is not None:
+                solved_flags = sum(
+                    len(team_progress.get(c.get_benchmark_id(), {})) for c in at_level
+                )
+            else:
+                solved_flags = sum(
+                    sum(1 for f in c.flag_states if f.solved) for c in at_level
+                )
             total_flags = sum(len(c.flag_states) for c in at_level)
             if total_flags == 0:
                 continue
             if mode == "all":
-                if not all(c.solved for c in at_level):
+                if solved_flags < total_flags:
                     return level
             elif mode == "percentage":
                 if (solved_flags * 100 // total_flags) < threshold:
@@ -318,8 +326,8 @@ class ChallengeManager:
                     return level
         return levels[-1]
 
-    def is_level_unlocked(self, level: int) -> bool:
+    def is_level_unlocked(self, level: int, team_id: str = None) -> bool:
         """Check if a level is accessible. Always True when no_level_gate is set."""
         if self.no_level_gate:
             return True
-        return level <= self.get_current_level()
+        return level <= self.get_current_level(team_id)

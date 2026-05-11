@@ -120,7 +120,7 @@ def dashboard_context(manager: ChallengeManager, store: SubmissionStore, team_id
             if c.solved:
                 levels_seen[lv]["solved"] += 1
     for lv_data in levels_seen.values():
-        lv_data["unlocked"] = manager.is_level_unlocked(lv_data["level"])
+        lv_data["unlocked"] = manager.is_level_unlocked(lv_data["level"], team_id)
     level_progress = sorted(levels_seen.values(), key=lambda x: x["level"])
 
     diff_map: dict[str, dict] = {}
@@ -181,7 +181,7 @@ def challenges_context(manager: ChallengeManager, team_id: Optional[str] = None)
             "total": total,
             "solved": solved,
             "all_solved": solved == total,
-            "unlocked": manager.is_level_unlocked(lv),
+            "unlocked": manager.is_level_unlocked(lv, team_id),
         })
 
     return {
