@@ -226,6 +226,11 @@ async def page_teams(request: Request):
     return _render(request, "pages/teams.html", {"page": "teams", "teams": teams})
 
 
+@web_router.get("/settings")
+async def page_settings(request: Request):
+    return _render(request, "pages/settings.html", {"page": "settings"})
+
+
 @web_router.post("/api/teams/create")
 async def api_create_team(request: Request):
     from benchmark_platform.db import create_team

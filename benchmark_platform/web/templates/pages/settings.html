@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}系统设置 — Benchmark Platform{% endblock %}
+{% block content %}
+<div x-data="settingsPage()" x-init="init()">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="text-[13px] text-gray-500">系统设置</div>
+  </div>
+
+  <!-- Level Gate Settings -->
+  <div class="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+    <h3 class="text-[13px] font-semibold text-gray-800 mb-4">Level 分级解锁</h3>
+    <p class="text-[11px] text-gray-500 mb-4">配置从 Level N 解锁 Level N+1 的条件。开启分级解锁后，队伍需满足设定条件才能访问更高难度的题目。</p>
+
+    <div class="space-y-4">
+      <!-- Mode selector -->
+      <div>
+        <label class="block text-[11px] font-medium text-gray-600 mb-1.5">解锁模式</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button @click="mode='all'" :class="mode==='all' ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-500 hover:border-gray-300'"
+                  class="border rounded-lg px-3 py-2.5 text-[11px] font-medium text-center transition-colors cursor-pointer">
+            <div class="font-semibold">全部通过</div>
+            <div class="text-[10px] mt-0.5 opacity-70">上一关 100% 完成</div>
+          </button>
+          <button @click="mode='percentage'" :class="mode==='percentage' ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-500 hover:border-gray-300'"
+                  class="border rounded-lg px-3 py-2.5 text-[11px] font-medium text-center transition-colors cursor-pointer">
+            <div class="font-semibold">按百分比</div>
+            <div class="text-[10px] mt-0.5 opacity-70">通过 N% 即可解锁</div>
+          </button>
+          <button @click="mode='count'" :class="mode==='count' ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-500 hover:border-gray-300'"
+                  class="border rounded-lg px-3 py-2.5 text-[11px] font-medium text-center transition-colors cursor-pointer">
+            <div class="font-semibold">按 Flag 数量</div>
+            <div class="text-[10px] mt-0.5 opacity-70">解出 N 个即可解锁</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Threshold input -->
+      <div x-show="mode !== 'all'" x-transition>
+        <label class="block text-[11px] font-medium text-gray-600 mb-1.5"
+               x-text="mode==='percentage' ? '通过比例阈值 (%)' : '最低 Flag 数量'"></label>
+        <div class="flex items-center gap-3">
+          <input type="number" x-model="threshold" min="1" :max="mode==='percentage' ? 100 : 999"
+                 class="w-32 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400">
+          <span class="text-[11px] text-gray-400" x-text="mode==='percentage' ? '% 的 Flag 通过后解锁下一关' : '个 Flag 通过后解锁下一关'"></span>
+        </div>
+      </div>
+
+      <!-- Current status preview -->
+      <div class="bg-gray-50 rounded-lg p-3 mt-3">
+        <div class="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">当前规则预览</div>
+        <div class="text-[11px] text-gray-700">
+          <template x-if="mode==='all'">
+            <span>上一关所有 Flag 全部通过后，解锁下一关</span>
+          </template>
+          <template x-if="mode==='percentage'">
+            <span>上一关通过 <strong x-text="threshold"></strong>% 的 Flag 后，解锁下一关</span>
+          </template>
+          <template x-if="mode==='count'">
+            <span>上一关通过 <strong x-text="threshold"></strong> 个 Flag 后，解锁下一关</span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Save button -->
+      <div class="flex items-center gap-3 pt-2">
+        <button @click="save()" :disabled="saving"
+                class="h-9 px-5 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+          <span x-show="!saving">保存设置</span>
+          <span x-show="saving">保存中...</span>
+        </button>
+        <span x-show="saved" x-transition class="text-[11px] text-emerald-600 font-medium">已保存</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function settingsPage() {
+  return {
+    mode: 'all',
+    threshold: 100,
+    saving: false,
+    saved: false,
+    init() {
+      fetch('/api/level_gate_config')
+        .then(r => r.json())
+        .then(d => {
+          this.mode = d.data.mode;
+          this.threshold = d.data.threshold;
+        });
+    },
+    save() {
+      this.saving = true;
+      this.saved = false;
+      fetch('/api/level_gate_config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: this.mode, threshold: parseInt(this.threshold)})
+      })
+      .then(r => r.json())
+      .then(d => {
+        this.saving = false;
+        if (d.status === 'ok') {
+          this.saved = true;
+          this.$dispatch('toast', {type: 'success', message: '解锁规则已保存'});
+          setTimeout(() => this.saved = false, 3000);
+        } else {
+          this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
+        }
+      });
+    }
+  };
+}
+</script>
+{% endblock %}
