@@ -1,7 +1,9 @@
 """Web UI page routes and HTMX partial routes."""
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from benchmark_platform.web.context import (
@@ -26,11 +28,34 @@ def _get_store(request: Request):
     return request.app.state.submission_store
 
 
+def _get_selected_team_id(request: Request) -> Optional[str]:
+    """Read selected team from cookie. Falls back to default team."""
+    team_id = request.cookies.get("selected_team_id")
+    if not team_id:
+        from benchmark_platform.db import get_or_create_default_team
+        default_team = get_or_create_default_team()
+        team_id = default_team["id"]
+    return team_id
+
+
+def _get_teams_for_selector(selected_team_id: Optional[str]) -> dict:
+    """Get teams list and current selection for the topbar selector."""
+    from benchmark_platform.db import list_teams, get_or_create_default_team
+    teams = list_teams()
+    if not selected_team_id and teams:
+        default_team = get_or_create_default_team()
+        selected_team_id = default_team["id"]
+    return {"teams": teams, "selected_team_id": selected_team_id}
+
+
 def _render(request: Request, template: str, ctx: dict):
     from benchmark_platform import __version__
     manager = _get_manager(request)
     ctx.setdefault("no_level_gate", manager.no_level_gate if manager else False)
     ctx.setdefault("version", __version__)
+    team_selector = _get_teams_for_selector(_get_selected_team_id(request))
+    ctx.setdefault("teams", team_selector["teams"])
+    ctx.setdefault("selected_team_id", team_selector["selected_team_id"])
     return templates.TemplateResponse(request, template, context=ctx)
 
 
@@ -40,8 +65,9 @@ def _render(request: Request, template: str, ctx: dict):
 async def page_dashboard(request: Request):
     manager = _get_manager(request)
     store = _get_store(request)
+    team_id = _get_selected_team_id(request)
     if manager and store:
-        ctx = dashboard_context(manager, store)
+        ctx = dashboard_context(manager, store, team_id=team_id)
     else:
         ctx = {
             "total_challenges": 0, "solved_challenges": 0,
@@ -57,7 +83,8 @@ async def page_dashboard(request: Request):
 @web_router.get("/challenges")
 async def page_challenges(request: Request):
     manager = _get_manager(request)
-    ctx = challenges_context(manager) if manager else {"level_groups": [], "total_challenges": 0, "total_flags": 0}
+    team_id = _get_selected_team_id(request)
+    ctx = challenges_context(manager, team_id=team_id) if manager else {"level_groups": [], "total_challenges": 0, "total_flags": 0}
     return _render(request, "pages/challenges.html", {"page": "challenges", **ctx})
 
 
@@ -113,8 +140,9 @@ async def page_prebuild(request: Request):
 async def partial_dashboard_stats(request: Request):
     manager = _get_manager(request)
     store = _get_store(request)
+    team_id = _get_selected_team_id(request)
     if manager and store:
-        ctx = dashboard_context(manager, store)
+        ctx = dashboard_context(manager, store, team_id=team_id)
     else:
         ctx = {
             "total_challenges": 0, "solved_challenges": 0,
@@ -130,11 +158,12 @@ async def partial_dashboard_stats(request: Request):
 @web_router.get("/partials/challenge_card")
 async def partial_challenge_card(request: Request, code: str):
     manager = _get_manager(request)
+    team_id = _get_selected_team_id(request)
     card = None
     if manager:
         try:
             challenge = manager._find_by_code(code)
-            card = _challenge_to_card(manager, challenge)
+            card = _challenge_to_card(manager, challenge, team_id=team_id)
         except KeyError:
             pass
     return _render(request, "partials/challenge_card_single.html", {"card": card})
@@ -163,15 +192,24 @@ async def partial_status_table(request: Request):
 @web_router.get("/partials/sidebar_summary")
 async def partial_sidebar_summary(request: Request):
     manager = _get_manager(request)
+    team_id = _get_selected_team_id(request)
     if manager:
         running_count = sum(
             1 for c in manager.challenges
             if manager.get_instance_status(c.challenge_code) == "running"
         )
+        if team_id:
+            from benchmark_platform.db import get_team_solved_count
+            solved_flags = sum(
+                get_team_solved_count(team_id, c.get_benchmark_id())
+                for c in manager.challenges
+            )
+        else:
+            solved_flags = sum(c.solved_count for c in manager.challenges)
         ctx = {
             "running_count": running_count,
             "total_challenges": len(manager.challenges),
-            "solved_flags": sum(c.solved_count for c in manager.challenges),
+            "solved_flags": solved_flags,
             "total_flags": sum(c.flag_count for c in manager.challenges),
         }
     else:
@@ -218,3 +256,14 @@ async def api_reset_team(request: Request):
         return {"code": -1, "message": "缺少 team_id", "data": None}
     reset_team_progress(team_id)
     return {"code": 0, "message": "进度已重置", "data": None}
+
+
+@web_router.post("/api/teams/switch")
+async def api_switch_team(request: Request):
+    body = await request.json()
+    team_id = body.get("team_id", "").strip()
+    if not team_id:
+        return JSONResponse({"code": -1, "message": "缺少 team_id", "data": None})
+    response = JSONResponse({"code": 0, "message": "切换成功", "data": {"team_id": team_id}})
+    response.set_cookie("selected_team_id", team_id, max_age=86400 * 365, httponly=False, samesite="lax")
+    return response

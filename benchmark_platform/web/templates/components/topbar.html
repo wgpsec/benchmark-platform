@@ -5,9 +5,33 @@
   'status': ('实例状态', '靶机容器运行状态'),
 } %}
 {% set title, subtitle = page_titles.get(page, ('Benchmark Platform', '')) %}
-<div class="px-6 py-4 border-b border-gray-100 bg-white">
-  <h1 class="text-lg font-semibold text-gray-900">{{ title }}</h1>
-  {% if subtitle %}
-  <p class="text-[12px] text-gray-500 mt-0.5">{{ subtitle }}</p>
+<div class="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between">
+  <div>
+    <h1 class="text-lg font-semibold text-gray-900">{{ title }}</h1>
+    {% if subtitle %}
+    <p class="text-[12px] text-gray-500 mt-0.5">{{ subtitle }}</p>
+    {% endif %}
+  </div>
+  <!-- Team Selector -->
+  {% if teams is defined and teams %}
+  <div class="flex items-center gap-2" x-data="{switching: false}">
+    <span class="text-[11px] text-gray-400">当前视角:</span>
+    <select :disabled="switching" @change="
+      switching = true;
+      fetch('/web/api/teams/switch', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({team_id: $el.value})})
+      .then(r => r.json())
+      .then(data => {
+        if(data.code === 0) { location.reload(); }
+        else { $dispatch('toast', {type:'error', message: data.message}); switching = false; }
+      })
+      .catch(() => { $dispatch('toast', {type:'error', message:'切换失败'}); switching = false; });
+    " class="h-8 px-3 text-[12px] bg-gray-50 border border-gray-200 rounded-lg text-gray-900 focus:ring-2 focus:ring-gray-900 cursor-pointer disabled:opacity-60">
+      {% for t in teams %}
+      <option value="{{ t.id }}" {% if t.id == selected_team_id %}selected{% endif %}>
+        {{ t.name }} ({{ t.solved_flags }} flags)
+      </option>
+      {% endfor %}
+    </select>
+  </div>
   {% endif %}
 </div>
