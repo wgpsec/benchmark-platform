@@ -190,7 +190,7 @@
 3. benchmark.json 格式：{"id":"靶场ID", "name":"名称", "description":"场景描述", "level":难度(1=easy/2=medium/3=hard), "win_condition":"flag", "tags":["标签"], "canaries":["FLAG{...}"], "flag_count":flag数量}
 4. Flag 使用 FLAG{描述性内容} 格式，必须同时硬编码在应用代码中和 benchmark.json 的 canaries 数组中
 5. 漏洞必须真实可利用，有合理攻击路径，不能是假漏洞
-6. Dockerfile 使用精简基础镜像（python:3.11-slim、node:20-slim 等）
+6. Dockerfile 使用精简基础镜像（python:3.11-slim、node:20-slim 等），并使用国内镜像源加速：apt 换阿里云源（sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources），pip 加 -i https://mirrors.aliyun.com/pypi/simple/，npm 设置 registry https://registry.npmmirror.com
 7. 最终将所有文件打包为 分类--名称.zip（如 custom--MY-SQLI-01.zip），zip 内文件直接在根目录，不要多套一层文件夹
 
 我想要的靶场是：[在此描述你的漏洞场景、难度、技术栈偏好]</div>
