@@ -171,6 +171,7 @@ benchmark-platform 是 **WgpSec Agentic Ecosystem** 的评估层 — 衡量 AI A
 | [context1337](https://github.com/wgpsec/context1337) | MCP Server — 将 AboutSecurity 转化为 AI Agent 可调用的搜索 API |
 | [tchkiller](https://github.com/wgpsec/tchkiller) | 自主渗透 Agent，支持多轮决策与团队协作 |
 | [benchmark-platform](https://github.com/wgpsec/benchmark-platform) | CTF 靶场平台，评估 Agent 攻防能力 |
+| [benchmark-challenges](https://github.com/wgpsec/benchmark-challenges) | 靶场数据仓库 — 通过 GitHub Releases 打包分发 |
 | PoJun | 通用 AI 求解引擎（私有） |
 
 ## 许可证
