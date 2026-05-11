@@ -101,7 +101,7 @@ function settingsPage() {
       .then(r => r.json())
       .then(d => {
         this.saving = false;
-        if (d.status === 'ok') {
+        if (d.code === 0) {
           this.saved = true;
           this.$dispatch('toast', {type: 'success', message: '解锁规则已保存'});
           setTimeout(() => this.saved = false, 3000);
