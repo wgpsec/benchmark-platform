@@ -1,0 +1,92 @@
+name: Pack & Publish Challenges
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed challenges
+        id: detect
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -E '^(xbow|custom)/' | cut -d'/' -f1,2 | sort -u || true)
+          echo "changed<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -z "$CHANGED" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pack changed challenges
+        if: steps.detect.outputs.skip == 'false'
+        run: |
+          mkdir -p dist
+          while IFS= read -r dir; do
+            [ -z "$dir" ] && continue
+            CATEGORY=$(echo "$dir" | cut -d'/' -f1)
+            NAME=$(echo "$dir" | cut -d'/' -f2)
+            ASSET="${CATEGORY}--${NAME}.zip"
+            echo "Packing $dir -> $ASSET"
+            (cd "$dir" && zip -r "../../dist/$ASSET" .)
+          done <<< "${{ steps.detect.outputs.changed }}"
+
+      - name: Generate manifest.json
+        run: |
+          python3 - <<'PYEOF'
+          import json, os
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          challenges = []
+          for category_dir in sorted(Path(".").iterdir()):
+              if category_dir.name in ("xbow", "custom") and category_dir.is_dir():
+                  for ch_dir in sorted(category_dir.iterdir()):
+                      if not ch_dir.is_dir():
+                          continue
+                      meta = {}
+                      benchmark_json = ch_dir / "benchmark.json"
+                      if benchmark_json.exists():
+                          with open(benchmark_json) as f:
+                              meta = json.load(f)
+                      challenges.append({
+                          "name": ch_dir.name,
+                          "category": category_dir.name,
+                          "asset": f"{category_dir.name}--{ch_dir.name}.zip",
+                          "description": meta.get("name", ""),
+                          "difficulty": meta.get("difficulty", ""),
+                      })
+
+          manifest = {
+              "version": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "repo": "wgpsec/ctf-benchmarks",
+              "challenges": challenges,
+          }
+
+          os.makedirs("dist", exist_ok=True)
+          with open("dist/manifest.json", "w") as f:
+              json.dump(manifest, f, indent=2, ensure_ascii=False)
+
+          print(f"Generated manifest with {len(challenges)} challenges")
+          PYEOF
+
+      - name: Create or update release
+        if: steps.detect.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view latest >/dev/null 2>&1 || gh release create latest --title "Challenge Assets" --notes "Auto-published challenge zip archives"
+          for f in dist/*.zip; do
+            [ -f "$f" ] && gh release upload latest "$f" --clobber
+          done
+          gh release upload latest dist/manifest.json --clobber
