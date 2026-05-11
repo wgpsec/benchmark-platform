@@ -15,6 +15,12 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 - Image pre-build / cache page (avoid cold-start delays)
 - Apple Silicon (ARM64) compatibility
 
+## Screenshots
+
+| Challenges | prebuild |
+|-----------|------------|
+| ![Challenges](.github/screenshots/challenges.png) | ![prebuild](.github/screenshots/prebuild.png) |
+
 ## Quick Start
 
 ### Requirements

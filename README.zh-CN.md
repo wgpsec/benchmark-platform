@@ -15,6 +15,12 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 - 镜像预构建/缓存页面（避免冷启动延迟）
 - Apple Silicon (ARM64) 兼容
 
+## 界面截图
+
+| 题目列表 | 镜像预热 |
+|--------|---------|
+| ![Challenges](.github/screenshots/challenges.png) | ![prebuild](.github/screenshots/prebuild.png) |
+
 ## 快速开始
 
 ### 环境要求
