@@ -37,27 +37,24 @@ pip install -e .
 
 ### Prepare Challenge Data
 
-The challenge source code is not included in this repository. Clone and set up before starting:
+Start the platform and navigate to **"靶场管理" (Challenge Store)** in the Web UI sidebar to browse and download challenges.
+
+Alternatively, set up manually:
 
 ```bash
-# 1. Clone the benchmark repository
-git clone https://github.com/Neuro-Sploit/xbow-validation-benchmarks /tmp/xbow
-
-# 2. Copy challenge directories into place
+git clone https://github.com/wgpsec/ctf-benchmarks /tmp/benchmarks
 mkdir -p challenges
-cp -r /tmp/xbow/benchmarks/* challenges/
-
-# 3. Clean up
-rm -rf /tmp/xbow
+cp -r /tmp/benchmarks/xbow challenges/xbow
+cp -r /tmp/benchmarks/custom challenges/custom
+rm -rf /tmp/benchmarks
 ```
-
-> **Note:** The upstream repo stores challenges under a `benchmarks/` subdirectory, so a direct clone into `challenges/` won't work — the copy step above flattens the structure to what the platform expects (`challenges/XBEN-001-24/`, `challenges/XBEN-002-24/`, ...).
 
 ### Run
 
 ```bash
 python -m benchmark_platform.server \
-  --benchmark-folder ./challenges \
+  --benchmark-folder ./challenges/xbow \
+  --benchmark-folder ./challenges/custom \
   --port 8088 \
   --public-accessible-host localhost
 ```

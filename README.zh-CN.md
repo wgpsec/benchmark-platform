@@ -37,27 +37,24 @@ pip install -e .
 
 ### 准备靶场题目
 
-靶机题目源码未包含在本仓库中，启动前需手动拉取：
+启动平台后，在 Web UI 侧边栏点击 **「靶场管理」** 即可浏览并下载靶场题目。
+
+也可以手动拉取：
 
 ```bash
-# 1. 克隆上游靶场仓库
-git clone https://github.com/Neuro-Sploit/xbow-validation-benchmarks /tmp/xbow
-
-# 2. 将题目目录复制到 challenges/
+git clone https://github.com/wgpsec/ctf-benchmarks /tmp/benchmarks
 mkdir -p challenges
-cp -r /tmp/xbow/benchmarks/* challenges/
-
-# 3. 清理临时文件
-rm -rf /tmp/xbow
+cp -r /tmp/benchmarks/xbow challenges/xbow
+cp -r /tmp/benchmarks/custom challenges/custom
+rm -rf /tmp/benchmarks
 ```
-
-> **注意：** 上游仓库的题目位于 `benchmarks/` 子目录下，不能直接 clone 到 `challenges/`，需要通过上述步骤将目录结构展平为平台所需的格式（`challenges/XBEN-001-24/`、`challenges/XBEN-002-24/`、...）。
 
 ### 启动服务
 
 ```bash
 python -m benchmark_platform.server \
-  --benchmark-folder ./challenges \
+  --benchmark-folder ./challenges/xbow \
+  --benchmark-folder ./challenges/custom \
   --port 8088 \
   --public-accessible-host localhost
 ```
