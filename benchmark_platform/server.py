@@ -8,7 +8,7 @@ from typing import NoReturn
 
 import typer
 import uvicorn
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, File, UploadFile
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -722,6 +722,26 @@ async def store_download_all():
             results.append({"name": ch["name"], "status": "ok"})
         except Exception as e:
             results.append({"name": ch["name"], "status": f"error: {e}"})
+    return {"code": 0, "data": results}
+
+
+@app.post("/api/store/import")
+async def store_import(files: list[UploadFile] = File(...)):
+    from benchmark_platform.web.store import ChallengeStore
+    store = ChallengeStore(
+        challenges_dir=app.state.challenges_dir,
+    )
+    results = []
+    for f in files:
+        if not f.filename or not f.filename.endswith(".zip"):
+            results.append({"name": f.filename, "status": "error", "detail": "must be .zip"})
+            continue
+        try:
+            data = await f.read()
+            category, name = store.import_challenge(data, f.filename)
+            results.append({"name": f"{category}/{name}", "status": "ok"})
+        except Exception as e:
+            results.append({"name": f.filename, "status": "error", "detail": str(e)})
     return {"code": 0, "data": results}
 
 

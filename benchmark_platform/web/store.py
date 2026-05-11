@@ -71,6 +71,29 @@ class ChallengeStore:
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(dest)
 
+    def import_challenge(self, zip_bytes: bytes, filename: str) -> tuple[str, str]:
+        """Import a local zip file. Filename should be 'category--name.zip'. Returns (category, name)."""
+        stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+        if "--" in stem:
+            category, name = stem.split("--", 1)
+        else:
+            category, name = "custom", stem
+
+        dest = self.challenges_dir / category / name
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            tmp.write(zip_bytes)
+            tmp_path = Path(tmp.name)
+
+        try:
+            if dest.exists():
+                shutil.rmtree(dest)
+            self._extract_zip(tmp_path, dest)
+            self._write_meta(dest, len(zip_bytes))
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+        return category, name
+
     def _write_meta(self, dest: Path, size: int) -> None:
         meta_path = dest / STORE_META_FILE
         meta_path.write_text(json.dumps({"size": size}))

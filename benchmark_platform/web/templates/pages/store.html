@@ -36,6 +36,14 @@
               class="h-8 px-3 border border-red-200 text-red-600 text-[11px] font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50">
         批量删除
       </button>
+      <button x-show="!downloading"
+              @click="showImportModal = true"
+              class="h-8 px-3 border border-emerald-200 text-emerald-700 text-[11px] font-medium rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer inline-flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"/>
+        </svg>
+        导入
+      </button>
       <button @click="cancelDownload()"
               x-show="downloading"
               class="h-8 px-3 bg-red-600 text-white text-[11px] font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer">
@@ -120,6 +128,76 @@
       </div>
     </div>
   </template>
+  <!-- Import Modal -->
+  <div x-show="showImportModal" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+       @click.self="showImportModal = false" @keydown.escape.window="showImportModal = false">
+    <div class="bg-white rounded-xl shadow-xl w-[560px] max-h-[80vh] overflow-y-auto" @click.stop>
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <h3 class="text-[14px] font-semibold text-gray-900">导入本地靶场</h3>
+        <button @click="showImportModal = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="px-5 py-4 space-y-4">
+        <!-- File spec -->
+        <div class="bg-gray-50 rounded-lg p-3 text-[11px] text-gray-600 space-y-2">
+          <div class="font-semibold text-gray-700 text-[12px]">靶场文件规范</div>
+          <div class="space-y-1.5">
+            <p><span class="font-medium text-gray-700">文件命名：</span><code class="bg-white px-1 py-0.5 rounded text-[10px]">分类--名称.zip</code>（如 <code class="bg-white px-1 py-0.5 rounded text-[10px]">xbow--sql-injection.zip</code>）</p>
+            <p><span class="font-medium text-gray-700">默认分类：</span>文件名中不含 <code class="bg-white px-1 py-0.5 rounded text-[10px]">--</code> 时自动归入 <code class="bg-white px-1 py-0.5 rounded text-[10px]">custom</code> 分类</p>
+            <p class="font-medium text-gray-700 pt-1">zip 内必须包含：</p>
+            <ul class="list-disc list-inside pl-1 space-y-0.5">
+              <li><code class="bg-white px-1 py-0.5 rounded text-[10px]">docker-compose.yml</code> — 容器编排文件</li>
+              <li><code class="bg-white px-1 py-0.5 rounded text-[10px]">benchmark.json</code> — 靶场元数据（name, description, level, points）</li>
+            </ul>
+            <p class="font-medium text-gray-700 pt-1">可选文件：</p>
+            <ul class="list-disc list-inside pl-1 space-y-0.5">
+              <li><code class="bg-white px-1 py-0.5 rounded text-[10px]">benchmark.yaml</code> — flag 定义（多 flag 场景）</li>
+              <li><code class="bg-white px-1 py-0.5 rounded text-[10px]">.env</code> — 环境变量配置</li>
+              <li><code class="bg-white px-1 py-0.5 rounded text-[10px]">src/</code> — 源码目录（需要 build 的靶场）</li>
+            </ul>
+          </div>
+        </div>
+        <!-- Upload area -->
+        <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center transition-colors"
+             :class="{'border-emerald-400 bg-emerald-50': importDragover}"
+             @dragover.prevent="importDragover = true"
+             @dragleave.prevent="importDragover = false"
+             @drop.prevent="importDragover = false; handleImportDrop($event)">
+          <svg class="w-8 h-8 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <p class="text-[12px] text-gray-500 mb-1">拖拽 .zip 文件到此处，或</p>
+          <label class="inline-block px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-medium rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer">
+            选择文件
+            <input type="file" accept=".zip" multiple class="hidden" @change="handleImportSelect($event)">
+          </label>
+          <p class="text-[10px] text-gray-400 mt-2">支持多选，仅接受 .zip 格式</p>
+        </div>
+        <!-- Import progress -->
+        <div x-show="importResults.length > 0" class="space-y-1">
+          <div class="text-[11px] font-medium text-gray-700">导入结果：</div>
+          <template x-for="r in importResults" :key="r.name">
+            <div class="flex items-center gap-2 text-[11px] px-2 py-1 rounded"
+                 :class="r.status === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'">
+              <span x-text="r.status === 'ok' ? '✓' : '✗'" class="font-bold"></span>
+              <span x-text="r.name"></span>
+              <span x-show="r.detail" class="text-gray-500" x-text="'— ' + r.detail"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+      <div class="px-5 py-3 border-t border-gray-100 flex justify-end">
+        <button @click="showImportModal = false"
+                class="h-8 px-4 text-[11px] font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -131,6 +209,10 @@ function storePage() {
     cancelled: false,
     downloadProgress: '',
     error: '',
+    showImportModal: false,
+    importDragover: false,
+    importResults: [],
+    importing: false,
     get categories() {
       return [...new Set(this.challenges.map(c => c.category))].sort();
     },
@@ -310,6 +392,36 @@ function storePage() {
         this.$dispatch('toast', {type: 'success', message: `全部完成 (${this._doneCount}/${this._totalCount})`});
       }
       this.downloading = false;
+    },
+    async importFiles(fileList) {
+      if (!fileList || !fileList.length) return;
+      this.importing = true;
+      this.importResults = [];
+      const formData = new FormData();
+      for (const f of fileList) {
+        if (f.name.endsWith('.zip')) formData.append('files', f);
+      }
+      try {
+        const resp = await fetch('/api/store/import', {method: 'POST', body: formData});
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.detail || 'Import failed');
+        this.importResults = data.data;
+        const ok = data.data.filter(r => r.status === 'ok').length;
+        if (ok > 0) {
+          this.$dispatch('toast', {type: 'success', message: `已导入 ${ok} 个靶场`});
+          await this.refreshManifest();
+        }
+      } catch (e) {
+        this.$dispatch('toast', {type: 'error', message: '导入失败: ' + e.message});
+      }
+      this.importing = false;
+    },
+    handleImportSelect(event) {
+      this.importFiles(event.target.files);
+      event.target.value = '';
+    },
+    handleImportDrop(event) {
+      this.importFiles(event.dataTransfer.files);
     }
   };
 }
