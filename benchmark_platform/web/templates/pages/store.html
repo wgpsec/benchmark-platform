@@ -177,7 +177,7 @@
             </button>
           </div>
           <p class="text-[10px] text-gray-500">复制以下 Prompt 发送给任意 AI（ChatGPT / Claude / 通义千问等），描述你想要的漏洞场景，AI 会生成符合平台规范的靶场文件：</p>
-          <div class="bg-white rounded border border-blue-100 p-2 text-[10px] text-gray-700 font-mono leading-relaxed max-h-[120px] overflow-y-auto" x-ref="aiPrompt">请帮我创建一个 CTF 靶场，要求如下：
+          <div class="bg-white rounded border border-blue-100 p-2 text-[10px] text-gray-700 font-mono leading-relaxed max-h-[120px] overflow-y-auto whitespace-pre-wrap" x-ref="aiPrompt">请帮我创建一个 CTF 靶场，要求如下：
 
 1. 生成以下文件：docker-compose.yml、benchmark.json，如果是多 flag 还需要 benchmark.yaml
 2. docker-compose.yml 端口映射用字符串格式（如 "80:80"），必须包含 healthcheck
@@ -453,11 +453,30 @@ function storePage() {
     },
     copyAIPrompt() {
       const text = this.$refs.aiPrompt.innerText;
-      navigator.clipboard.writeText(text).then(() => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          this.$dispatch('toast', {type: 'success', message: 'Prompt 已复制到剪贴板'});
+        }).catch(() => {
+          this._fallbackCopy(text);
+        });
+      } else {
+        this._fallbackCopy(text);
+      }
+    },
+    _fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
         this.$dispatch('toast', {type: 'success', message: 'Prompt 已复制到剪贴板'});
-      }).catch(() => {
+      } catch (e) {
         this.$dispatch('toast', {type: 'error', message: '复制失败，请手动选择复制'});
-      });
+      }
+      document.body.removeChild(ta);
     }
   };
 }
