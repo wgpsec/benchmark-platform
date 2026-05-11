@@ -55,7 +55,19 @@
   <!-- Category groups -->
   <template x-for="cat in categories" :key="cat">
     <div class="mb-6">
-      <h3 class="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1" x-text="cat"></h3>
+      <div class="flex items-center justify-between mb-3 px-1">
+        <h3 class="text-[12px] font-semibold text-gray-500 uppercase tracking-wider" x-text="cat"></h3>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] text-gray-400"
+                x-text="challengesByCategory(cat).filter(c=>c.downloaded).length + '/' + challengesByCategory(cat).length + ' 已下载'"></span>
+          <button @click="downloadCategory(cat)"
+                  :disabled="downloading"
+                  x-show="challengesByCategory(cat).some(c=>!c.downloaded || c.has_update)"
+                  class="text-[10px] px-2 py-1 border border-gray-200 text-gray-600 font-medium rounded hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
+            下载本分类
+          </button>
+        </div>
+      </div>
       <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full">
@@ -261,11 +273,19 @@ function storePage() {
       this.downloadProgress = `${this._doneCount}/${this._totalCount}`;
     },
     async downloadAll() {
+      const pending = this.challenges.filter(c => !c.downloaded || c.has_update);
+      await this._batchDownload(pending);
+    },
+    async downloadCategory(cat) {
+      const pending = this.challengesByCategory(cat).filter(c => !c.downloaded || c.has_update);
+      if (!pending.length) return;
+      await this._batchDownload(pending);
+    },
+    async _batchDownload(pending) {
       this.downloading = true;
       this.cancelled = false;
       this._abortController = new AbortController();
       this.error = '';
-      const pending = this.challenges.filter(c => !c.downloaded || c.has_update);
       this._doneCount = 0;
       this._totalCount = pending.length;
       this.downloadProgress = `0/${pending.length}`;
