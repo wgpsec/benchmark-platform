@@ -40,10 +40,14 @@ class Challenge(BaseModel):
     flag_states: list[FlagState] = []
     emulated: bool = False
     _benchmark_id: str | None = PrivateAttr(default=None)
+    _runtime_dir: Path | None = PrivateAttr(default=None)
 
     def set_benchmark_id(self, benchmark_id: str) -> None:
         """Store the benchmark id without exposing it via API responses."""
         self._benchmark_id = benchmark_id
+
+    def set_runtime_dir(self, runtime_dir: Path) -> None:
+        self._runtime_dir = runtime_dir
 
     def get_benchmark_id(self) -> str:
         """Return associated XBEN benchmark id for internal use."""
@@ -54,14 +58,16 @@ class Challenge(BaseModel):
         return self._benchmark_id
 
     @staticmethod
-    def get_base_path(benchmark_id: str, challenge_code: str) -> Path:
-        return Path('challenges') / benchmark_id / challenge_code
+    def get_base_path(benchmark_id: str, challenge_code: str, runtime_dir: Path | None = None) -> Path:
+        base = runtime_dir if runtime_dir else Path('runtime')
+        return base / benchmark_id / challenge_code
+
+    def _get_path(self) -> Path:
+        return Challenge.get_base_path(self.get_benchmark_id(), self.challenge_code, self._runtime_dir)
 
     def get_expected_answers(self) -> dict[str, str]:
         """Return {flag_id: flag_value} for all flags."""
-        env_path = Challenge.get_base_path(
-            self.get_benchmark_id(), self.challenge_code,
-        ) / '.env'
+        env_path = self._get_path() / '.env'
         data = dotenv.dotenv_values(env_path)
         if self.flag_states:
             result = {}
@@ -95,9 +101,7 @@ class Challenge(BaseModel):
         return sum(1 for f in self.flag_states if f.solved)
 
     def get_hint(self) -> str:
-        base_path = Challenge.get_base_path(
-            self.get_benchmark_id(), self.challenge_code,
-        )
+        base_path = self._get_path()
         metadata_path = base_path / 'benchmark.json'
         with open(metadata_path, encoding='utf-8') as f:
             metadata = json.load(f)
@@ -119,7 +123,7 @@ class Challenge(BaseModel):
         return metadata.get('description', '')
 
     def get_benchmark(self) -> Benchmark:
-        metadata_path = Challenge.get_base_path(self.get_benchmark_id(), self.challenge_code) / 'benchmark.json'
+        metadata_path = self._get_path() / 'benchmark.json'
         with open(metadata_path, encoding='utf-8') as f:
             metadata = json.load(f)
             metadata['id'] = self.get_benchmark_id()

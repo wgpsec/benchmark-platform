@@ -7,6 +7,32 @@
     <div class="text-[13px] text-gray-500">系统设置</div>
   </div>
 
+  <!-- Runtime Dir Settings -->
+  <div class="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+    <h3 class="text-[13px] font-semibold text-gray-800 mb-4">运行时目录</h3>
+    <p class="text-[11px] text-gray-500 mb-4">靶场启动时的实例文件存放路径。平台会在此目录下创建临时运行目录，停止后自动清理。修改后需重启平台生效。</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-[11px] font-medium text-gray-600 mb-1.5">目录路径</label>
+        <div class="flex items-center gap-3">
+          <input type="text" x-model="runtimeDir" placeholder="./runtime"
+                 class="flex-1 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 font-mono">
+        </div>
+        <p class="text-[10px] text-gray-400 mt-1.5">相对路径基于平台工作目录，也支持绝对路径如 /tmp/benchmark-runtime</p>
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button @click="saveRuntimeDir()" :disabled="savingRuntime"
+                class="h-9 px-5 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+          <span x-show="!savingRuntime">保存</span>
+          <span x-show="savingRuntime">保存中...</span>
+        </button>
+        <span x-show="savedRuntime" x-transition class="text-[11px] text-emerald-600 font-medium">已保存（重启后生效）</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Level Gate Settings -->
   <div class="bg-white border border-gray-200 rounded-xl p-5 mb-5">
     <h3 class="text-[13px] font-semibold text-gray-800 mb-4">Level 分级解锁</h3>
@@ -82,12 +108,20 @@ function settingsPage() {
     threshold: 100,
     saving: false,
     saved: false,
+    runtimeDir: './runtime',
+    savingRuntime: false,
+    savedRuntime: false,
     init() {
       fetch('/api/level_gate_config')
         .then(r => r.json())
         .then(d => {
           this.mode = d.data.mode;
           this.threshold = d.data.threshold;
+        });
+      fetch('/api/runtime_dir')
+        .then(r => r.json())
+        .then(d => {
+          this.runtimeDir = d.data.runtime_dir;
         });
     },
     save() {
@@ -105,6 +139,26 @@ function settingsPage() {
           this.saved = true;
           this.$dispatch('toast', {type: 'success', message: '解锁规则已保存'});
           setTimeout(() => this.saved = false, 3000);
+        } else {
+          this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
+        }
+      });
+    },
+    saveRuntimeDir() {
+      this.savingRuntime = true;
+      this.savedRuntime = false;
+      fetch('/api/runtime_dir', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({runtime_dir: this.runtimeDir})
+      })
+      .then(r => r.json())
+      .then(d => {
+        this.savingRuntime = false;
+        if (d.code === 0) {
+          this.savedRuntime = true;
+          this.$dispatch('toast', {type: 'success', message: '运行时目录已保存，重启后生效'});
+          setTimeout(() => this.savedRuntime = false, 5000);
         } else {
           this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
         }

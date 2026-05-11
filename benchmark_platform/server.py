@@ -31,6 +31,7 @@ from benchmark_platform.db import (
     mark_flag_solved, get_team_solved_count,
     is_hint_viewed, mark_hint_viewed, get_team_progress,
     get_level_gate_config, set_level_gate_config,
+    get_setting, set_setting,
 )
 
 
@@ -483,6 +484,25 @@ async def set_level_gate_config_api(payload: LevelGateConfigRequest):
     return _ok(config)
 
 
+@app.get("/api/runtime_dir")
+async def get_runtime_dir_api():
+    return _ok({"runtime_dir": get_setting("runtime_dir", "./runtime")})
+
+
+class RuntimeDirRequest(PydanticBaseModel):
+    runtime_dir: str
+
+
+@app.post("/api/runtime_dir")
+async def set_runtime_dir_api(payload: RuntimeDirRequest):
+    path = payload.runtime_dir.strip()
+    if not path:
+        _err("路径不能为空", 400)
+        return
+    set_setting("runtime_dir", path)
+    return _ok({"runtime_dir": path})
+
+
 class BatchLevelRequest(PydanticBaseModel):
     level: int
 
@@ -808,16 +828,18 @@ def serve(
         public_accessible_host=public_accessible_host,
     )
 
+    init_db()
+
     manager = ChallengeManager(
         benchmark_folders=benchmark_folder,
         benchmark_ids=benchmark_ids,
         public_accessible_host=public_accessible_host,
         no_level_gate=no_level_gate,
+        runtime_dir=Path(get_setting("runtime_dir", "./runtime")),
     )
     manager.start()
     CHALLENGES = manager.challenges
 
-    init_db()
     default_team = get_or_create_default_team()
 
     # Sync solved state from DB to Challenge objects

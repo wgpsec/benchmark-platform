@@ -159,6 +159,9 @@ challenges/**/vendor/
 challenges/**/.env
 challenges
 
+# Runtime instance directory
+runtime/
+
 # 预下载
 /scripts/images
 

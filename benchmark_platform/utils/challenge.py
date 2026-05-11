@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import shutil
 import subprocess
@@ -29,11 +31,14 @@ class ChallengeManager:
         benchmark_ids: list[str],
         public_accessible_host: str,
         no_level_gate: bool = False,
+        runtime_dir: Path | None = None,
     ) -> None:
         self.benchmark_folders = benchmark_folders
         self.benchmark_ids = benchmark_ids
         self.public_accessible_host = public_accessible_host
-        self.no_level_gate = no_level_gate  # level gate enforcement not yet implemented; all challenges are always visible
+        self.no_level_gate = no_level_gate
+        self.runtime_dir = runtime_dir or Path('runtime')
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.challenges: list[Challenge] = []
         self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"
 
@@ -108,7 +113,7 @@ class ChallengeManager:
 
     def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
         challenge_id = str(uuid.uuid4())
-        path = Challenge.get_base_path(benchmark_id, challenge_id)
+        path = Challenge.get_base_path(benchmark_id, challenge_id, self.runtime_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
         src = benchmark_folder / benchmark_id
 
@@ -177,6 +182,7 @@ class ChallengeManager:
                 emulated=is_emulated,
             )
             challenge.set_benchmark_id(benchmark_id)
+            challenge.set_runtime_dir(self.runtime_dir)
             return challenge
         except Exception:
             if path.exists():
@@ -207,7 +213,7 @@ class ChallengeManager:
         return self._check_container_health(challenge)
 
     def _check_container_health(self, challenge: Challenge) -> str:
-        path = Challenge.get_base_path(challenge.get_benchmark_id(), challenge.challenge_code)
+        path = Challenge.get_base_path(challenge.get_benchmark_id(), challenge.challenge_code, self.runtime_dir)
         if not (path / 'docker-compose.yml').exists():
             return "running"
         try:
@@ -244,13 +250,13 @@ class ChallengeManager:
             ))
             def remove_dir(c):
                 shutil.rmtree(
-                    Challenge.get_base_path(c.get_benchmark_id(), c.challenge_code),
+                    Challenge.get_base_path(c.get_benchmark_id(), c.challenge_code, self.runtime_dir),
                     ignore_errors=True,
                 )
             list(executor.map(remove_dir, challenges))
 
     def _compose(self, benchmark_id: str, code: str, *args) -> None:
-        path = Challenge.get_base_path(benchmark_id, code)
+        path = Challenge.get_base_path(benchmark_id, code, self.runtime_dir)
         if not (path / 'docker-compose.yml').exists():
             return
         cmd = ['docker', 'compose'] + list(args)
