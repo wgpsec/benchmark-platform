@@ -16,6 +16,7 @@ from benchmark_platform.base import FlagState
 from benchmark_platform.base import TargetInfo
 from benchmark_platform.models.benchmark import Benchmark
 from benchmark_platform.utils.logger import get_logger
+from benchmark_platform.db import get_level_gate_config
 
 logger = get_logger(Path('logs/competition-platform-server-logs.jsonl'))
 console = Console()
@@ -291,14 +292,30 @@ class ChallengeManager:
         return level_map[challenge.difficulty]
 
     def get_current_level(self) -> int:
-        """Return the highest unlocked level based on solved challenges."""
+        """Return the highest unlocked level based on solved challenges and gate config."""
         if not self.challenges:
             return 1
+        config = get_level_gate_config()
+        mode = config["mode"]
+        threshold = config["threshold"]
         levels = sorted(set(self.get_level_for_challenge(c) for c in self.challenges))
         for level in levels:
             at_level = [c for c in self.challenges if self.get_level_for_challenge(c) == level]
-            if not all(c.solved for c in at_level):
-                return level
+            solved_flags = sum(
+                sum(1 for f in c.flag_states if f.solved) for c in at_level
+            )
+            total_flags = sum(len(c.flag_states) for c in at_level)
+            if total_flags == 0:
+                continue
+            if mode == "all":
+                if not all(c.solved for c in at_level):
+                    return level
+            elif mode == "percentage":
+                if (solved_flags * 100 // total_flags) < threshold:
+                    return level
+            elif mode == "count":
+                if solved_flags < threshold:
+                    return level
         return levels[-1]
 
     def is_level_unlocked(self, level: int) -> bool:

@@ -93,24 +93,74 @@
     {% include "components/_sidebar_summary_content.html" ignore missing %}
   </div>
 
-  <!-- Admin: Level Gate toggle -->
-  <div class="px-4 py-3 border-t border-gray-100" x-data="{gate: {{ 'false' if no_level_gate else 'true' }}}">
-    <label class="flex items-center justify-between cursor-pointer">
-      <span class="text-[11px] text-gray-500">Level 分级解锁</span>
-      <button @click="
-        fetch('/api/toggle_level_gate', {method:'POST'})
-        .then(r => r.json())
-        .then(data => {
-          gate = !data.data.no_level_gate;
-          $dispatch('toast', {type:'info', message: data.data.no_level_gate ? '分级解锁已关闭' : '分级解锁已开启'});
-          setTimeout(() => location.reload(), 500);
-        });
-      " class="relative w-8 h-4 rounded-full transition-colors"
+  <!-- Admin: Level Gate config -->
+  <div class="px-4 py-3 border-t border-gray-100"
+       x-data="{
+         gate: {{ 'false' if no_level_gate else 'true' }},
+         showConfig: false,
+         mode: 'all',
+         threshold: 100,
+         loading: false,
+         init() {
+           fetch('/api/level_gate_config').then(r=>r.json()).then(d=>{
+             this.mode = d.data.mode;
+             this.threshold = d.data.threshold;
+           });
+         },
+         toggleGate() {
+           fetch('/api/toggle_level_gate', {method:'POST'})
+           .then(r=>r.json())
+           .then(data=>{
+             this.gate = !data.data.no_level_gate;
+             $dispatch('toast', {type:'info', message: data.data.no_level_gate ? '分级解锁已关闭' : '分级解锁已开启'});
+             setTimeout(()=>location.reload(), 500);
+           });
+         },
+         saveConfig() {
+           this.loading = true;
+           fetch('/api/level_gate_config', {
+             method:'POST',
+             headers:{'Content-Type':'application/json'},
+             body: JSON.stringify({mode: this.mode, threshold: parseInt(this.threshold)})
+           }).then(r=>r.json()).then(d=>{
+             this.loading = false;
+             if(d.status==='ok'){
+               $dispatch('toast', {type:'success', message:'解锁规则已保存'});
+               this.showConfig = false;
+               setTimeout(()=>location.reload(), 500);
+             } else {
+               $dispatch('toast', {type:'error', message: d.message||'保存失败'});
+             }
+           });
+         }
+       }">
+    <div class="flex items-center justify-between">
+      <span class="text-[11px] text-gray-500 cursor-pointer" @click="showConfig=!showConfig">Level 分级解锁 ⚙</span>
+      <button @click="toggleGate()" class="relative w-8 h-4 rounded-full transition-colors"
          :class="gate ? 'bg-emerald-500' : 'bg-gray-300'">
         <span class="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform"
               :class="gate ? 'translate-x-4' : ''"></span>
       </button>
-    </label>
+    </div>
+    <div x-show="showConfig" x-transition class="mt-2 p-2 bg-gray-50 rounded-lg space-y-2">
+      <div>
+        <label class="text-[10px] text-gray-500">解锁模式</label>
+        <select x-model="mode" class="w-full mt-0.5 text-[11px] h-6 px-1.5 border border-gray-200 rounded">
+          <option value="all">全部通过</option>
+          <option value="percentage">按百分比</option>
+          <option value="count">按 Flag 数量</option>
+        </select>
+      </div>
+      <div x-show="mode !== 'all'">
+        <label class="text-[10px] text-gray-500" x-text="mode==='percentage' ? '通过比例 (%)' : '最低 Flag 数'"></label>
+        <input type="number" x-model="threshold" min="1" :max="mode==='percentage' ? 100 : 999"
+               class="w-full mt-0.5 text-[11px] h-6 px-1.5 border border-gray-200 rounded">
+      </div>
+      <button @click="saveConfig()" :disabled="loading"
+              class="w-full h-6 text-[10px] font-medium bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50">
+        保存
+      </button>
+    </div>
   </div>
 
   <!-- Version -->

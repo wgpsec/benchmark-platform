@@ -30,6 +30,7 @@ from benchmark_platform.db import (
     init_db, get_or_create_default_team,
     mark_flag_solved, get_team_solved_count,
     is_hint_viewed, mark_hint_viewed, get_team_progress,
+    get_level_gate_config, set_level_gate_config,
 )
 
 
@@ -460,6 +461,26 @@ async def tch_toggle_level_gate():
         return
     manager.no_level_gate = not manager.no_level_gate
     return _ok({"no_level_gate": manager.no_level_gate})
+
+
+class LevelGateConfigRequest(PydanticBaseModel):
+    mode: str
+    threshold: int
+
+
+@app.get("/api/level_gate_config")
+async def get_level_gate_config_api():
+    return _ok(get_level_gate_config())
+
+
+@app.post("/api/level_gate_config")
+async def set_level_gate_config_api(payload: LevelGateConfigRequest):
+    try:
+        config = set_level_gate_config(payload.mode, payload.threshold)
+    except ValueError as e:
+        _err(str(e), 400)
+        return
+    return _ok(config)
 
 
 class BatchLevelRequest(PydanticBaseModel):

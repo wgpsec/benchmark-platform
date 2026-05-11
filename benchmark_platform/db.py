@@ -54,6 +54,10 @@ def init_db() -> None:
             viewed_at      TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (team_id, benchmark_id)
         );
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
     """)
     # Migrate old schema: rename challenge_code → benchmark_id if needed
     try:
@@ -174,3 +178,37 @@ def reset_team_progress(team_id: str) -> None:
     conn.execute("DELETE FROM team_progress WHERE team_id = ?", (team_id,))
     conn.execute("DELETE FROM team_hints WHERE team_id = ?", (team_id,))
     conn.commit()
+
+
+def get_setting(key: str, default: str = "") -> str:
+    conn = _get_conn()
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    conn = _get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (key, value),
+    )
+    conn.commit()
+
+
+def get_level_gate_config() -> dict:
+    return {
+        "mode": get_setting("level_gate_mode", "all"),
+        "threshold": int(get_setting("level_gate_threshold", "100")),
+    }
+
+
+def set_level_gate_config(mode: str, threshold: int) -> dict:
+    if mode not in ("all", "percentage", "count"):
+        raise ValueError(f"Invalid mode: {mode}")
+    if mode == "percentage" and not (1 <= threshold <= 100):
+        raise ValueError("Percentage threshold must be between 1 and 100")
+    if mode == "count" and threshold < 1:
+        raise ValueError("Count threshold must be at least 1")
+    set_setting("level_gate_mode", mode)
+    set_setting("level_gate_threshold", str(threshold))
+    return {"mode": mode, "threshold": threshold}
