@@ -581,6 +581,66 @@ async def prebuild_remove_all():
     return _ok({"removed": removed, "failed": failed}, f"已清理 {removed} 个题目的镜像")
 
 
+# -- Challenge Store API -------------------------------------------------------
+
+@app.get("/api/store/manifest")
+async def store_manifest():
+    from benchmark_platform.web.store import ChallengeStore
+    store = ChallengeStore(
+        challenges_dir=Path(app.state.manager.benchmark_folders[0]).parent if app.state.manager else Path("challenges"),
+    )
+    try:
+        manifest = store.fetch_manifest()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch manifest: {e}")
+    for ch in manifest.get("challenges", []):
+        ch["downloaded"] = store.is_downloaded(ch["category"], ch["name"])
+    return {"code": 0, "data": manifest}
+
+
+@app.post("/api/store/download")
+async def store_download(body: dict):
+    from benchmark_platform.web.store import ChallengeStore
+    category = body.get("category")
+    name = body.get("name")
+    asset = body.get("asset")
+    if not all([category, name, asset]):
+        raise HTTPException(status_code=400, detail="category, name, asset required")
+
+    store = ChallengeStore(
+        challenges_dir=Path(app.state.manager.benchmark_folders[0]).parent if app.state.manager else Path("challenges"),
+    )
+    try:
+        store.download_challenge(category, name, asset)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Download failed: {e}")
+    return {"code": 0, "message": f"{category}/{name} downloaded"}
+
+
+@app.post("/api/store/download-all")
+async def store_download_all():
+    from benchmark_platform.web.store import ChallengeStore
+    store = ChallengeStore(
+        challenges_dir=Path(app.state.manager.benchmark_folders[0]).parent if app.state.manager else Path("challenges"),
+    )
+    try:
+        manifest = store.fetch_manifest()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch manifest: {e}")
+
+    results = []
+    for ch in manifest.get("challenges", []):
+        if store.is_downloaded(ch["category"], ch["name"]):
+            results.append({"name": ch["name"], "status": "skipped"})
+            continue
+        try:
+            store.download_challenge(ch["category"], ch["name"], ch["asset"])
+            results.append({"name": ch["name"], "status": "ok"})
+        except Exception as e:
+            results.append({"name": ch["name"], "status": f"error: {e}"})
+    return {"code": 0, "data": results}
+
+
 app_cli = typer.Typer()
 
 
