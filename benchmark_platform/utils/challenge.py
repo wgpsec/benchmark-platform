@@ -309,10 +309,8 @@ class ChallengeManager:
                     len(team_progress.get(c.get_benchmark_id(), {})) for c in at_level
                 )
             else:
-                solved_flags = sum(
-                    sum(1 for f in c.flag_states if f.solved) for c in at_level
-                )
-            total_flags = sum(len(c.flag_states) for c in at_level)
+                solved_flags = sum(c.solved_count for c in at_level)
+            total_flags = sum(c.flag_count for c in at_level)
             if total_flags == 0:
                 continue
             if mode == "all":
