@@ -270,7 +270,7 @@ function storePage() {
       this._totalCount = pending.length;
       this.downloadProgress = `0/${pending.length}`;
 
-      const concurrency = 3;
+      const concurrency = 5;
       let idx = 0;
 
       const runNext = async () => {
