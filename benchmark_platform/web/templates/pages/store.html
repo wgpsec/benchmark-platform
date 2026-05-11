@@ -160,6 +160,34 @@
               <li><code class="bg-white px-1 py-0.5 rounded text-[10px]">src/</code> — 源码目录（需要 build 的靶场）</li>
             </ul>
           </div>
+          <div class="pt-2 border-t border-gray-100 mt-2">
+            <p class="text-[10px] text-gray-500">
+              完整规范：<a href="https://github.com/wgpsec/benchmark-challenges/blob/main/docs/challenge-spec.md" target="_blank" class="text-blue-600 hover:underline">docs/challenge-spec.md</a>
+              · 用 AI 生成靶场：<a href="https://github.com/wgpsec/benchmark-challenges/blob/main/.claude/skills/create-challenge.md" target="_blank" class="text-blue-600 hover:underline">Claude Code Skill</a>
+            </p>
+          </div>
+        </div>
+        <!-- AI Prompt -->
+        <div class="bg-blue-50 rounded-lg p-3 text-[11px] text-gray-600 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="font-semibold text-gray-700 text-[12px]">用 AI 生成靶场</div>
+            <button @click="copyAIPrompt()"
+                    class="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors cursor-pointer">
+              复制 Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-gray-500">复制以下 Prompt 发送给任意 AI（ChatGPT / Claude / 通义千问等），描述你想要的漏洞场景，AI 会生成符合平台规范的靶场文件：</p>
+          <div class="bg-white rounded border border-blue-100 p-2 text-[10px] text-gray-700 font-mono leading-relaxed max-h-[120px] overflow-y-auto" x-ref="aiPrompt">请帮我创建一个 CTF 靶场，要求如下：
+
+1. 生成以下文件：docker-compose.yml、benchmark.json，如果是多 flag 还需要 benchmark.yaml
+2. docker-compose.yml 端口映射用字符串格式（如 "80:80"），必须包含 healthcheck
+3. benchmark.json 格式：{"id":"靶场ID", "name":"名称", "description":"场景描述", "level":难度(1=easy/2=medium/3=hard), "win_condition":"flag", "tags":["标签"], "canaries":["FLAG{...}"], "flag_count":flag数量}
+4. Flag 使用 FLAG{描述性内容} 格式，必须同时出现在代码中和 canaries 数组中
+5. 漏洞必须真实可利用，不能是假漏洞
+6. Dockerfile 用精简基础镜像（如 python:3.11-slim）
+7. 最终打包为 分类--名称.zip（如 custom--MY-SQLI-01.zip）
+
+我想要的靶场是：[在此描述你的漏洞场景、难度、技术栈偏好]</div>
         </div>
         <!-- Upload area -->
         <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center transition-colors"
@@ -422,6 +450,14 @@ function storePage() {
     },
     handleImportDrop(event) {
       this.importFiles(event.dataTransfer.files);
+    },
+    copyAIPrompt() {
+      const text = this.$refs.aiPrompt.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        this.$dispatch('toast', {type: 'success', message: 'Prompt 已复制到剪贴板'});
+      }).catch(() => {
+        this.$dispatch('toast', {type: 'error', message: '复制失败，请手动选择复制'});
+      });
     }
   };
 }
