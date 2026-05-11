@@ -17,9 +17,13 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 
 ## Screenshots
 
-| Challenges | prebuild |
-|-----------|------------|
-| ![Challenges](.github/screenshots/challenges.png) | ![prebuild](.github/screenshots/prebuild.png) |
+| Dashboard | Challenges |
+|-----------|-----------|
+| ![Dashboard](.github/screenshots/dashboard.png) | ![Challenges](.github/screenshots/challenges.png) |
+
+| Challenge Store | Prebuild |
+|----------------|----------|
+| ![Store](.github/screenshots/store.png) | ![Prebuild](.github/screenshots/prebuild.png) |
 
 ## Quick Start
 

@@ -17,9 +17,13 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 
 ## 界面截图
 
-| 题目列表 | 镜像预热 |
+| 仪表盘 | 题目列表 |
 |--------|---------|
-| ![Challenges](.github/screenshots/challenges.png) | ![prebuild](.github/screenshots/prebuild.png) |
+| ![仪表盘](.github/screenshots/dashboard.png) | ![题目列表](.github/screenshots/challenges.png) |
+
+| 靶场管理 | 镜像预热 |
+|---------|---------|
+| ![靶场管理](.github/screenshots/store.png) | ![镜像预热](.github/screenshots/prebuild.png) |
 
 ## 快速开始
 
