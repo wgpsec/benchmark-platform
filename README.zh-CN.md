@@ -126,6 +126,10 @@ tests/                     # 测试
 | `POST /api/stop_all` | 停止所有实例 |
 | `GET /api/challenges/{code}/progress` | 查询 Flag 进度 |
 
+## Agent 自动化接入
+
+如需使用 AI Agent 自动化解题，可参考 [API 文档（黑客松示例）](https://github.com/Yeti-791/Tsec-Hackathon/blob/main/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E9%BB%91%E5%AE%A2%E6%9D%BE/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E8%85%BE%E8%AE%AF%E4%BA%91%E9%BB%91%E5%AE%A2%E6%9D%BE%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E6%8C%91%E6%88%98%E8%B5%9BAPI%E6%96%87%E6%A1%A3.md) 了解完整的请求/响应格式。本平台 REST API 遵循相同约定 — Agent 可通过接口自动获取题目列表、启动靶机、提交 Flag、查询进度。
+
 ## 题目格式
 
 每个题目是一个目录，包含：

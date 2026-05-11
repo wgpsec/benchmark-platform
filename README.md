@@ -126,6 +126,10 @@ tests/                     # Tests
 | `POST /api/stop_all` | Stop all instances |
 | `GET /api/challenges/{code}/progress` | Query flag progress |
 
+## Agent Integration
+
+To automate challenge solving with an AI agent, refer to the [API Documentation (Hackathon Example)](https://github.com/Yeti-791/Tsec-Hackathon/blob/main/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E9%BB%91%E5%AE%A2%E6%9D%BE/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E8%85%BE%E8%AE%AF%E4%BA%91%E9%BB%91%E5%AE%A2%E6%9D%BE%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E6%8C%91%E6%88%98%E8%B5%9BAPI%E6%96%87%E6%A1%A3.md) for the full request/response format. The platform REST API follows the same conventions — agents can programmatically list challenges, start instances, submit flags, and track progress.
+
 ## Challenge Format
 
 Each challenge is a directory containing:
