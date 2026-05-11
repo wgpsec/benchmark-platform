@@ -50,28 +50,50 @@
       </span>
       {% endif %}
       {% if lg.unlocked %}
-      <div class="ml-auto flex items-center gap-2" x-data="{loading: false}">
-        <button :disabled="loading" @click="
-          loading = true;
+      <div class="ml-auto flex items-center gap-2" x-data="{startLoading: false, stopLoading: false, pollTimer: null}"
+           x-effect="if(!startLoading && !stopLoading && pollTimer) { clearInterval(pollTimer); pollTimer = null; }">
+        <button :disabled="startLoading || stopLoading" @click="
+          startLoading = true;
           fetch('/api/start_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
           .then(r => r.json())
-          .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
-          .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}))
-          .finally(() => { loading = false; setTimeout(() => location.reload(), 1000); });
+          .then(data => { $dispatch('toast', {type:'info', message: data.message}); })
+          .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}));
+          pollTimer = setInterval(() => {
+            fetch('/api/instance_statuses').then(r => r.json()).then(data => {
+              if(!data.data) return;
+              const statuses = data.data.statuses;
+              const batchRunning = data.data.batch_starting;
+              Object.entries(statuses).forEach(([code, info]) => {
+                if(info.level !== {{ lg.level }}) return;
+                if(info.solved) return;
+                if(info.status === 'running' || info.status === 'unhealthy') {
+                  fetch('/web/partials/challenge_card?code=' + code).then(r=>r.text()).then(html => {
+                    const el = document.getElementById('card-' + code);
+                    if(el) el.outerHTML = html;
+                  });
+                }
+              });
+              if(!batchRunning) {
+                startLoading = false;
+                $dispatch('toast', {type:'success', message:'批量启动完成'});
+              }
+            });
+          }, 2000);
+          setTimeout(() => { if(startLoading) { startLoading = false; clearInterval(pollTimer); pollTimer = null; location.reload(); } }, 120000);
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
-          <span x-show="!loading">全部启动</span>
-          <span x-show="loading">启动中...</span>
+          <span x-show="!startLoading">全部启动</span>
+          <span x-show="startLoading">启动中...</span>
         </button>
-        <button :disabled="loading" @click="
-          loading = true;
+        <button :disabled="startLoading || stopLoading" @click="
+          stopLoading = true;
           fetch('/api/stop_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
           .then(r => r.json())
           .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
           .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
-          .finally(() => { loading = false; setTimeout(() => location.reload(), 1000); });
+          .finally(() => { stopLoading = false; setTimeout(() => location.reload(), 1000); });
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
-          <span x-show="!loading">全部停止</span>
-          <span x-show="loading">停止中...</span>
+          <span x-show="!stopLoading">全部停止</span>
+          <span x-show="stopLoading">停止中...</span>
         </button>
       </div>
       {% endif %}

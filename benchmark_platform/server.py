@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import signal
+import threading
 from pathlib import Path
 from typing import NoReturn
 
@@ -418,7 +419,7 @@ async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team))
 
 
 @app.post("/api/stop_all")
-async def tch_stop_all(team: dict = Depends(get_current_team)):
+def tch_stop_all(team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -453,8 +454,7 @@ async def tch_start_level(payload: BatchLevelRequest):
         _err("Server not initialized", 503)
         return
 
-    started = []
-    errors = []
+    to_start = []
     for c in manager.challenges:
         if manager.get_level_for_challenge(c) != payload.level:
             continue
@@ -462,18 +462,26 @@ async def tch_start_level(payload: BatchLevelRequest):
             continue
         if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
             continue
-        try:
-            manager.start_challenge_instance(c.challenge_code)
-            started.append(c.challenge_code)
-        except Exception as e:
-            errors.append(c.challenge_code)
-            logger.error("batch start failed", challenge_code=c.challenge_code, error=str(e))
+        to_start.append(c.challenge_code)
 
-    return _ok({"started": len(started), "errors": len(errors)}, f"已启动 {len(started)} 个实例")
+    if not to_start:
+        return _ok({"started": 0, "total": 0}, "没有需要启动的实例")
+
+    def _start_in_background(codes: list[str]) -> None:
+        for code in codes:
+            try:
+                manager.start_challenge_instance(code)
+            except Exception as e:
+                logger.error("batch start failed", challenge_code=code, error=str(e))
+        app.state.batch_starting = False
+
+    app.state.batch_starting = True
+    threading.Thread(target=_start_in_background, args=(to_start,), daemon=True).start()
+    return _ok({"started": 0, "total": len(to_start)}, f"正在启动 {len(to_start)} 个实例...")
 
 
 @app.post("/api/stop_level")
-async def tch_stop_level(payload: BatchLevelRequest):
+def tch_stop_level(payload: BatchLevelRequest):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -491,6 +499,23 @@ async def tch_stop_level(payload: BatchLevelRequest):
             pass
 
     return _ok({"stopped": len(stopped)}, f"已停止 {len(stopped)} 个实例")
+
+
+@app.get("/api/instance_statuses")
+async def tch_instance_statuses():
+    """Lightweight endpoint for polling instance statuses."""
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+    statuses = {}
+    for c in manager.challenges:
+        statuses[c.challenge_code] = {
+            "status": manager.get_instance_status(c.challenge_code),
+            "benchmark_id": c.get_benchmark_id(),
+            "level": manager.get_level_for_challenge(c),
+            "solved": c.solved,
+        }
+    return _ok({"statuses": statuses, "batch_starting": getattr(app.state, "batch_starting", False)})
 
 
 # ── Prebuild/Cache API ──────────────────────────────────────────────────────
@@ -595,15 +620,17 @@ async def store_manifest():
         raise HTTPException(status_code=502, detail=f"Failed to fetch manifest: {e}")
     for ch in manifest.get("challenges", []):
         ch["downloaded"] = store.is_downloaded(ch["category"], ch["name"])
+        ch["has_update"] = store.has_update(ch["category"], ch["name"], ch.get("size", 0))
     return {"code": 0, "data": manifest}
 
 
 @app.post("/api/store/download")
-async def store_download(body: dict):
+def store_download(body: dict):
     from benchmark_platform.web.store import ChallengeStore
     category = body.get("category")
     name = body.get("name")
     asset = body.get("asset")
+    size = body.get("size", 0)
     if not all([category, name, asset]):
         raise HTTPException(status_code=400, detail="category, name, asset required")
 
@@ -611,10 +638,28 @@ async def store_download(body: dict):
         challenges_dir=app.state.challenges_dir,
     )
     try:
-        store.download_challenge(category, name, asset)
+        store.download_challenge(category, name, asset, size=size)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Download failed: {e}")
     return {"code": 0, "message": f"{category}/{name} downloaded"}
+
+
+@app.post("/api/store/delete")
+async def store_delete(body: dict):
+    from benchmark_platform.web.store import ChallengeStore
+    category = body.get("category")
+    name = body.get("name")
+    if not all([category, name]):
+        raise HTTPException(status_code=400, detail="category, name required")
+
+    store = ChallengeStore(
+        challenges_dir=app.state.challenges_dir,
+    )
+    try:
+        store.delete_challenge(category, name)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Delete failed: {e}")
+    return {"code": 0, "message": f"{category}/{name} deleted"}
 
 
 @app.post("/api/store/download-all")

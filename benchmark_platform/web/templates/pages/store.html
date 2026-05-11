@@ -7,23 +7,44 @@
     <div class="text-[13px] text-gray-500">
       可用靶场：<span x-text="challenges.length" class="font-medium text-gray-700">0</span> 个
       · 已下载：<span x-text="downloadedCount" class="font-medium text-emerald-600">0</span> 个
+      <template x-if="updateCount > 0">
+        <span>· 可更新：<span x-text="updateCount" class="font-medium text-amber-600"></span> 个</span>
+      </template>
     </div>
-    <div class="flex gap-2">
+    <div class="flex items-center gap-2">
+      <a href="https://github.com/wgpsec/benchmark-challenges" target="_blank"
+         class="h-8 px-3 border border-gray-200 text-gray-600 text-[11px] font-medium rounded-lg hover:bg-gray-50 transition-colors inline-flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        仓库
+      </a>
       <button @click="refreshManifest()"
               :disabled="loading"
-              class="h-9 px-4 border border-gray-200 text-gray-700 text-[12px] font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
-        刷新列表
+              class="h-8 px-3 border border-gray-200 text-gray-700 text-[11px] font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
+        刷新
       </button>
       <button @click="downloadAll()"
-              :disabled="loading"
-              class="h-9 px-4 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
-        <span x-show="!downloading">全部下载</span>
-        <span x-show="downloading">下载中...</span>
+              :disabled="loading || downloading"
+              x-show="!downloading"
+              class="h-8 px-3 bg-gray-900 text-white text-[11px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+        全部下载
+      </button>
+      <button @click="deleteAllDownloaded()"
+              :disabled="loading || downloading"
+              x-show="!downloading && downloadedCount > 0"
+              class="h-8 px-3 border border-red-200 text-red-600 text-[11px] font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50">
+        批量删除
+      </button>
+      <button @click="cancelDownload()"
+              x-show="downloading"
+              class="h-8 px-3 bg-red-600 text-white text-[11px] font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer">
+        取消 (<span x-text="downloadProgress"></span>)
       </button>
     </div>
   </div>
 
-  <!-- Error message -->
+  <!-- Error -->
   <div x-show="error" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-[12px] text-red-700" x-text="error"></div>
 
   <!-- Loading -->
@@ -36,41 +57,54 @@
     <div class="mb-6">
       <h3 class="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1" x-text="cat"></h3>
       <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <table class="w-full">
-          <thead class="bg-gray-50 border-b border-gray-100">
-            <tr>
-              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">名称</th>
-              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">描述</th>
-              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">难度</th>
-              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500 w-24">状态</th>
-              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500 w-20">操作</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <template x-for="ch in challengesByCategory(cat)" :key="ch.name">
-              <tr class="hover:bg-gray-50 transition-colors">
-                <td class="px-4 py-3 text-[12px] text-gray-900 font-medium" x-text="ch.name"></td>
-                <td class="px-4 py-3 text-[12px] text-gray-600" x-text="ch.description || '-'"></td>
-                <td class="px-4 py-3">
-                  <span class="text-[11px] px-1.5 py-0.5 rounded"
-                        :class="difficultyClass(ch.difficulty)"
-                        x-text="ch.difficulty || '-'"></span>
-                </td>
-                <td class="px-4 py-3">
-                  <span x-show="ch.downloaded" class="text-[11px] text-emerald-600 font-medium">已下载</span>
-                  <span x-show="!ch.downloaded && !ch._downloading" class="text-[11px] text-gray-400">未下载</span>
-                  <span x-show="ch._downloading" class="text-[11px] text-blue-500">下载中...</span>
-                </td>
-                <td class="px-4 py-3">
-                  <button x-show="!ch.downloaded && !ch._downloading"
-                          @click="downloadOne(ch)"
-                          class="text-[11px] text-blue-600 hover:text-blue-800 cursor-pointer">下载</button>
-                  <span x-show="ch.downloaded" class="text-[11px] text-gray-400">-</span>
-                </td>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[130px]">名称</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500">描述</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[60px]">难度</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[40px]">Flag</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[55px]">大小</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[60px]">状态</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[70px]">操作</th>
               </tr>
-            </template>
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              <template x-for="ch in challengesByCategory(cat)" :key="ch.name">
+                <tr class="hover:bg-gray-50/50 transition-colors">
+                  <td class="px-3 py-2 text-[11px] text-gray-900 font-medium truncate" x-text="ch.name" :title="ch.name"></td>
+                  <td class="px-3 py-2 text-[11px] text-gray-500 break-words" x-text="ch.description || '-'"></td>
+                  <td class="px-3 py-2">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
+                          :class="difficultyClass(ch.difficulty)"
+                          x-text="ch.difficulty || '-'"></span>
+                  </td>
+                  <td class="px-3 py-2 text-[11px] text-gray-600" x-text="ch.flag_count || 1"></td>
+                  <td class="px-3 py-2 text-[10px] text-gray-400 whitespace-nowrap" x-text="formatSize(ch.size)"></td>
+                  <td class="px-3 py-2">
+                    <span x-show="ch.downloaded && !ch.has_update" class="text-[10px] text-emerald-600 font-medium whitespace-nowrap">已下载</span>
+                    <span x-show="ch.downloaded && ch.has_update" class="text-[10px] text-amber-600 font-medium whitespace-nowrap">有更新</span>
+                    <span x-show="!ch.downloaded && !ch._downloading" class="text-[10px] text-gray-400 whitespace-nowrap">未下载</span>
+                    <span x-show="ch._downloading" class="text-[10px] text-blue-500 whitespace-nowrap">下载中</span>
+                  </td>
+                  <td class="px-3 py-2 whitespace-nowrap">
+                    <button x-show="!ch.downloaded && !ch._downloading"
+                            @click="downloadOne(ch)"
+                            class="text-[10px] text-blue-600 hover:text-blue-800 cursor-pointer">下载</button>
+                    <button x-show="ch.downloaded && ch.has_update && !ch._downloading"
+                            @click="downloadOne(ch)"
+                            class="text-[10px] text-amber-600 hover:text-amber-800 cursor-pointer">更新</button>
+                    <button x-show="ch.downloaded && !ch._downloading"
+                            @click="deleteOne(ch)"
+                            class="text-[10px] text-red-500 hover:text-red-700 cursor-pointer ml-1">删除</button>
+                    <span x-show="ch._downloading" class="text-[10px] text-gray-400">...</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </template>
@@ -82,12 +116,17 @@ function storePage() {
     challenges: [],
     loading: false,
     downloading: false,
+    cancelled: false,
+    downloadProgress: '',
     error: '',
     get categories() {
       return [...new Set(this.challenges.map(c => c.category))].sort();
     },
     get downloadedCount() {
       return this.challenges.filter(c => c.downloaded).length;
+    },
+    get updateCount() {
+      return this.challenges.filter(c => c.has_update).length;
     },
     challengesByCategory(cat) {
       return this.challenges.filter(c => c.category === cat);
@@ -99,6 +138,12 @@ function storePage() {
         hard: 'bg-red-50 text-red-700',
       };
       return map[d] || 'bg-gray-50 text-gray-600';
+    },
+    formatSize(bytes) {
+      if (!bytes) return '-';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     },
     async init() {
       await this.refreshManifest();
@@ -123,30 +168,128 @@ function storePage() {
         const resp = await fetch('/api/store/download', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset})
+          body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset, size: ch.size || 0})
         });
         const data = await resp.json();
         if (data.code !== 0) throw new Error(data.detail || 'Download failed');
         ch.downloaded = true;
+        ch.has_update = false;
+        this.$dispatch('toast', {type: 'success', message: ch.name + ' 下载完成'});
       } catch (e) {
-        this.error = ch.name + ' 下载失败: ' + e.message;
+        this.$dispatch('toast', {type: 'error', message: ch.name + ' 下载失败: ' + e.message});
       } finally {
         ch._downloading = false;
       }
     },
+    async deleteOne(ch) {
+      if (!confirm(`确定删除 ${ch.name}？`)) return;
+      try {
+        const resp = await fetch('/api/store/delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({category: ch.category, name: ch.name})
+        });
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.detail || 'Delete failed');
+        ch.downloaded = false;
+        ch.has_update = false;
+        this.$dispatch('toast', {type: 'info', message: ch.name + ' 已删除'});
+      } catch (e) {
+        this.$dispatch('toast', {type: 'error', message: ch.name + ' 删除失败: ' + e.message});
+      }
+    },
+    async deleteAllDownloaded() {
+      const downloaded = this.challenges.filter(c => c.downloaded);
+      if (!confirm(`确定删除全部 ${downloaded.length} 个已下载靶场？`)) return;
+      let done = 0;
+      for (const ch of downloaded) {
+        try {
+          const resp = await fetch('/api/store/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({category: ch.category, name: ch.name})
+          });
+          const data = await resp.json();
+          if (data.code === 0) {
+            ch.downloaded = false;
+            ch.has_update = false;
+            done++;
+          }
+        } catch (e) {}
+      }
+      this.$dispatch('toast', {type: 'info', message: `已删除 ${done} 个靶场`});
+    },
+    cancelDownload() {
+      this.cancelled = true;
+      if (this._abortController) {
+        this._abortController.abort();
+      }
+    },
+    async _downloadTask(ch) {
+      ch._downloading = true;
+      const maxRetries = 2;
+      let attempt = 0;
+      let success = false;
+
+      while (attempt <= maxRetries && !success && !this.cancelled) {
+        try {
+          const resp = await fetch('/api/store/download', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset, size: ch.size || 0}),
+            signal: this._abortController.signal
+          });
+          const data = await resp.json();
+          if (data.code !== 0) throw new Error(data.detail || 'Download failed');
+          ch.downloaded = true;
+          ch.has_update = false;
+          success = true;
+          this.$dispatch('toast', {type: 'success', message: ch.name + ' 下载完成'});
+        } catch (e) {
+          if (this.cancelled || e.name === 'AbortError') break;
+          attempt++;
+          if (attempt > maxRetries) {
+            this.$dispatch('toast', {type: 'error', message: ch.name + ' 下载失败（已重试' + maxRetries + '次）'});
+          } else {
+            await new Promise(r => setTimeout(r, 1000 * attempt));
+          }
+        }
+      }
+
+      ch._downloading = false;
+      this._doneCount++;
+      this.downloadProgress = `${this._doneCount}/${this._totalCount}`;
+    },
     async downloadAll() {
       this.downloading = true;
+      this.cancelled = false;
+      this._abortController = new AbortController();
       this.error = '';
-      try {
-        const resp = await fetch('/api/store/download-all', {method: 'POST'});
-        const data = await resp.json();
-        if (data.code !== 0) throw new Error(data.detail || 'Download failed');
-        await this.refreshManifest();
-      } catch (e) {
-        this.error = '批量下载失败: ' + e.message;
-      } finally {
-        this.downloading = false;
+      const pending = this.challenges.filter(c => !c.downloaded || c.has_update);
+      this._doneCount = 0;
+      this._totalCount = pending.length;
+      this.downloadProgress = `0/${pending.length}`;
+
+      const concurrency = 3;
+      let idx = 0;
+
+      const runNext = async () => {
+        while (idx < pending.length) {
+          if (this.cancelled) return;
+          const ch = pending[idx++];
+          await this._downloadTask(ch);
+        }
+      };
+
+      const workers = Array.from({length: Math.min(concurrency, pending.length)}, () => runNext());
+      await Promise.all(workers);
+
+      if (this.cancelled) {
+        this.$dispatch('toast', {type: 'info', message: `下载已取消，已完成 ${this._doneCount}/${this._totalCount}`});
+      } else {
+        this.$dispatch('toast', {type: 'success', message: `全部完成 (${this._doneCount}/${this._totalCount})`});
       }
+      this.downloading = false;
     }
   };
 }

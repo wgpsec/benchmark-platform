@@ -1,4 +1,5 @@
 """PrebuildManager – pre-build Docker images for challenges to avoid cold-start delays."""
+from __future__ import annotations
 
 import subprocess
 import threading
@@ -42,8 +43,14 @@ class PrebuildManager:
                 if not folder.is_dir():
                     continue
                 for entry in sorted(folder.iterdir()):
-                    if entry.is_dir() and (entry / "docker-compose.yml").exists():
+                    if not entry.is_dir():
+                        continue
+                    if (entry / "docker-compose.yml").exists():
                         self._source_paths[entry.name] = entry
+                    else:
+                        for sub in sorted(entry.iterdir()):
+                            if sub.is_dir() and (sub / "docker-compose.yml").exists():
+                                self._source_paths[sub.name] = sub
 
         seen_benchmarks: set[str] = set()
         for c in challenges:

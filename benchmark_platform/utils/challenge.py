@@ -88,11 +88,21 @@ class ChallengeManager:
                     continue
                 if entry.name.startswith('.'):
                     continue
-                if not (entry / "benchmark.json").exists():
-                    continue
-                if self.benchmark_ids and entry.name not in self.benchmark_ids:
-                    continue
-                result.append((folder, entry.name))
+                if (entry / "benchmark.json").exists():
+                    if self.benchmark_ids and entry.name not in self.benchmark_ids:
+                        continue
+                    result.append((folder, entry.name))
+                else:
+                    for sub in sorted(entry.iterdir()):
+                        if not sub.is_dir():
+                            continue
+                        if sub.name.startswith('.'):
+                            continue
+                        if not (sub / "benchmark.json").exists():
+                            continue
+                        if self.benchmark_ids and sub.name not in self.benchmark_ids:
+                            continue
+                        result.append((entry, sub.name))
         return result
 
     def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:

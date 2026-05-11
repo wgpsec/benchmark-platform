@@ -11,6 +11,7 @@ from pathlib import Path
 
 GITHUB_RELEASE_URL = "https://github.com/{repo}/releases/download/{tag}/{asset}"
 MANIFEST_URL = "https://github.com/{repo}/releases/download/{tag}/manifest.json"
+STORE_META_FILE = ".store_meta"
 
 
 class ChallengeStore:
@@ -32,7 +33,17 @@ class ChallengeStore:
         target = self.challenges_dir / category / name / "docker-compose.yml"
         return target.exists()
 
-    def download_challenge(self, category: str, name: str, asset: str) -> Path:
+    def has_update(self, category: str, name: str, remote_size: int) -> bool:
+        meta_path = self.challenges_dir / category / name / STORE_META_FILE
+        if not meta_path.exists():
+            return False
+        try:
+            meta = json.loads(meta_path.read_text())
+            return meta.get("size", 0) != remote_size and remote_size > 0
+        except (json.JSONDecodeError, OSError):
+            return False
+
+    def download_challenge(self, category: str, name: str, asset: str, size: int = 0) -> Path:
         url = GITHUB_RELEASE_URL.format(repo=self.repo, tag=self.tag, asset=asset)
         dest = self.challenges_dir / category / name
 
@@ -41,13 +52,25 @@ class ChallengeStore:
 
         try:
             urllib.request.urlretrieve(url, tmp_path)
+            if dest.exists():
+                shutil.rmtree(dest)
             self._extract_zip(tmp_path, dest)
+            self._write_meta(dest, size)
         finally:
             tmp_path.unlink(missing_ok=True)
 
         return dest
 
+    def delete_challenge(self, category: str, name: str) -> None:
+        dest = self.challenges_dir / category / name
+        if dest.exists():
+            shutil.rmtree(dest)
+
     def _extract_zip(self, zip_path: Path, dest: Path) -> None:
         dest.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(dest)
+
+    def _write_meta(self, dest: Path, size: int) -> None:
+        meta_path = dest / STORE_META_FILE
+        meta_path.write_text(json.dumps({"size": size}))

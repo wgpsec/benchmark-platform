@@ -52,7 +52,7 @@ rm -rf /tmp/benchmarks
 ### Run
 
 ```bash
-python -m benchmark_platform.server \
+python3 -m benchmark_platform.server \
   --benchmark-folder ./challenges \
   --port 8088 \
   --public-accessible-host localhost
