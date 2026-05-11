@@ -648,19 +648,28 @@ async def prebuild_remove_all():
 # -- Challenge Store API -------------------------------------------------------
 
 @app.get("/api/store/manifest")
-async def store_manifest():
+async def store_manifest(source: str = "all"):
     from benchmark_platform.web.store import ChallengeStore
-    store = ChallengeStore(
-        challenges_dir=app.state.challenges_dir,
-    )
-    try:
-        manifest = store.fetch_manifest()
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch manifest: {e}")
-    for ch in manifest.get("challenges", []):
-        ch["downloaded"] = store.is_downloaded(ch["category"], ch["name"])
-        ch["has_update"] = store.has_update(ch["category"], ch["name"], ch.get("size", 0))
-    return {"code": 0, "data": manifest}
+    if not hasattr(app.state, '_challenge_store'):
+        app.state._challenge_store = ChallengeStore(challenges_dir=app.state.challenges_dir)
+    store = app.state._challenge_store
+
+    if source == "local":
+        challenges = store.get_local_challenges()
+    elif source == "remote":
+        try:
+            challenges = store.get_remote_challenges()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to fetch remote manifest: {e}")
+    else:
+        challenges = store.get_local_challenges()
+        try:
+            remote = store.get_remote_challenges()
+            challenges = store.merge_challenges(challenges, remote)
+        except Exception:
+            pass
+
+    return {"code": 0, "data": {"challenges": challenges}}
 
 
 @app.post("/api/store/download")

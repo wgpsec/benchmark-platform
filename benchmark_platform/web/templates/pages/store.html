@@ -19,7 +19,7 @@
         </svg>
         仓库
       </a>
-      <button @click="refreshManifest()"
+      <button @click="refreshManifest(true)"
               :disabled="loading"
               class="h-8 px-3 border border-gray-200 text-gray-700 text-[11px] font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
         刷新
@@ -274,13 +274,43 @@ function storePage() {
       return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     },
     async init() {
-      await this.refreshManifest();
+      await this.loadLocal();
+      this.loadRemote();
     },
-    async refreshManifest() {
+    async loadLocal() {
+      try {
+        const resp = await fetch('/api/store/manifest?source=local');
+        const data = await resp.json();
+        if (data.code === 0) this.challenges = data.data.challenges || [];
+      } catch (e) {}
+    },
+    async loadRemote() {
+      this.loading = true;
+      try {
+        const resp = await fetch('/api/store/manifest?source=remote');
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.detail || 'Unknown error');
+        const remote = data.data.challenges || [];
+        this._mergeRemote(remote);
+      } catch (e) {
+        if (!this.challenges.length) {
+          this.error = '获取远程靶场列表失败: ' + e.message;
+        }
+      } finally {
+        this.loading = false;
+      }
+    },
+    _mergeRemote(remote) {
+      const localKeys = new Set(this.challenges.map(c => c.category + '/' + c.name));
+      const remoteKeys = new Set(remote.map(c => c.category + '/' + c.name));
+      const localOnly = this.challenges.filter(c => !remoteKeys.has(c.category + '/' + c.name));
+      this.challenges = [...remote, ...localOnly];
+    },
+    async refreshManifest(force) {
       this.loading = true;
       this.error = '';
       try {
-        const resp = await fetch('/api/store/manifest');
+        const resp = await fetch('/api/store/manifest?source=all');
         const data = await resp.json();
         if (data.code !== 0) throw new Error(data.detail || 'Unknown error');
         this.challenges = data.data.challenges || [];

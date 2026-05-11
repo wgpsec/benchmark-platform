@@ -20,14 +20,71 @@ class ChallengeStore:
         self.repo = repo
         self.tag = tag
 
-    def fetch_manifest(self) -> dict:
+    def get_local_challenges(self) -> list[dict]:
+        """Scan local challenges_dir, return all present challenges."""
+        results = []
+        if not self.challenges_dir.is_dir():
+            return results
+        for category_dir in sorted(self.challenges_dir.iterdir()):
+            if not category_dir.is_dir() or category_dir.name.startswith('.'):
+                continue
+            for challenge_dir in sorted(category_dir.iterdir()):
+                if not challenge_dir.is_dir() or challenge_dir.name.startswith('.'):
+                    continue
+                if not (challenge_dir / "docker-compose.yml").exists():
+                    continue
+                ch = {
+                    "category": category_dir.name,
+                    "name": challenge_dir.name,
+                    "description": "",
+                    "difficulty": "",
+                    "flag_count": 1,
+                    "size": 0,
+                    "asset": "",
+                    "downloaded": True,
+                    "has_update": False,
+                    "source": "local",
+                }
+                benchmark_json = challenge_dir / "benchmark.json"
+                if benchmark_json.exists():
+                    try:
+                        meta = json.loads(benchmark_json.read_text())
+                        ch["description"] = meta.get("description", "")
+                        ch["difficulty"] = meta.get("difficulty", "")
+                        ch["flag_count"] = meta.get("flag_count", 1)
+                        level = meta.get("level", 0)
+                        if not ch["difficulty"] and level:
+                            ch["difficulty"] = {1: "easy", 2: "medium", 3: "hard"}.get(level, "")
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                meta_path = challenge_dir / STORE_META_FILE
+                if meta_path.exists():
+                    try:
+                        store_meta = json.loads(meta_path.read_text())
+                        ch["size"] = store_meta.get("size", 0)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                results.append(ch)
+        return results
+
+    def get_remote_challenges(self) -> list[dict]:
+        """Fetch remote manifest and annotate with local download status."""
         url = MANIFEST_URL.format(repo=self.repo, tag=self.tag)
         with urllib.request.urlopen(url, timeout=30) as resp:
             raw = resp.read().decode()
-        return self._parse_manifest(raw)
+        manifest = json.loads(raw)
+        challenges = manifest.get("challenges", [])
+        for ch in challenges:
+            ch["downloaded"] = self.is_downloaded(ch["category"], ch["name"])
+            ch["has_update"] = self.has_update(ch["category"], ch["name"], ch.get("size", 0))
+            ch["source"] = "remote"
+        return challenges
 
-    def _parse_manifest(self, raw: str) -> dict:
-        return json.loads(raw)
+    def merge_challenges(self, local: list[dict], remote: list[dict]) -> list[dict]:
+        """Merge remote into local, remote takes priority for overlapping entries."""
+        remote_keys = {(ch["category"], ch["name"]) for ch in remote}
+        local_only = [ch for ch in local if (ch["category"], ch["name"]) not in remote_keys]
+        return remote + local_only
 
     def is_downloaded(self, category: str, name: str) -> bool:
         target = self.challenges_dir / category / name / "docker-compose.yml"
