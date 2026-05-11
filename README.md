@@ -42,7 +42,7 @@ Start the platform and navigate to **"靶场管理" (Challenge Store)** in the W
 Alternatively, set up manually:
 
 ```bash
-git clone https://github.com/wgpsec/ctf-benchmarks /tmp/benchmarks
+git clone https://github.com/wgpsec/benchmark-challenges /tmp/benchmarks
 mkdir -p challenges
 cp -r /tmp/benchmarks/xbow challenges/xbow
 cp -r /tmp/benchmarks/custom challenges/custom
@@ -53,8 +53,7 @@ rm -rf /tmp/benchmarks
 
 ```bash
 python -m benchmark_platform.server \
-  --benchmark-folder ./challenges/xbow \
-  --benchmark-folder ./challenges/custom \
+  --benchmark-folder ./challenges \
   --port 8088 \
   --public-accessible-host localhost
 ```
@@ -65,6 +64,7 @@ Options:
 |------|-------------|---------|
 | `--benchmark-folder` | Challenge directory (can be repeated) | required |
 | `--benchmark-id` / `-i` | Load only specific IDs | all |
+| `--challenges-dir` | Root directory for store downloads | `./challenges` |
 | `--port` | Server port | 8088 |
 | `--public-accessible-host` | Public hostname for challenges | localhost |
 | `--no-level-gate` | Disable level-based unlock | false |

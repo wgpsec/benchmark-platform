@@ -42,7 +42,7 @@ pip install -e .
 也可以手动拉取：
 
 ```bash
-git clone https://github.com/wgpsec/ctf-benchmarks /tmp/benchmarks
+git clone https://github.com/wgpsec/benchmark-challenges /tmp/benchmarks
 mkdir -p challenges
 cp -r /tmp/benchmarks/xbow challenges/xbow
 cp -r /tmp/benchmarks/custom challenges/custom
@@ -53,8 +53,7 @@ rm -rf /tmp/benchmarks
 
 ```bash
 python -m benchmark_platform.server \
-  --benchmark-folder ./challenges/xbow \
-  --benchmark-folder ./challenges/custom \
+  --benchmark-folder ./challenges \
   --port 8088 \
   --public-accessible-host localhost
 ```
@@ -65,6 +64,7 @@ python -m benchmark_platform.server \
 |------|------|--------|
 | `--benchmark-folder` | 靶机题目目录（可多次指定） | 必填 |
 | `--benchmark-id` / `-i` | 只加载指定 ID 的题目 | 全部加载 |
+| `--challenges-dir` | 靶场管理下载根目录 | `./challenges` |
 | `--port` | 服务端口 | 8088 |
 | `--public-accessible-host` | 靶机入口地址 | localhost |
 | `--no-level-gate` | 禁用分级解锁 | false |

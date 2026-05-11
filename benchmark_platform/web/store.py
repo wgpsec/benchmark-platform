@@ -14,7 +14,7 @@ MANIFEST_URL = "https://github.com/{repo}/releases/download/{tag}/manifest.json"
 
 
 class ChallengeStore:
-    def __init__(self, challenges_dir: Path, repo: str = "wgpsec/ctf-benchmarks", tag: str = "latest"):
+    def __init__(self, challenges_dir: Path, repo: str = "wgpsec/benchmark-challenges", tag: str = "latest"):
         self.challenges_dir = challenges_dir
         self.repo = repo
         self.tag = tag

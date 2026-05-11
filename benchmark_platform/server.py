@@ -587,7 +587,7 @@ async def prebuild_remove_all():
 async def store_manifest():
     from benchmark_platform.web.store import ChallengeStore
     store = ChallengeStore(
-        challenges_dir=Path(app.state.manager.benchmark_folders[0]).parent if app.state.manager else Path("challenges"),
+        challenges_dir=app.state.challenges_dir,
     )
     try:
         manifest = store.fetch_manifest()
@@ -608,7 +608,7 @@ async def store_download(body: dict):
         raise HTTPException(status_code=400, detail="category, name, asset required")
 
     store = ChallengeStore(
-        challenges_dir=Path(app.state.manager.benchmark_folders[0]).parent if app.state.manager else Path("challenges"),
+        challenges_dir=app.state.challenges_dir,
     )
     try:
         store.download_challenge(category, name, asset)
@@ -621,7 +621,7 @@ async def store_download(body: dict):
 async def store_download_all():
     from benchmark_platform.web.store import ChallengeStore
     store = ChallengeStore(
-        challenges_dir=Path(app.state.manager.benchmark_folders[0]).parent if app.state.manager else Path("challenges"),
+        challenges_dir=app.state.challenges_dir,
     )
     try:
         manifest = store.fetch_manifest()
@@ -657,6 +657,11 @@ def serve(
         "--benchmark-id",
         "-i",
         help="Filter by benchmark ID (e.g. XBEN-001-24). Empty = load all.",
+    ),
+    challenges_dir: Path = typer.Option(
+        Path("challenges"),
+        "--challenges-dir",
+        help="Root directory for challenge store downloads.",
     ),
     no_level_gate: bool = typer.Option(
         False,
@@ -707,6 +712,7 @@ def serve(
     )
     app.state.manager = manager
     app.state.submission_store = submission_store
+    app.state.challenges_dir = challenges_dir
 
     manager.print_summary_table()
 
