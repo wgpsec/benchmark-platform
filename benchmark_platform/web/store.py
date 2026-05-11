@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import zipfile
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 GITHUB_RELEASE_URL = "https://github.com/{repo}/releases/download/{tag}/{asset}"
 MANIFEST_URL = "https://github.com/{repo}/releases/download/{tag}/manifest.json"
 STORE_META_FILE = ".store_meta"
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
 
 class ChallengeStore:
@@ -21,15 +23,20 @@ class ChallengeStore:
         self.tag = tag
 
     def get_local_challenges(self) -> list[dict]:
-        """Scan local challenges_dir, return all present challenges."""
+        """Scan local challenges_dir, return all present challenges (skip runtime UUID instances)."""
         results = []
         if not self.challenges_dir.is_dir():
             return results
         for category_dir in sorted(self.challenges_dir.iterdir()):
             if not category_dir.is_dir() or category_dir.name.startswith('.'):
                 continue
+            # Skip runtime instance dirs (benchmark_id at top level with UUID subdirs)
+            if _UUID_RE.match(category_dir.name):
+                continue
             for challenge_dir in sorted(category_dir.iterdir()):
                 if not challenge_dir.is_dir() or challenge_dir.name.startswith('.'):
+                    continue
+                if _UUID_RE.match(challenge_dir.name):
                     continue
                 if not (challenge_dir / "docker-compose.yml").exists():
                     continue
