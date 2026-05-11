@@ -198,26 +198,19 @@ class PrebuildManager:
     # ── Internal ────────────────────────────────────────────────────────
 
     def _get_expected_images(self, path: Path, benchmark_id: str) -> list[str]:
-        """Get expected image names for a challenge based on compose services."""
+        """Get expected image names for a challenge based on buildable services."""
         compose_path = path / "docker-compose.yml"
         try:
             with open(compose_path) as f:
                 data = yaml.safe_load(f)
             images = []
             for svc_name, svc in data.get("services", {}).items():
+                if "build" not in svc:
+                    continue
                 if "image" in svc:
                     images.append(svc["image"])
-                elif "build" in svc:
-                    images.append(f"{benchmark_id}-{svc_name}".lower())
                 else:
-                    # pull-only service, check via docker compose config
-                    res = subprocess.run(
-                        ["docker", "compose", "config", "--images"],
-                        cwd=path, capture_output=True, text=True, timeout=15,
-                    )
-                    if res.returncode == 0:
-                        return [img.strip() for img in res.stdout.strip().splitlines() if img.strip()]
-                    return []
+                    images.append(f"{benchmark_id}-{svc_name}".lower())
             return images
         except Exception:
             return []
