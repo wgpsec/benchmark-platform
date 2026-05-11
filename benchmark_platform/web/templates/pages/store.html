@@ -74,6 +74,12 @@
                   class="text-[10px] px-2 py-1 border border-gray-200 text-gray-600 font-medium rounded hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
             下载本分类
           </button>
+          <button @click="deleteCategory(cat)"
+                  :disabled="downloading"
+                  x-show="challengesByCategory(cat).some(c=>c.downloaded)"
+                  class="text-[10px] px-2 py-1 border border-red-200 text-red-600 font-medium rounded hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50">
+            删除本分类
+          </button>
         </div>
       </div>
       <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
@@ -426,6 +432,28 @@ function storePage() {
       const pending = this.challengesByCategory(cat).filter(c => !c.downloaded || c.has_update);
       if (!pending.length) return;
       await this._batchDownload(pending);
+    },
+    async deleteCategory(cat) {
+      const downloaded = this.challengesByCategory(cat).filter(c => c.downloaded);
+      if (!downloaded.length) return;
+      if (!confirm(`确定删除 ${cat} 分类下全部 ${downloaded.length} 个已下载靶场？`)) return;
+      let done = 0;
+      for (const ch of downloaded) {
+        try {
+          const resp = await fetch('/api/store/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({category: ch.category, name: ch.name})
+          });
+          const data = await resp.json();
+          if (data.code === 0) {
+            ch.downloaded = false;
+            ch.has_update = false;
+            done++;
+          }
+        } catch (e) {}
+      }
+      this.$dispatch('toast', {type: 'info', message: `已删除 ${cat} 分类 ${done} 个靶场`});
     },
     async _batchDownload(pending) {
       this.downloading = true;
