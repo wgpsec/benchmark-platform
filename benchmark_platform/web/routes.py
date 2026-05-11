@@ -81,6 +81,11 @@ async def page_status(request: Request):
     return _render(request, "pages/status.html", {"page": "status", **ctx})
 
 
+@web_router.get("/store")
+async def page_store(request: Request):
+    return _render(request, "pages/store.html", {"page": "store"})
+
+
 @web_router.get("/prebuild")
 async def page_prebuild(request: Request):
     manager = _get_manager(request)

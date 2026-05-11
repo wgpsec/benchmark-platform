@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}靶场管理 — Benchmark Platform{% endblock %}
+{% block content %}
+<div x-data="storePage()" x-init="init()">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="text-[13px] text-gray-500">
+      可用靶场：<span x-text="challenges.length" class="font-medium text-gray-700">0</span> 个
+      · 已下载：<span x-text="downloadedCount" class="font-medium text-emerald-600">0</span> 个
+    </div>
+    <div class="flex gap-2">
+      <button @click="refreshManifest()"
+              :disabled="loading"
+              class="h-9 px-4 border border-gray-200 text-gray-700 text-[12px] font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
+        刷新列表
+      </button>
+      <button @click="downloadAll()"
+              :disabled="loading"
+              class="h-9 px-4 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+        <span x-show="!downloading">全部下载</span>
+        <span x-show="downloading">下载中...</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Error message -->
+  <div x-show="error" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-[12px] text-red-700" x-text="error"></div>
+
+  <!-- Loading -->
+  <div x-show="loading && !challenges.length" class="text-center py-12 text-[12px] text-gray-500">
+    正在获取靶场列表...
+  </div>
+
+  <!-- Category groups -->
+  <template x-for="cat in categories" :key="cat">
+    <div class="mb-6">
+      <h3 class="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1" x-text="cat"></h3>
+      <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">名称</th>
+              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">描述</th>
+              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">难度</th>
+              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500 w-24">状态</th>
+              <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500 w-20">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <template x-for="ch in challengesByCategory(cat)" :key="ch.name">
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-4 py-3 text-[12px] text-gray-900 font-medium" x-text="ch.name"></td>
+                <td class="px-4 py-3 text-[12px] text-gray-600" x-text="ch.description || '-'"></td>
+                <td class="px-4 py-3">
+                  <span class="text-[11px] px-1.5 py-0.5 rounded"
+                        :class="difficultyClass(ch.difficulty)"
+                        x-text="ch.difficulty || '-'"></span>
+                </td>
+                <td class="px-4 py-3">
+                  <span x-show="ch.downloaded" class="text-[11px] text-emerald-600 font-medium">已下载</span>
+                  <span x-show="!ch.downloaded && !ch._downloading" class="text-[11px] text-gray-400">未下载</span>
+                  <span x-show="ch._downloading" class="text-[11px] text-blue-500">下载中...</span>
+                </td>
+                <td class="px-4 py-3">
+                  <button x-show="!ch.downloaded && !ch._downloading"
+                          @click="downloadOne(ch)"
+                          class="text-[11px] text-blue-600 hover:text-blue-800 cursor-pointer">下载</button>
+                  <span x-show="ch.downloaded" class="text-[11px] text-gray-400">-</span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </template>
+</div>
+
+<script>
+function storePage() {
+  return {
+    challenges: [],
+    loading: false,
+    downloading: false,
+    error: '',
+    get categories() {
+      return [...new Set(this.challenges.map(c => c.category))].sort();
+    },
+    get downloadedCount() {
+      return this.challenges.filter(c => c.downloaded).length;
+    },
+    challengesByCategory(cat) {
+      return this.challenges.filter(c => c.category === cat);
+    },
+    difficultyClass(d) {
+      const map = {
+        easy: 'bg-emerald-50 text-emerald-700',
+        medium: 'bg-amber-50 text-amber-700',
+        hard: 'bg-red-50 text-red-700',
+      };
+      return map[d] || 'bg-gray-50 text-gray-600';
+    },
+    async init() {
+      await this.refreshManifest();
+    },
+    async refreshManifest() {
+      this.loading = true;
+      this.error = '';
+      try {
+        const resp = await fetch('/api/store/manifest');
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.detail || 'Unknown error');
+        this.challenges = data.data.challenges || [];
+      } catch (e) {
+        this.error = '获取靶场列表失败: ' + e.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async downloadOne(ch) {
+      ch._downloading = true;
+      try {
+        const resp = await fetch('/api/store/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset})
+        });
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.detail || 'Download failed');
+        ch.downloaded = true;
+      } catch (e) {
+        this.error = ch.name + ' 下载失败: ' + e.message;
+      } finally {
+        ch._downloading = false;
+      }
+    },
+    async downloadAll() {
+      this.downloading = true;
+      this.error = '';
+      try {
+        const resp = await fetch('/api/store/download-all', {method: 'POST'});
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.detail || 'Download failed');
+        await this.refreshManifest();
+      } catch (e) {
+        this.error = '批量下载失败: ' + e.message;
+      } finally {
+        this.downloading = false;
+      }
+    }
+  };
+}
+</script>
+{% endblock %}
