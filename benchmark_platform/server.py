@@ -230,6 +230,11 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
 
+    challenge_level = manager.get_level_for_challenge(challenge)
+    if not manager.is_level_unlocked(challenge_level):
+        _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
+        return
+
     team_solved = get_team_solved_count(team["id"], challenge.challenge_code)
     if team_solved >= challenge.flag_count:
         return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
@@ -292,6 +297,11 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
         challenge = manager._find_by_code(payload.code)
     except KeyError:
         _err(f"Challenge {payload.code} not found", 404)
+        return
+
+    challenge_level = manager.get_level_for_challenge(challenge)
+    if not manager.is_level_unlocked(challenge_level):
+        _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
         return
 
     if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
