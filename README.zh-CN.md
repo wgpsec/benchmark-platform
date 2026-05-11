@@ -29,6 +29,24 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 pip install -e .
 ```
 
+### 准备靶场题目
+
+靶机题目源码未包含在本仓库中，启动前需手动拉取：
+
+```bash
+# 1. 克隆上游靶场仓库
+git clone https://github.com/Neuro-Sploit/xbow-validation-benchmarks /tmp/xbow
+
+# 2. 将题目目录复制到 challenges/
+mkdir -p challenges
+cp -r /tmp/xbow/benchmarks/* challenges/
+
+# 3. 清理临时文件
+rm -rf /tmp/xbow
+```
+
+> **注意：** 上游仓库的题目位于 `benchmarks/` 子目录下，不能直接 clone 到 `challenges/`，需要通过上述步骤将目录结构展平为平台所需的格式（`challenges/XBEN-001-24/`、`challenges/XBEN-002-24/`、...）。
+
 ### 启动服务
 
 ```bash
@@ -112,22 +130,6 @@ XBEN-001-24/
 ├── benchmark.yaml        # 可选，多 flag 定义
 ├── .env                  # FLAG 环境变量
 └── app/ mysql/ ...       # 应用代码
-```
-
-## 部署脚本
-
-在 Mac 上预构建镜像并传输到 VM：
-
-```bash
-# 1. 构建所有 challenge 镜像
-bash scripts/build_and_save_challenges.sh
-
-# 2. 传输到 VM
-VM_HOST=10.x.x.x VM_PORT=22 VM_USER=root VM_PASS=xxx \
-  bash scripts/load_challenges_on_vm.sh
-
-# 3. 在 VM 上预构建（如果未通过镜像传输）
-bash scripts/prebuild_on_vm.sh
 ```
 
 ## 技术栈

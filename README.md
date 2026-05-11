@@ -29,6 +29,24 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 pip install -e .
 ```
 
+### Prepare Challenge Data
+
+The challenge source code is not included in this repository. Clone and set up before starting:
+
+```bash
+# 1. Clone the benchmark repository
+git clone https://github.com/Neuro-Sploit/xbow-validation-benchmarks /tmp/xbow
+
+# 2. Copy challenge directories into place
+mkdir -p challenges
+cp -r /tmp/xbow/benchmarks/* challenges/
+
+# 3. Clean up
+rm -rf /tmp/xbow
+```
+
+> **Note:** The upstream repo stores challenges under a `benchmarks/` subdirectory, so a direct clone into `challenges/` won't work — the copy step above flattens the structure to what the platform expects (`challenges/XBEN-001-24/`, `challenges/XBEN-002-24/`, ...).
+
 ### Run
 
 ```bash
@@ -112,22 +130,6 @@ XBEN-001-24/
 ├── benchmark.yaml        # Optional, multi-flag definitions
 ├── .env                  # FLAG environment variable
 └── app/ mysql/ ...       # Application code
-```
-
-## Deployment Scripts
-
-Pre-build images on Mac and transfer to VM:
-
-```bash
-# 1. Build all challenge images
-bash scripts/build_and_save_challenges.sh
-
-# 2. Transfer to VM
-VM_HOST=10.x.x.x VM_PORT=22 VM_USER=root VM_PASS=xxx \
-  bash scripts/load_challenges_on_vm.sh
-
-# 3. Pre-build on VM (if not transferred via images)
-bash scripts/prebuild_on_vm.sh
 ```
 
 ## Tech Stack

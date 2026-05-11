@@ -151,8 +151,19 @@ scripts/images/*.tar
 # OS
 .DS_Store
 
-# Challenge runtime data
-challenges/
+# Challenge runtime (UUID instance dirs, archived, dependencies)
+challenges/**/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*/
+challenges/.archived/
+challenges/**/node_modules/
+challenges/**/vendor/
+challenges/**/.env
+challenges
+
+# 预下载
+/scripts/images
+
+# Data
+data/
 
 docs/
 
