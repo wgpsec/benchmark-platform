@@ -11,7 +11,9 @@ from pathlib import Path
 
 
 GITHUB_RELEASE_URL = "https://github.com/{repo}/releases/download/{tag}/{asset}"
+PROXY_RELEASE_URL = "https://gh-proxy.com/https://github.com/{repo}/releases/download/{tag}/{asset}"
 MANIFEST_URL = "https://github.com/{repo}/releases/download/{tag}/manifest.json"
+PROXY_MANIFEST_URL = "https://gh-proxy.com/https://github.com/{repo}/releases/download/{tag}/manifest.json"
 STORE_META_FILE = ".store_meta"
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
@@ -76,9 +78,9 @@ class ChallengeStore:
 
     def get_remote_challenges(self) -> list[dict]:
         """Fetch remote manifest and annotate with local download status."""
-        url = MANIFEST_URL.format(repo=self.repo, tag=self.tag)
-        with urllib.request.urlopen(url, timeout=30) as resp:
-            raw = resp.read().decode()
+        proxy_url = PROXY_MANIFEST_URL.format(repo=self.repo, tag=self.tag)
+        direct_url = MANIFEST_URL.format(repo=self.repo, tag=self.tag)
+        raw = self._fetch_url(proxy_url, direct_url)
         manifest = json.loads(raw)
         challenges = manifest.get("challenges", [])
         for ch in challenges:
@@ -108,14 +110,15 @@ class ChallengeStore:
             return False
 
     def download_challenge(self, category: str, name: str, asset: str, size: int = 0) -> Path:
-        url = GITHUB_RELEASE_URL.format(repo=self.repo, tag=self.tag, asset=asset)
+        proxy_url = PROXY_RELEASE_URL.format(repo=self.repo, tag=self.tag, asset=asset)
+        direct_url = GITHUB_RELEASE_URL.format(repo=self.repo, tag=self.tag, asset=asset)
         dest = self.challenges_dir / category / name
 
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
         try:
-            urllib.request.urlretrieve(url, tmp_path)
+            self._download_url(proxy_url, direct_url, tmp_path)
             if dest.exists():
                 shutil.rmtree(dest)
             self._extract_zip(tmp_path, dest)
@@ -129,6 +132,25 @@ class ChallengeStore:
         dest = self.challenges_dir / category / name
         if dest.exists():
             shutil.rmtree(dest)
+
+    def _fetch_url(self, proxy_url: str, direct_url: str, timeout: int = 15) -> str:
+        """Fetch URL content as string, try proxy first then fallback to direct."""
+        try:
+            with urllib.request.urlopen(proxy_url, timeout=timeout) as resp:
+                return resp.read().decode()
+        except Exception:
+            pass
+        with urllib.request.urlopen(direct_url, timeout=30) as resp:
+            return resp.read().decode()
+
+    def _download_url(self, proxy_url: str, direct_url: str, dest_path: Path) -> None:
+        """Download file to dest_path, try proxy first then fallback to direct."""
+        try:
+            urllib.request.urlretrieve(proxy_url, dest_path)
+            return
+        except Exception:
+            pass
+        urllib.request.urlretrieve(direct_url, dest_path)
 
     def _extract_zip(self, zip_path: Path, dest: Path) -> None:
         dest.mkdir(parents=True, exist_ok=True)
