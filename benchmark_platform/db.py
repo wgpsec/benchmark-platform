@@ -42,19 +42,31 @@ def init_db() -> None:
         );
         CREATE TABLE IF NOT EXISTS team_progress (
             team_id        TEXT NOT NULL,
-            challenge_code TEXT NOT NULL,
+            benchmark_id   TEXT NOT NULL,
             flag_id        TEXT NOT NULL,
             solved         INTEGER NOT NULL DEFAULT 0,
             solved_at      TEXT,
-            PRIMARY KEY (team_id, challenge_code, flag_id)
+            PRIMARY KEY (team_id, benchmark_id, flag_id)
         );
         CREATE TABLE IF NOT EXISTS team_hints (
             team_id        TEXT NOT NULL,
-            challenge_code TEXT NOT NULL,
+            benchmark_id   TEXT NOT NULL,
             viewed_at      TEXT NOT NULL DEFAULT (datetime('now')),
-            PRIMARY KEY (team_id, challenge_code)
+            PRIMARY KEY (team_id, benchmark_id)
         );
     """)
+    # Migrate old schema: rename challenge_code → benchmark_id if needed
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(team_progress)").fetchall()]
+        if "challenge_code" in cols and "benchmark_id" not in cols:
+            conn.execute("ALTER TABLE team_progress RENAME COLUMN challenge_code TO benchmark_id")
+            conn.commit()
+        cols_h = [r[1] for r in conn.execute("PRAGMA table_info(team_hints)").fetchall()]
+        if "challenge_code" in cols_h and "benchmark_id" not in cols_h:
+            conn.execute("ALTER TABLE team_hints RENAME COLUMN challenge_code TO benchmark_id")
+            conn.commit()
+    except Exception:
+        pass
     conn.commit()
 
 
@@ -105,39 +117,39 @@ def get_or_create_default_team() -> dict:
     return create_team("default")
 
 
-def mark_flag_solved(team_id: str, challenge_code: str, flag_id: str) -> None:
+def mark_flag_solved(team_id: str, benchmark_id: str, flag_id: str) -> None:
     conn = _get_conn()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
-        "INSERT OR IGNORE INTO team_progress (team_id, challenge_code, flag_id, solved, solved_at) VALUES (?, ?, ?, 1, ?)",
-        (team_id, challenge_code, flag_id, now),
+        "INSERT OR IGNORE INTO team_progress (team_id, benchmark_id, flag_id, solved, solved_at) VALUES (?, ?, ?, 1, ?)",
+        (team_id, benchmark_id, flag_id, now),
     )
     conn.commit()
 
 
-def get_team_solved_count(team_id: str, challenge_code: str) -> int:
+def get_team_solved_count(team_id: str, benchmark_id: str) -> int:
     conn = _get_conn()
     row = conn.execute(
-        "SELECT COUNT(*) as cnt FROM team_progress WHERE team_id = ? AND challenge_code = ? AND solved = 1",
-        (team_id, challenge_code),
+        "SELECT COUNT(*) as cnt FROM team_progress WHERE team_id = ? AND benchmark_id = ? AND solved = 1",
+        (team_id, benchmark_id),
     ).fetchone()
     return row["cnt"]
 
 
-def is_hint_viewed(team_id: str, challenge_code: str) -> bool:
+def is_hint_viewed(team_id: str, benchmark_id: str) -> bool:
     conn = _get_conn()
     row = conn.execute(
-        "SELECT 1 FROM team_hints WHERE team_id = ? AND challenge_code = ?",
-        (team_id, challenge_code),
+        "SELECT 1 FROM team_hints WHERE team_id = ? AND benchmark_id = ?",
+        (team_id, benchmark_id),
     ).fetchone()
     return row is not None
 
 
-def mark_hint_viewed(team_id: str, challenge_code: str) -> None:
+def mark_hint_viewed(team_id: str, benchmark_id: str) -> None:
     conn = _get_conn()
     conn.execute(
-        "INSERT OR IGNORE INTO team_hints (team_id, challenge_code) VALUES (?, ?)",
-        (team_id, challenge_code),
+        "INSERT OR IGNORE INTO team_hints (team_id, benchmark_id) VALUES (?, ?)",
+        (team_id, benchmark_id),
     )
     conn.commit()
 
@@ -145,15 +157,15 @@ def mark_hint_viewed(team_id: str, challenge_code: str) -> None:
 def get_team_progress(team_id: str) -> dict:
     conn = _get_conn()
     rows = conn.execute(
-        "SELECT challenge_code, flag_id, solved FROM team_progress WHERE team_id = ? AND solved = 1",
+        "SELECT benchmark_id, flag_id, solved FROM team_progress WHERE team_id = ? AND solved = 1",
         (team_id,),
     ).fetchall()
     result: dict = {}
     for r in rows:
-        code = r["challenge_code"]
-        if code not in result:
-            result[code] = {}
-        result[code][r["flag_id"]] = bool(r["solved"])
+        bm_id = r["benchmark_id"]
+        if bm_id not in result:
+            result[bm_id] = {}
+        result[bm_id][r["flag_id"]] = bool(r["solved"])
     return result
 
 

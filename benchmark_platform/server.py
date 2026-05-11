@@ -162,14 +162,15 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
     total_solved_challenges = 0
     for c in all_challenges:
         bm = c.get_benchmark()
+        bm_id = c.get_benchmark_id()
         status = manager.get_instance_status(c.challenge_code)
         entrypoint = None
         if status in ("running", "unhealthy"):
             entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
 
-        team_solved = get_team_solved_count(team["id"], c.challenge_code)
+        team_solved = get_team_solved_count(team["id"], bm_id)
         all_solved = team_solved >= c.flag_count
-        hint_viewed = is_hint_viewed(team["id"], c.challenge_code)
+        hint_viewed = is_hint_viewed(team["id"], bm_id)
 
         if all_solved:
             total_solved_challenges += 1
@@ -181,7 +182,7 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
             got_score = c.points if all_solved else 0
 
         # Per-flag solved status from DB
-        progress_for_challenge = team_progress.get(c.challenge_code, {})
+        progress_for_challenge = team_progress.get(bm_id, {})
         flags_info = None
         if c.flag_states:
             flags_info = [
@@ -190,7 +191,7 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
             ]
 
         challenge_list.append({
-            "benchmark_id": c.get_benchmark_id(),
+            "benchmark_id": bm_id,
             "title": bm.name,
             "code": c.challenge_code,
             "difficulty": c.difficulty.value,
@@ -235,7 +236,7 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
         return
 
-    team_solved = get_team_solved_count(team["id"], challenge.challenge_code)
+    team_solved = get_team_solved_count(team["id"], challenge.get_benchmark_id())
     if team_solved >= challenge.flag_count:
         return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
 
@@ -323,10 +324,16 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
     is_correct = matched_flag_id is not None
 
     if is_correct:
-        mark_flag_solved(team["id"], challenge.challenge_code, matched_flag_id)
+        mark_flag_solved(team["id"], challenge.get_benchmark_id(), matched_flag_id)
+        for fs in challenge.flag_states:
+            if fs.id == matched_flag_id:
+                fs.solved = True
+                break
 
-    team_solved = get_team_solved_count(team["id"], challenge.challenge_code)
+    team_solved = get_team_solved_count(team["id"], challenge.get_benchmark_id())
     all_solved = team_solved >= challenge.flag_count
+    if all_solved:
+        challenge.solved = True
 
     # Record submission
     from datetime import datetime, timezone as _tz
@@ -379,8 +386,9 @@ async def tch_get_progress(code: str, team: dict = Depends(get_current_team)):
         return
 
     team_progress = get_team_progress(team["id"])
-    progress_for_challenge = team_progress.get(code, {})
-    team_solved = get_team_solved_count(team["id"], code)
+    bm_id = challenge.get_benchmark_id()
+    progress_for_challenge = team_progress.get(bm_id, {})
+    team_solved = get_team_solved_count(team["id"], bm_id)
     all_solved = team_solved >= challenge.flag_count
 
     if challenge.flag_states:
@@ -424,7 +432,7 @@ async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team))
         _err(f"Failed to get hint: {e}", 500)
         return  # unreachable, but makes control flow explicit
 
-    mark_hint_viewed(team["id"], payload.code)
+    mark_hint_viewed(team["id"], challenge.get_benchmark_id())
     return _ok({"code": payload.code, "hint_content": hint})
 
 
@@ -760,7 +768,21 @@ def serve(
     CHALLENGES = manager.challenges
 
     init_db()
-    get_or_create_default_team()
+    default_team = get_or_create_default_team()
+
+    # Sync solved state from DB to Challenge objects
+    team_progress = get_team_progress(default_team["id"])
+    for c in manager.challenges:
+        bm_id = c.get_benchmark_id()
+        progress = team_progress.get(bm_id, {})
+        if progress:
+            for fs in c.flag_states:
+                if progress.get(fs.id):
+                    fs.solved = True
+            if not c.flag_states:
+                c.solved = bool(progress)
+            elif all(fs.solved for fs in c.flag_states):
+                c.solved = True
 
     submission_store = SubmissionStore(
         log_path=Path("logs/submissions.jsonl"),
