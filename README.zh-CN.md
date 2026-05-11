@@ -174,6 +174,27 @@ benchmark-platform 是 **WgpSec Agentic Ecosystem** 的评估层 — 衡量 AI A
 | [benchmark-challenges](https://github.com/wgpsec/benchmark-challenges) | 靶场数据仓库 — 通过 GitHub Releases 打包分发 |
 | PoJun | 通用 AI 求解引擎（私有） |
 
+## 常见问题
+
+### "all predefined address pools have been fully subnetted"
+
+同时启动大量靶场时，Docker 可能耗尽网络地址空间。默认每个 network 分配一个 `/16` 子网，数量有限。
+
+**解决方法：** 在 Docker daemon 配置中添加 `default-address-pools`（Docker Desktop → Settings → Docker Engine）：
+
+```json
+{
+  "default-address-pools": [
+    {
+      "base": "172.17.0.0/12",
+      "size": 24
+    }
+  ]
+}
+```
+
+点击 **Apply & Restart**。这样每个 network 只分配 `/24`（254 个 IP，对靶场完全够用），可支持 4000+ 个并发 network。
+
 ## 许可证
 
 [MIT](LICENSE)

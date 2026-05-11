@@ -174,6 +174,27 @@ benchmark-platform is the evaluation layer of the **WgpSec Agentic Ecosystem** �
 | [benchmark-challenges](https://github.com/wgpsec/benchmark-challenges) | Challenge data repository — packed & distributed via GitHub Releases |
 | PoJun | General-purpose AI problem-solving engine (private) |
 
+## FAQ
+
+### "all predefined address pools have been fully subnetted"
+
+When starting many challenges simultaneously, Docker may run out of network address space. This is because Docker allocates a `/16` subnet per network by default, which limits the total number of networks.
+
+**Fix:** Add `default-address-pools` to your Docker daemon config (Docker Desktop → Settings → Docker Engine):
+
+```json
+{
+  "default-address-pools": [
+    {
+      "base": "172.17.0.0/12",
+      "size": 24
+    }
+  ]
+}
+```
+
+Click **Apply & Restart**. This allocates `/24` per network (254 IPs each, more than enough for a challenge), allowing 4000+ concurrent networks.
+
 ## License
 
 [MIT](LICENSE)
