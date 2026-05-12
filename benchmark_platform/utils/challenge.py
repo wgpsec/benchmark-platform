@@ -307,75 +307,88 @@ class ChallengeManager:
     def _is_text_file(self, fpath: Path) -> bool:
         return fpath.suffix.lower() in self._TEXT_EXTENSIONS or fpath.name in self._TEXT_FILENAMES
 
+    _FLAG_LITERAL_RE = re.compile(r'[Ff][Ll][Aa][Gg]\{[^}]+\}')
+
     def _inject_dynamic_flags(self, path: Path) -> None:
-        """Generate dynamic flags and replace all occurrences in the runtime copy."""
-        env_path = path / '.env'
-        flag_map: dict[str, str] = {}
+        """Inject dynamic flags using canaries as the single source of truth.
 
-        # Collect static flags from .env
-        if env_path.exists():
-            content = env_path.read_text(encoding='utf-8')
-            for m in self._FLAG_RE.finditer(content):
-                old_flag = m.group(2).strip()
-                if old_flag and old_flag not in flag_map:
-                    flag_map[old_flag] = f'flag{{{uuid.uuid4()}}}'
-
-        # Collect static flags from benchmark.json canaries
+        Algorithm:
+        1. Read canaries from benchmark.json (required, non-empty)
+        2. Generate a dynamic flag{uuid} for each canary
+        3. Scan ALL text files for flag literals (FLAG{...} / flag{...})
+        4. Literals matching a canary → replaced with corresponding dynamic flag
+        5. Other flag literals → replaced with random fake flags (not submittable)
+        6. Rewrite .env with dynamic flag values
+        """
         bm_path = path / 'benchmark.json'
-        if bm_path.exists():
+        meta = json.loads(bm_path.read_text(encoding='utf-8'))
+        canaries = [c for c in meta.get('canaries', []) if c]
+
+        if not canaries:
+            raise ValueError(
+                f"benchmark.json 缺少有效的 canaries 字段，"
+                f"无法注入动态 flag: {bm_path}"
+            )
+
+        real_flag_map: dict[str, str] = {}
+        for canary in canaries:
+            real_flag_map[canary] = f'flag{{{uuid.uuid4()}}}'
+
+        fake_flag_map: dict[str, str] = {}
+        for fpath in path.rglob('*'):
+            if not fpath.is_file() or not self._is_text_file(fpath):
+                continue
             try:
-                meta = json.loads(bm_path.read_text(encoding='utf-8'))
-                for canary in meta.get('canaries', []):
-                    if canary and canary not in flag_map:
-                        flag_map[canary] = f'flag{{{uuid.uuid4()}}}'
-            except (json.JSONDecodeError, OSError):
-                pass
+                text = fpath.read_text(encoding='utf-8')
+            except (UnicodeDecodeError, OSError):
+                continue
+            for m in self._FLAG_LITERAL_RE.finditer(text):
+                val = m.group(0)
+                if val not in real_flag_map and val not in fake_flag_map:
+                    fake_flag_map[val] = f'flag{{{uuid.uuid4()}}}'
 
-        # If still no flags found, scan source files for FLAG{...} pattern
-        if not flag_map:
-            flag_literal_re = re.compile(r'FLAG\{[^}]+\}')
-            for fpath in path.rglob('*'):
-                if not fpath.is_file() or not self._is_text_file(fpath):
-                    continue
-                try:
-                    text = fpath.read_text(encoding='utf-8')
-                except (UnicodeDecodeError, OSError):
-                    continue
-                for m in flag_literal_re.finditer(text):
-                    val = m.group(0)
-                    if val not in flag_map:
-                        flag_map[val] = f'flag{{{uuid.uuid4()}}}'
+        combined_map = {**real_flag_map, **fake_flag_map}
+        self._rewrite_env_file(path, real_flag_map, canaries)
+        self._replace_flags_in_dir(path, combined_map, skip_env=True)
 
-        if not flag_map:
-            flag_map['FLAG{placeholder}'] = f'flag{{{uuid.uuid4()}}}'
+    def _rewrite_env_file(
+        self, path: Path, real_flag_map: dict[str, str], canaries: list[str],
+    ) -> None:
+        """Rewrite .env so FLAG variables carry the dynamic flag values."""
+        env_path = path / '.env'
+        primary_flag = real_flag_map[canaries[0]]
 
-        # Rewrite .env with dynamic values
-        new_env_lines = []
         if env_path.exists():
-            for line in env_path.read_text(encoding='utf-8').splitlines():
+            lines = env_path.read_text(encoding='utf-8').splitlines()
+            new_lines = []
+            flag_idx = 0
+            for line in lines:
                 m = self._FLAG_RE.match(line)
                 if m:
-                    old_val = m.group(2).strip()
-                    new_val = flag_map.get(old_val, f'flag{{{uuid.uuid4()}}}')
-                    new_env_lines.append(f'{m.group(1)}="{new_val}"')
+                    var_name = m.group(1)
+                    if flag_idx < len(canaries):
+                        dynamic_val = real_flag_map[canaries[flag_idx]]
+                        flag_idx += 1
+                    else:
+                        dynamic_val = primary_flag
+                    new_lines.append(f'{var_name}="{dynamic_val}"')
                 else:
-                    new_env_lines.append(line)
+                    new_lines.append(line)
+            env_path.write_text('\n'.join(new_lines) + '\n', encoding='utf-8')
         else:
-            new_val = next(iter(flag_map.values()))
-            new_env_lines.append(f'FLAG="{new_val}"')
-        env_path.write_text('\n'.join(new_env_lines) + '\n', encoding='utf-8')
+            env_path.write_text(f'FLAG="{primary_flag}"\n', encoding='utf-8')
 
-        # Replace flag strings across all text files in runtime copy
-        self._replace_flags_in_dir(path, flag_map)
-
-    def _replace_flags_in_dir(self, path: Path, flag_map: dict[str, str]) -> None:
+    def _replace_flags_in_dir(self, path: Path, flag_map: dict[str, str], skip_env: bool = False) -> None:
         """Replace old flag strings with new ones across all text files."""
         if not flag_map:
             return
+        env_path = path / '.env'
         for fpath in path.rglob('*'):
             if not fpath.is_file():
                 continue
             if not self._is_text_file(fpath):
+                continue
+            if skip_env and fpath == env_path:
                 continue
             try:
                 content = fpath.read_text(encoding='utf-8')
