@@ -120,6 +120,8 @@ class Challenge(BaseModel):
                 if hints:
                     return "Hints for unsolved routes:\n" + "\n".join(hints)
 
+        if metadata.get('hint'):
+            return metadata['hint']
         return metadata.get('description', '')
 
     def get_benchmark(self) -> Benchmark:

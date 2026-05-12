@@ -193,11 +193,12 @@
 如果无法访问以上链接，请严格按以下核心规则生成：
 1. 生成文件：docker-compose.yml、benchmark.json，多 flag 场景额外生成 benchmark.yaml
 2. docker-compose.yml 端口映射必须用字符串格式（如 "80:80"），必须包含 healthcheck
-3. benchmark.json 格式：{"id":"靶场ID", "name":"名称", "description":"场景描述", "level":难度(1=easy/2=medium/3=hard), "win_condition":"flag", "tags":["标签"], "canaries":["FLAG{...}"], "flag_count":flag数量}
+3. benchmark.json 格式：{"id":"靶场ID", "name":"名称", "description":"场景描述", "hint":"技术方向提示（给方向不给答案，做题者查看会扣10%分数）", "level":难度(1=easy/2=medium/3=hard), "win_condition":"flag", "tags":["标签"], "canaries":["FLAG{...}"], "flag_count":flag数量}
 4. Flag 使用 FLAG{描述性内容} 格式，必须同时硬编码在应用代码中和 benchmark.json 的 canaries 数组中
 5. 漏洞必须真实可利用，有合理攻击路径，不能是假漏洞
 6. Dockerfile 使用精简基础镜像（python:3.11-slim、node:20-slim 等），并使用国内镜像源加速：apt 换阿里云源（sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources），pip 加 -i https://mirrors.aliyun.com/pypi/simple/，npm 设置 registry https://registry.npmmirror.com
-7. 最终将所有文件打包为 分类--名称.zip（如 custom--MY-SQLI-01.zip），zip 内文件直接在根目录，不要多套一层文件夹
+7. hint 必须提供！好的 hint 示例："登录接口对引号处理不当"；坏的 hint："用 admin' OR '1'='1 登录"。多 flag 场景在 benchmark.yaml 的每个 flag 条目中也必须包含 hint 字段
+8. 最终将所有文件打包为 分类--名称.zip（如 custom--MY-SQLI-01.zip），zip 内文件直接在根目录，不要多套一层文件夹
 
 我想要的靶场是：[在此描述你的漏洞场景、难度、技术栈偏好]</div>
         </div>

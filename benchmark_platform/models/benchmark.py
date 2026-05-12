@@ -23,6 +23,7 @@ class Benchmark(BaseModel):
         ...,
         description='The description of the benchmark',
     )
+    hint: str = Field(default="", description='Technical hint for solving, revealed on request')
     level: int = Field(..., description='The level of the benchmark')
     win_condition: WinCondition = Field(
         ...,
