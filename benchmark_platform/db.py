@@ -97,7 +97,7 @@ def list_teams() -> list:
         FROM teams t
         LEFT JOIN team_progress p ON t.id = p.team_id AND p.solved = 1
         GROUP BY t.id
-        ORDER BY solved_flags DESC, t.created_at ASC
+        ORDER BY t.created_at ASC
     """).fetchall()
     return [dict(r) for r in rows]
 
