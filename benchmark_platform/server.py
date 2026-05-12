@@ -364,12 +364,12 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
         challenge.solved = True
 
     # Record submission
-    from datetime import datetime, timezone as _tz
+    from datetime import datetime
     from benchmark_platform.web.submission_store import SubmissionRecord
     if hasattr(app.state, 'submission_store') and app.state.submission_store is not None:
         bm = challenge.get_benchmark()
         app.state.submission_store.add(SubmissionRecord(
-            timestamp=datetime.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             challenge_code=payload.code,
             benchmark_id=challenge.get_benchmark_id(),
             challenge_name=bm.name,
