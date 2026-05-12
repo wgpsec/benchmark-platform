@@ -24,6 +24,17 @@ class SubmissionStore:
     def __init__(self, log_path: Path | None = None) -> None:
         self._records: list[SubmissionRecord] = []
         self._log_path = log_path
+        if log_path and log_path.exists():
+            try:
+                for line in log_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    self._records.append(SubmissionRecord(**data))
+                self._records.reverse()
+            except (json.JSONDecodeError, OSError):
+                pass
 
     def add(self, record: SubmissionRecord) -> None:
         self._records.insert(0, record)

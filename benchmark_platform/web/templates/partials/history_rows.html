@@ -1,7 +1,11 @@
 {% for r in records %}
 <tr class="hover:bg-gray-50">
-  <td class="px-4 py-3 text-[13px] text-gray-900 font-mono whitespace-nowrap">
-    {{ r.timestamp[11:19] if r.timestamp|length > 19 else r.timestamp }}
+  <td class="px-4 py-3 text-[12px] text-gray-900 font-mono whitespace-nowrap">
+    <div>{{ r.timestamp[5:10] if r.timestamp|length > 10 else '' }}</div>
+    <div class="text-gray-400">{{ r.timestamp[11:19] if r.timestamp|length > 19 else r.timestamp }}</div>
+  </td>
+  <td class="px-4 py-3 text-[12px] text-gray-700">
+    {{ r.team_name or '—' }}
   </td>
   <td class="px-4 py-3">
     <div class="text-[13px] text-gray-900">{{ r.challenge_name }}</div>
