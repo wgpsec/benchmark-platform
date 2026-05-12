@@ -69,21 +69,22 @@ class Challenge(BaseModel):
         """Return {flag_id: flag_value} for all flags."""
         env_path = self._get_path() / '.env'
         data = dotenv.dotenv_values(env_path)
+        data_upper = {k.upper(): v for k, v in data.items()}
         if self.flag_states:
             result = {}
             for i, fs in enumerate(self.flag_states):
-                key_by_id = f"FLAG_{fs.id}"
+                key_by_id = f"FLAG_{fs.id}".upper()
                 key_by_idx = f"FLAG{i + 1}"
-                if key_by_id in data:
-                    result[fs.id] = str(data[key_by_id])
-                elif key_by_idx in data:
-                    result[fs.id] = str(data[key_by_idx])
-                elif "FLAG" in data and len(self.flag_states) == 1:
-                    result[fs.id] = str(data["FLAG"])
+                if key_by_id in data_upper:
+                    result[fs.id] = str(data_upper[key_by_id])
+                elif key_by_idx in data_upper:
+                    result[fs.id] = str(data_upper[key_by_idx])
+                elif "FLAG" in data_upper and len(self.flag_states) == 1:
+                    result[fs.id] = str(data_upper["FLAG"])
             return result
-        if 'FLAG' not in data:
+        if 'FLAG' not in data_upper:
             raise ValueError(f"FLAG not found in {env_path}")
-        return {"default": str(data['FLAG'])}
+        return {"default": str(data_upper['FLAG'])}
 
     def get_expected_answer(self) -> str:
         """Legacy single-flag compat."""
