@@ -283,12 +283,32 @@ function storePage() {
     async init() {
       await this.loadLocal();
       this.loadRemote();
+      this.loadMissingSizes();
     },
     async loadLocal() {
       try {
         const resp = await fetch('/api/store/manifest?source=local');
         const data = await resp.json();
         if (data.code === 0) this.challenges = data.data.challenges || [];
+      } catch (e) {}
+    },
+    async loadMissingSizes() {
+      const missing = this.challenges.filter(c => !c.size && c.downloaded);
+      if (!missing.length) return;
+      try {
+        const resp = await fetch('/api/store/sizes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({items: missing.map(c => ({category: c.category, name: c.name}))})
+        });
+        const data = await resp.json();
+        if (data.code === 0) {
+          const sizes = data.data.sizes;
+          this.challenges.forEach(c => {
+            const key = c.category + '/' + c.name;
+            if (sizes[key]) c.size = sizes[key];
+          });
+        }
       } catch (e) {}
     },
     async loadRemote() {

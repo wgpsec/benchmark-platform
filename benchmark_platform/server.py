@@ -718,6 +718,40 @@ async def store_manifest(source: str = "all"):
     return {"code": 0, "data": {"challenges": challenges}}
 
 
+@app.post("/api/store/sizes")
+async def store_sizes(body: dict):
+    """Calculate directory sizes for challenges that have no stored size metadata."""
+    import asyncio
+    from pathlib import Path as _Path
+
+    items = body.get("items", [])
+    if not items:
+        return {"code": 0, "data": {"sizes": {}}}
+
+    challenges_dir: _Path = app.state.challenges_dir
+
+    def _calc_dir_size(category: str, name: str) -> int:
+        d = challenges_dir / category / name
+        if not d.is_dir():
+            return 0
+        total = 0
+        for f in d.rglob("*"):
+            if f.is_file():
+                total += f.stat().st_size
+        return total
+
+    loop = asyncio.get_event_loop()
+    sizes = {}
+    for item in items[:500]:
+        cat = item.get("category", "")
+        nm = item.get("name", "")
+        if cat and nm:
+            key = f"{cat}/{nm}"
+            sizes[key] = await loop.run_in_executor(None, _calc_dir_size, cat, nm)
+
+    return {"code": 0, "data": {"sizes": sizes}}
+
+
 @app.post("/api/store/download")
 def store_download(body: dict):
     from benchmark_platform.web.store import ChallengeStore
