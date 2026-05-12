@@ -77,6 +77,39 @@ class ChallengeManager:
                     count=len(self.challenges))
         return self
 
+    def reload(self) -> tuple[int, list[str]]:
+        """Discover and load newly added challenges without affecting running instances.
+
+        Returns (added_count, error_list).
+        """
+        existing_ids = {c.get_benchmark_id() for c in self.challenges}
+        discovered = self._discover_challenges()
+        new_discoveries = [
+            (folder, bid) for folder, bid in discovered
+            if bid not in existing_ids
+        ]
+
+        if not new_discoveries:
+            return 0, []
+
+        added = 0
+        errors = []
+        for folder, benchmark_id in new_discoveries:
+            try:
+                challenge = self._create_challenge(folder, benchmark_id)
+                self.challenges.append(challenge)
+                self._instance_status[challenge.challenge_code] = "stopped"
+                added += 1
+            except Exception as e:
+                errors.append(f"{benchmark_id}: {e}")
+                logger.error("failed to load new challenge",
+                             benchmark_id=benchmark_id, error=str(e))
+
+        if added:
+            logger.info("hot-reloaded new challenges", added=added, errors=len(errors))
+
+        return added, errors
+
     def stop(self) -> None:
         self._cleanup(self.challenges)
         self.challenges.clear()

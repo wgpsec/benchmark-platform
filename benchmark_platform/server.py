@@ -75,6 +75,32 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
+def _auto_reload_challenges() -> tuple[int, list[str]]:
+    """Reload newly downloaded challenges into the running manager."""
+    global CHALLENGES
+    if manager is None:
+        return 0, []
+    added, errors = manager.reload()
+    if added:
+        CHALLENGES = manager.challenges
+        # Invalidate prebuild manager so it picks up new challenges
+        if hasattr(app.state, "prebuild_manager"):
+            app.state.prebuild_manager = None
+    return added, errors
+
+
+@app.post("/api/challenges/reload")
+async def reload_challenges():
+    if manager is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    added, errors = _auto_reload_challenges()
+    return _ok({
+        "added": added,
+        "errors": errors,
+        "total": len(manager.challenges),
+    }, f"加载了 {added} 个新靶场" if added else "没有发现新靶场")
+
+
 @app.get('/api/v1/challenges', response_model=GetChallengesResponse)
 async def get_challenges() -> GetChallengesResponse:
     logger.info(
@@ -709,6 +735,8 @@ def store_download(body: dict):
         store.download_challenge(category, name, asset, size=size)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Download failed: {e}")
+
+    _auto_reload_challenges()
     return {"code": 0, "message": f"{category}/{name} downloaded"}
 
 
@@ -751,6 +779,8 @@ async def store_download_all():
             results.append({"name": ch["name"], "status": "ok"})
         except Exception as e:
             results.append({"name": ch["name"], "status": f"error: {e}"})
+
+    _auto_reload_challenges()
     return {"code": 0, "data": results}
 
 
@@ -771,6 +801,8 @@ async def store_import(files: list[UploadFile] = File(...)):
             results.append({"name": f"{category}/{name}", "status": "ok"})
         except Exception as e:
             results.append({"name": f.filename, "status": "error", "detail": str(e)})
+
+    _auto_reload_challenges()
     return {"code": 0, "data": results}
 
 
