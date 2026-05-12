@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import uuid
@@ -119,6 +120,9 @@ class ChallengeManager:
 
         try:
             shutil.copytree(src, path)
+
+            # Generate dynamic flags
+            self._inject_dynamic_flags(path)
 
             # Remap ports
             compose_path = path / 'docker-compose.yml'
@@ -254,6 +258,94 @@ class ChallengeManager:
                     ignore_errors=True,
                 )
             list(executor.map(remove_dir, challenges))
+
+    _FLAG_RE = re.compile(r'^(FLAG(?:_\w+|[0-9]*))\s*=\s*["\']?([^"\'\n]+)["\']?', re.MULTILINE)
+    _TEXT_EXTENSIONS = {
+        '.py', '.js', '.ts', '.go', '.rb', '.php', '.java', '.sh', '.bash',
+        '.sql', '.html', '.htm', '.xml', '.json', '.yaml', '.yml', '.toml',
+        '.env', '.txt', '.md', '.cfg', '.ini', '.conf', '.tpl', '.tmpl',
+        '.jsx', '.tsx', '.vue', '.css', '.csv',
+    }
+
+    def _inject_dynamic_flags(self, path: Path) -> None:
+        """Generate dynamic flags and replace all occurrences in the runtime copy."""
+        env_path = path / '.env'
+        flag_map: dict[str, str] = {}
+
+        # Collect static flags from .env
+        if env_path.exists():
+            content = env_path.read_text(encoding='utf-8')
+            for m in self._FLAG_RE.finditer(content):
+                old_flag = m.group(2).strip()
+                if old_flag and old_flag not in flag_map:
+                    flag_map[old_flag] = f'flag{{{uuid.uuid4()}}}'
+
+        # Collect static flags from benchmark.json canaries
+        bm_path = path / 'benchmark.json'
+        if bm_path.exists():
+            try:
+                meta = json.loads(bm_path.read_text(encoding='utf-8'))
+                for canary in meta.get('canaries', []):
+                    if canary and canary not in flag_map:
+                        flag_map[canary] = f'flag{{{uuid.uuid4()}}}'
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # If still no flags found, scan source files for FLAG{...} pattern
+        if not flag_map:
+            flag_literal_re = re.compile(r'FLAG\{[^}]+\}')
+            for fpath in path.rglob('*'):
+                if not fpath.is_file() or fpath.suffix.lower() not in self._TEXT_EXTENSIONS:
+                    continue
+                try:
+                    text = fpath.read_text(encoding='utf-8')
+                except (UnicodeDecodeError, OSError):
+                    continue
+                for m in flag_literal_re.finditer(text):
+                    val = m.group(0)
+                    if val not in flag_map:
+                        flag_map[val] = f'flag{{{uuid.uuid4()}}}'
+
+        if not flag_map:
+            flag_map['FLAG{placeholder}'] = f'flag{{{uuid.uuid4()}}}'
+
+        # Rewrite .env with dynamic values
+        new_env_lines = []
+        if env_path.exists():
+            for line in env_path.read_text(encoding='utf-8').splitlines():
+                m = self._FLAG_RE.match(line)
+                if m:
+                    old_val = m.group(2).strip()
+                    new_val = flag_map.get(old_val, f'flag{{{uuid.uuid4()}}}')
+                    new_env_lines.append(f'{m.group(1)}="{new_val}"')
+                else:
+                    new_env_lines.append(line)
+        else:
+            new_val = next(iter(flag_map.values()))
+            new_env_lines.append(f'FLAG="{new_val}"')
+        env_path.write_text('\n'.join(new_env_lines) + '\n', encoding='utf-8')
+
+        # Replace flag strings across all text files in runtime copy
+        self._replace_flags_in_dir(path, flag_map)
+
+    def _replace_flags_in_dir(self, path: Path, flag_map: dict[str, str]) -> None:
+        """Replace old flag strings with new ones across all text files."""
+        if not flag_map:
+            return
+        for fpath in path.rglob('*'):
+            if not fpath.is_file():
+                continue
+            if fpath.suffix.lower() not in self._TEXT_EXTENSIONS:
+                continue
+            try:
+                content = fpath.read_text(encoding='utf-8')
+            except (UnicodeDecodeError, OSError):
+                continue
+            replaced = content
+            for old_flag, new_flag in flag_map.items():
+                replaced = replaced.replace(old_flag, new_flag)
+            if replaced != content:
+                fpath.write_text(replaced, encoding='utf-8')
 
     def _compose(self, benchmark_id: str, code: str, *args) -> None:
         path = Challenge.get_base_path(benchmark_id, code, self.runtime_dir)
