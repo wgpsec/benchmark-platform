@@ -7,12 +7,17 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 ## 功能
 
 - 靶机生命周期管理（启动/停止/健康检测）
+- **动态 Flag 注入** — 每个实例启动时生成唯一 `flag{uuid}`，不烘焙进镜像
+- **靶场商店** — 从 GitHub Releases 浏览、下载、导入靶场，支持国内镜像加速
+- **热加载** — 下载新靶场后无需重启服务即可自动发现
 - 多 Flag 支持（单题多个攻击路径）
 - 难度分级与 Level Gate（逐级解锁）
 - 实时状态展示（running / unhealthy / stopped）
-- 提交记录与积分统计
+- 提交记录与积分统计（跨重启持久化）
 - Hint 提示系统（带扣分机制）
 - 镜像预构建/缓存页面（避免冷启动延迟）
+- 团队管理与多队伍评分
+- 运行时目录隔离（可通过 Web UI 配置）
 - Apple Silicon (ARM64) 兼容
 
 ## 界面截图
@@ -69,6 +74,7 @@ python3 -m benchmark_platform.server \
 | `--benchmark-folder` | 靶机题目目录（可多次指定） | 必填 |
 | `--benchmark-id` / `-i` | 只加载指定 ID 的题目 | 全部加载 |
 | `--challenges-dir` | 靶场管理下载根目录 | `./challenges` |
+| `--host` | 监听地址 | `0.0.0.0` |
 | `--port` | 服务端口 | 8088 |
 | `--public-accessible-host` | 靶机入口地址 | localhost |
 | `--no-level-gate` | 禁用分级解锁 | false |
@@ -86,19 +92,21 @@ benchmark_platform/
 ├── models/
 │   └── benchmark.py       # Benchmark JSON schema
 ├── utils/
-│   ├── challenge.py       # ChallengeManager（实例生命周期）
+│   ├── challenge.py       # ChallengeManager（实例生命周期、动态 Flag 注入）
 │   └── logger.py          # 结构化日志
 ├── web/
 │   ├── routes.py          # Web UI 页面 & HTMX partial 路由
 │   ├── context.py         # 模板上下文构建
 │   ├── prebuild_manager.py # 镜像预构建管理器
 │   ├── submission_store.py # 提交记录持久化
+│   ├── store.py           # 靶场商店（GitHub Releases 下载）
 │   └── templates/         # Jinja2 模板
 └── static/
     └── css/app.css
 
 scripts/                   # 部署辅助脚本
 challenges/                # 靶机题目源码（git ignored）
+runtime/                   # 运行时实例副本（git ignored）
 tests/                     # 测试
 ```
 
@@ -112,7 +120,10 @@ tests/                     # 测试
 | `GET /web/challenges` | 题目列表 |
 | `GET /web/history` | 提交记录 |
 | `GET /web/status` | 实例状态 |
+| `GET /web/store` | 靶场管理（下载/导入） |
 | `GET /web/prebuild` | 镜像预热 |
+| `GET /web/teams` | 团队管理 |
+| `GET /web/settings` | 平台设置 |
 
 ### REST API
 
@@ -125,6 +136,30 @@ tests/                     # 测试
 | `POST /api/hint` | 获取提示 `{code}` |
 | `POST /api/stop_all` | 停止所有实例 |
 | `GET /api/challenges/{code}/progress` | 查询 Flag 进度 |
+| `POST /api/challenges/reload` | 热加载新下载的靶场 |
+| `POST /api/start_level` | 启动某一等级所有靶机 |
+| `POST /api/stop_level` | 停止某一等级所有靶机 |
+| `GET /api/instance_statuses` | 批量查询实例状态 |
+
+### 靶场商店 API
+
+| 路由 | 说明 |
+|------|------|
+| `GET /api/store/manifest` | 获取远程靶场清单 |
+| `POST /api/store/download` | 按 ID 下载靶场 |
+| `POST /api/store/download-all` | 按分类下载全部靶场 |
+| `POST /api/store/delete` | 删除已下载的靶场 |
+| `POST /api/store/import` | 导入本地 zip 文件 |
+
+### 镜像预热 API
+
+| 路由 | 说明 |
+|------|------|
+| `POST /api/prebuild/start` | 开始镜像预构建 |
+| `POST /api/prebuild/stop` | 停止预构建 |
+| `GET /api/prebuild/status` | 查询预构建进度 |
+| `POST /api/prebuild/remove` | 移除单个预构建镜像 |
+| `POST /api/prebuild/remove_all` | 移除所有预构建镜像 |
 
 ## Agent 自动化接入
 
@@ -136,12 +171,14 @@ tests/                     # 测试
 
 ```
 XBEN-001-24/
-├── docker-compose.yml    # 必须
+├── docker-compose.yml    # 必须（服务通过环境变量读取 FLAG）
 ├── benchmark.json        # 题目元数据（name, description, level, points）
 ├── benchmark.yaml        # 可选，多 flag 定义
-├── .env                  # FLAG 环境变量
+├── .env                  # FLAG 占位符（启动时被动态 flag 替换）
 └── app/ mysql/ ...       # 应用代码
 ```
+
+平台在每次启动实例时注入唯一的 `flag{uuid}` — 靶场源码应从 `FLAG` 环境变量读取 flag，而非硬编码。
 
 ## 技术栈
 

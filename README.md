@@ -7,12 +7,17 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 ## Features
 
 - Challenge lifecycle management (start / stop / health check)
+- **Dynamic Flag injection** — each instance gets a unique `flag{uuid}` at runtime, never baked into images
+- **Challenge Store** — browse, download, and import challenges from GitHub Releases with China mirror acceleration
+- **Hot-reload** — newly downloaded challenges are discoverable without server restart
 - Multi-flag support (multiple attack paths per challenge)
 - Difficulty tiering with Level Gate (progressive unlock)
 - Real-time status display (running / unhealthy / stopped)
-- Submission history & scoring
+- Submission history & scoring (persisted across restarts)
 - Hint system (with point deduction)
 - Image pre-build / cache page (avoid cold-start delays)
+- Team management & multi-team scoring
+- Runtime directory isolation (configurable via Web UI)
 - Apple Silicon (ARM64) compatibility
 
 ## Screenshots
@@ -69,6 +74,7 @@ Options:
 | `--benchmark-folder` | Challenge directory (can be repeated) | required |
 | `--benchmark-id` / `-i` | Load only specific IDs | all |
 | `--challenges-dir` | Root directory for store downloads | `./challenges` |
+| `--host` | Host to bind to | `0.0.0.0` |
 | `--port` | Server port | 8088 |
 | `--public-accessible-host` | Public hostname for challenges | localhost |
 | `--no-level-gate` | Disable level-based unlock | false |
@@ -86,19 +92,21 @@ benchmark_platform/
 ├── models/
 │   └── benchmark.py       # Benchmark JSON schema
 ├── utils/
-│   ├── challenge.py       # ChallengeManager (instance lifecycle)
+│   ├── challenge.py       # ChallengeManager (instance lifecycle, dynamic flag injection)
 │   └── logger.py          # Structured logging
 ├── web/
 │   ├── routes.py          # Web UI page & HTMX partial routes
 │   ├── context.py         # Template context builders
 │   ├── prebuild_manager.py # Image pre-build manager
 │   ├── submission_store.py # Submission persistence
+│   ├── store.py           # Challenge store (GitHub Releases download)
 │   └── templates/         # Jinja2 templates
 └── static/
     └── css/app.css
 
 scripts/                   # Deployment helper scripts
 challenges/                # Challenge source code (git ignored)
+runtime/                   # Running instance copies (git ignored)
 tests/                     # Tests
 ```
 
@@ -112,7 +120,10 @@ tests/                     # Tests
 | `GET /web/challenges` | Challenge list |
 | `GET /web/history` | Submission history |
 | `GET /web/status` | Instance status |
+| `GET /web/store` | Challenge store (download / import) |
 | `GET /web/prebuild` | Image pre-build |
+| `GET /web/teams` | Team management |
+| `GET /web/settings` | Platform settings |
 
 ### REST API
 
@@ -125,6 +136,30 @@ tests/                     # Tests
 | `POST /api/hint` | Get hint `{code}` |
 | `POST /api/stop_all` | Stop all instances |
 | `GET /api/challenges/{code}/progress` | Query flag progress |
+| `POST /api/challenges/reload` | Hot-reload newly downloaded challenges |
+| `POST /api/start_level` | Start all challenges at a level |
+| `POST /api/stop_level` | Stop all challenges at a level |
+| `GET /api/instance_statuses` | Batch query instance statuses |
+
+### Store API
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/store/manifest` | Fetch remote challenge manifest |
+| `POST /api/store/download` | Download a challenge by ID |
+| `POST /api/store/download-all` | Download all challenges in a category |
+| `POST /api/store/delete` | Delete a downloaded challenge |
+| `POST /api/store/import` | Import a local zip file |
+
+### Prebuild API
+
+| Route | Description |
+|-------|-------------|
+| `POST /api/prebuild/start` | Start image pre-build |
+| `POST /api/prebuild/stop` | Stop pre-build |
+| `GET /api/prebuild/status` | Query pre-build progress |
+| `POST /api/prebuild/remove` | Remove a pre-built image |
+| `POST /api/prebuild/remove_all` | Remove all pre-built images |
 
 ## Agent Integration
 
@@ -136,12 +171,14 @@ Each challenge is a directory containing:
 
 ```
 XBEN-001-24/
-├── docker-compose.yml    # Required
+├── docker-compose.yml    # Required (services read FLAG from environment)
 ├── benchmark.json        # Metadata (name, description, level, points)
 ├── benchmark.yaml        # Optional, multi-flag definitions
-├── .env                  # FLAG environment variable
+├── .env                  # FLAG placeholder (replaced at runtime with dynamic flag)
 └── app/ mysql/ ...       # Application code
 ```
+
+The platform injects a unique `flag{uuid}` into each instance at startup — challenge source code should read the flag from the `FLAG` environment variable rather than hardcoding it.
 
 ## Tech Stack
 
