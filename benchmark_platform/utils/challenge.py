@@ -56,6 +56,18 @@ class ChallengeManager:
             logger.warning("no challenges found in any benchmark folder")
             return self
 
+        # Deduplicate by benchmark_id (first occurrence wins)
+        seen: set[str] = set()
+        unique: list[tuple[Path, str]] = []
+        for folder, bid in discovered:
+            if bid not in seen:
+                seen.add(bid)
+                unique.append((folder, bid))
+            else:
+                logger.warning("duplicate benchmark_id skipped",
+                               benchmark_id=bid, folder=str(folder))
+        discovered = unique
+
         errors = []
         for folder, benchmark_id in discovered:
             try:
