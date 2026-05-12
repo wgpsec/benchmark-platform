@@ -90,11 +90,11 @@ class PrebuildManager:
 
                 all_exist = True
                 for img in images:
-                    inspect = subprocess.run(
-                        ["docker", "image", "inspect", img],
+                    result = subprocess.run(
+                        ["docker", "images", "-q", img],
                         capture_output=True, text=True, timeout=10,
                     )
-                    if inspect.returncode != 0:
+                    if result.returncode != 0 or not result.stdout.strip():
                         all_exist = False
                         break
 
