@@ -299,6 +299,13 @@ class ChallengeManager:
         '.env', '.txt', '.md', '.cfg', '.ini', '.conf', '.tpl', '.tmpl',
         '.jsx', '.tsx', '.vue', '.css', '.csv',
     }
+    _TEXT_FILENAMES = {
+        'Dockerfile', 'Makefile', 'Procfile', 'Gemfile', 'Rakefile',
+        'Vagrantfile', 'Brewfile',
+    }
+
+    def _is_text_file(self, fpath: Path) -> bool:
+        return fpath.suffix.lower() in self._TEXT_EXTENSIONS or fpath.name in self._TEXT_FILENAMES
 
     def _inject_dynamic_flags(self, path: Path) -> None:
         """Generate dynamic flags and replace all occurrences in the runtime copy."""
@@ -328,7 +335,7 @@ class ChallengeManager:
         if not flag_map:
             flag_literal_re = re.compile(r'FLAG\{[^}]+\}')
             for fpath in path.rglob('*'):
-                if not fpath.is_file() or fpath.suffix.lower() not in self._TEXT_EXTENSIONS:
+                if not fpath.is_file() or not self._is_text_file(fpath):
                     continue
                 try:
                     text = fpath.read_text(encoding='utf-8')
@@ -368,7 +375,7 @@ class ChallengeManager:
         for fpath in path.rglob('*'):
             if not fpath.is_file():
                 continue
-            if fpath.suffix.lower() not in self._TEXT_EXTENSIONS:
+            if not self._is_text_file(fpath):
                 continue
             try:
                 content = fpath.read_text(encoding='utf-8')
