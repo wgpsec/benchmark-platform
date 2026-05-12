@@ -313,26 +313,31 @@ class ChallengeManager:
         """Inject dynamic flags using canaries as the single source of truth.
 
         Algorithm:
-        1. Read canaries from benchmark.json (required, non-empty)
-        2. Generate a dynamic flag{uuid} for each canary
-        3. Scan ALL text files for flag literals (FLAG{...} / flag{...})
-        4. Literals matching a canary → replaced with corresponding dynamic flag
-        5. Other flag literals → replaced with random fake flags (not submittable)
-        6. Rewrite .env with dynamic flag values
+        1. Read canaries from benchmark.json (preferred, authoritative)
+        2. If canaries empty, fall back to .env + source scan (backward compat)
+        3. Generate a dynamic flag{uuid} for each real flag
+        4. Scan ALL text files for flag literals (FLAG{...} / flag{...})
+        5. Literals matching a real flag → replaced with corresponding dynamic flag
+        6. Other flag literals → replaced with random fake flags (not submittable)
+        7. Rewrite .env with dynamic flag values
         """
         bm_path = path / 'benchmark.json'
         meta = json.loads(bm_path.read_text(encoding='utf-8'))
         canaries = [c for c in meta.get('canaries', []) if c]
 
-        if not canaries:
-            raise ValueError(
-                f"benchmark.json 缺少有效的 canaries 字段，"
-                f"无法注入动态 flag: {bm_path}"
+        if canaries:
+            real_flag_map: dict[str, str] = {}
+            for canary in canaries:
+                real_flag_map[canary] = f'flag{{{uuid.uuid4()}}}'
+        else:
+            logger.warning(
+                "benchmark.json canaries 为空，使用 fallback 逻辑",
+                path=str(bm_path),
             )
+            real_flag_map = self._fallback_collect_flags(path)
 
-        real_flag_map: dict[str, str] = {}
-        for canary in canaries:
-            real_flag_map[canary] = f'flag{{{uuid.uuid4()}}}'
+        if not real_flag_map:
+            real_flag_map['FLAG{placeholder}'] = f'flag{{{uuid.uuid4()}}}'
 
         fake_flag_map: dict[str, str] = {}
         for fpath in path.rglob('*'):
@@ -348,8 +353,32 @@ class ChallengeManager:
                     fake_flag_map[val] = f'flag{{{uuid.uuid4()}}}'
 
         combined_map = {**real_flag_map, **fake_flag_map}
-        self._rewrite_env_file(path, real_flag_map, canaries)
+        self._rewrite_env_file(path, real_flag_map, list(real_flag_map.keys()))
         self._replace_flags_in_dir(path, combined_map, skip_env=True)
+
+    def _fallback_collect_flags(self, path: Path) -> dict[str, str]:
+        """Backward-compat: collect flags from .env and source scan."""
+        flag_map: dict[str, str] = {}
+        env_path = path / '.env'
+        if env_path.exists():
+            content = env_path.read_text(encoding='utf-8')
+            for m in self._FLAG_RE.finditer(content):
+                old_flag = m.group(2).strip()
+                if old_flag and old_flag not in flag_map:
+                    flag_map[old_flag] = f'flag{{{uuid.uuid4()}}}'
+        if not flag_map:
+            for fpath in path.rglob('*'):
+                if not fpath.is_file() or not self._is_text_file(fpath):
+                    continue
+                try:
+                    text = fpath.read_text(encoding='utf-8')
+                except (UnicodeDecodeError, OSError):
+                    continue
+                for m in self._FLAG_LITERAL_RE.finditer(text):
+                    val = m.group(0)
+                    if val not in flag_map:
+                        flag_map[val] = f'flag{{{uuid.uuid4()}}}'
+        return flag_map
 
     def _rewrite_env_file(
         self, path: Path, real_flag_map: dict[str, str], canaries: list[str],
