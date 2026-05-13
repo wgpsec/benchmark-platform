@@ -15,9 +15,10 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 - 实时状态展示（running / unhealthy / stopped）
 - 提交记录与积分统计（跨重启持久化）
 - Hint 提示系统（带扣分机制）
-- 镜像预构建/缓存页面（避免冷启动延迟）
+- 镜像预构建/缓存页面（避免冷启动延迟，**支持选择性构建**）
 - 团队管理与多队伍评分
 - 运行时目录隔离（可通过 Web UI 配置）
+- **MCP Server** — Streamable HTTP 端点，支持 AI Agent 直接接入（Claude Code、LangChain、openai-agents 等）
 - Apple Silicon (ARM64) 兼容
 
 ## 界面截图
@@ -89,6 +90,9 @@ python3 -m benchmark_platform.server \
 benchmark_platform/
 ├── server.py              # FastAPI 入口，API 路由
 ├── base.py                # 核心数据模型（Challenge, FlagState 等）
+├── mcp_server.py          # MCP Server（5 个工具，Streamable HTTP）
+├── auth.py                # Agent-Token 认证
+├── db.py                  # SQLite 持久化（团队、进度、设置）
 ├── models/
 │   └── benchmark.py       # Benchmark JSON schema
 ├── utils/
@@ -155,15 +159,62 @@ tests/                     # 测试
 
 | 路由 | 说明 |
 |------|------|
-| `POST /api/prebuild/start` | 开始镜像预构建 |
+| `POST /api/prebuild/start` | 开始镜像预构建（支持选择性构建 `{codes: [...]}`) |
 | `POST /api/prebuild/stop` | 停止预构建 |
 | `GET /api/prebuild/status` | 查询预构建进度 |
 | `POST /api/prebuild/remove` | 移除单个预构建镜像 |
+| `POST /api/prebuild/remove_batch` | 批量移除选中镜像 `{codes: [...]}` |
 | `POST /api/prebuild/remove_all` | 移除所有预构建镜像 |
+
+### MCP Server
+
+平台在 `/mcp/` 路径暴露 MCP（Model Context Protocol）端点，使用 Streamable HTTP 传输协议，AI Agent 可通过标准 MCP 协议直接接入。
+
+**工具列表：**
+
+| 工具名 | 说明 | 参数 |
+|--------|------|------|
+| `list_challenges` | 获取赛题列表及队伍进度 | — |
+| `start_challenge` | 启动赛题实例 | `code` |
+| `stop_challenge` | 停止运行中的实例 | `code` |
+| `submit_flag` | 提交 Flag 答案 | `code`, `flag` |
+| `view_hint` | 查看赛题提示（扣除总分 10%） | `code` |
+
+**认证方式：** `Authorization: Bearer <agent_token>` 请求头。
+
+**Claude Code 接入：**
+
+```bash
+claude mcp add benchmark-platform \
+  --transport http \
+  --header "Authorization: Bearer <YOUR_TOKEN>" \
+  http://<SERVER_HOST>:8088/mcp/
+```
+
+**JSON 配置（Cursor、Cline、Windsurf 等）：**
+
+```json
+{
+  "mcpServers": {
+    "benchmark-platform": {
+      "url": "http://<SERVER_HOST>:8088/mcp/",
+      "headers": {
+        "Authorization": "Bearer <YOUR_TOKEN>"
+      }
+    }
+  }
+}
+```
 
 ## Agent 自动化接入
 
-如需使用 AI Agent 自动化解题，可参考 [API 文档（黑客松示例）](https://github.com/Yeti-791/Tsec-Hackathon/blob/main/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E9%BB%91%E5%AE%A2%E6%9D%BE/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E8%85%BE%E8%AE%AF%E4%BA%91%E9%BB%91%E5%AE%A2%E6%9D%BE%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E6%8C%91%E6%88%98%E8%B5%9BAPI%E6%96%87%E6%A1%A3.md) 了解完整的请求/响应格式。本平台 REST API 遵循相同约定 — Agent 可通过接口自动获取题目列表、启动靶机、提交 Flag、查询进度。
+平台支持两种 AI Agent 接入方式：
+
+1. **MCP（推荐）** — 通过 `/mcp/` 端点 Streamable HTTP 协议接入，AI Agent 直接调用工具函数，无需手写 HTTP 请求。详见上方 [MCP Server](#mcp-server) 章节。
+
+2. **REST API** — 标准 HTTP 接口 `/api/*`，通过 `Agent-Token: <token>` 请求头认证。详见上方 [REST API](#rest-api) 章节。
+
+完整的 API/MCP 协议文档和接入示例（LangChain、openai-agents、Python 原生），请参考 [Tsec-Hackathon 文档](https://github.com/Yeti-791/Tsec-Hackathon/tree/main/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E9%BB%91%E5%AE%A2%E6%9D%BE)。
 
 ## 题目格式
 

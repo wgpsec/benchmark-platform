@@ -15,9 +15,10 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 - Real-time status display (running / unhealthy / stopped)
 - Submission history & scoring (persisted across restarts)
 - Hint system (with point deduction)
-- Image pre-build / cache page (avoid cold-start delays)
+- Image pre-build / cache page (avoid cold-start delays, **selective build support**)
 - Team management & multi-team scoring
 - Runtime directory isolation (configurable via Web UI)
+- **MCP Server** — Streamable HTTP endpoint for AI Agent integration (Claude Code, LangChain, openai-agents, etc.)
 - Apple Silicon (ARM64) compatibility
 
 ## Screenshots
@@ -89,6 +90,9 @@ Open `http://localhost:8088` in your browser after starting the server.
 benchmark_platform/
 ├── server.py              # FastAPI entry, API routes
 ├── base.py                # Core models (Challenge, FlagState, etc.)
+├── mcp_server.py          # MCP Server (5 tools via Streamable HTTP)
+├── auth.py                # Agent-Token authentication
+├── db.py                  # SQLite persistence (teams, progress, settings)
 ├── models/
 │   └── benchmark.py       # Benchmark JSON schema
 ├── utils/
@@ -155,15 +159,62 @@ tests/                     # Tests
 
 | Route | Description |
 |-------|-------------|
-| `POST /api/prebuild/start` | Start image pre-build |
+| `POST /api/prebuild/start` | Start image pre-build (supports selective `{codes: [...]}`) |
 | `POST /api/prebuild/stop` | Stop pre-build |
 | `GET /api/prebuild/status` | Query pre-build progress |
 | `POST /api/prebuild/remove` | Remove a pre-built image |
+| `POST /api/prebuild/remove_batch` | Remove selected pre-built images `{codes: [...]}` |
 | `POST /api/prebuild/remove_all` | Remove all pre-built images |
+
+### MCP Server
+
+The platform exposes an MCP (Model Context Protocol) endpoint at `/mcp/` using Streamable HTTP transport, allowing AI agents to interact with challenges directly.
+
+**Tools:**
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `list_challenges` | Get challenge list with team progress | — |
+| `start_challenge` | Start a challenge instance | `code` |
+| `stop_challenge` | Stop a running instance | `code` |
+| `submit_flag` | Submit flag answer | `code`, `flag` |
+| `view_hint` | View challenge hint (10% score penalty) | `code` |
+
+**Authentication:** `Authorization: Bearer <agent_token>` header.
+
+**Claude Code example:**
+
+```bash
+claude mcp add benchmark-platform \
+  --transport http \
+  --header "Authorization: Bearer <YOUR_TOKEN>" \
+  http://<SERVER_HOST>:8088/mcp/
+```
+
+**JSON config (Cursor, Cline, Windsurf, etc.):**
+
+```json
+{
+  "mcpServers": {
+    "benchmark-platform": {
+      "url": "http://<SERVER_HOST>:8088/mcp/",
+      "headers": {
+        "Authorization": "Bearer <YOUR_TOKEN>"
+      }
+    }
+  }
+}
+```
 
 ## Agent Integration
 
-To automate challenge solving with an AI agent, refer to the [API Documentation (Hackathon Example)](https://github.com/Yeti-791/Tsec-Hackathon/blob/main/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E9%BB%91%E5%AE%A2%E6%9D%BE/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E8%85%BE%E8%AE%AF%E4%BA%91%E9%BB%91%E5%AE%A2%E6%9D%BE%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E6%8C%91%E6%88%98%E8%B5%9BAPI%E6%96%87%E6%A1%A3.md) for the full request/response format. The platform REST API follows the same conventions — agents can programmatically list challenges, start instances, submit flags, and track progress.
+The platform supports two integration methods for AI agents:
+
+1. **MCP (recommended)** — Connect via Streamable HTTP at `/mcp/`, AI agents call tools directly without writing HTTP code. See [MCP Server](#mcp-server) section above.
+
+2. **REST API** — Standard HTTP endpoints at `/api/*`. Authenticate with `Agent-Token: <token>` header. See [REST API](#rest-api) section above.
+
+For complete API/MCP protocol documentation and integration examples (LangChain, openai-agents, Python native), see the [Tsec-Hackathon documentation](https://github.com/Yeti-791/Tsec-Hackathon/tree/main/%E7%AC%AC%E4%BA%8C%E5%B1%8A%E6%99%BA%E8%83%BD%E6%B8%97%E9%80%8F%E9%BB%91%E5%AE%A2%E6%9D%BE).
 
 ## Challenge Format
 
