@@ -607,6 +607,7 @@ async def tch_instance_statuses():
 
 class PrebuildStartRequest(PydanticBaseModel):
     concurrency: int = 1
+    codes: list[str] | None = None
 
 
 @app.post("/api/prebuild/start")
@@ -626,7 +627,7 @@ async def prebuild_start(payload: PrebuildStartRequest):
 
     if not prebuild_mgr.is_running:
         concurrency = max(1, min(3, payload.concurrency))
-        prebuild_mgr.start(concurrency)
+        prebuild_mgr.start(concurrency, codes=payload.codes)
 
     return _ok(None, "预构建已启动")
 
