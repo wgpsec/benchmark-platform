@@ -192,6 +192,8 @@ The platform injects a unique `flag{uuid}` into each instance at startup — cha
 - [xbow-engineering/validation-benchmarks](https://github.com/xbow-engineering/validation-benchmarks)
 - [Neuro-Sploit/xbow-validation-benchmarks](https://github.com/Neuro-Sploit/xbow-validation-benchmarks)
 - [Yeti-791/Tsec-Hackathon](https://github.com/Yeti-791/Tsec-Hackathon)
+- [Cyberdefense/GOAD](https://github.com/Orange-Cyberdefense/GOAD)
+- [dockur/windows](https://github.com/dockur/windows)
 
 ## WgpSec Agentic Ecosystem
 
