@@ -667,6 +667,10 @@ class PrebuildRemoveRequest(PydanticBaseModel):
     code: str
 
 
+class PrebuildRemoveBatchRequest(PydanticBaseModel):
+    codes: list[str]
+
+
 @app.post("/api/prebuild/remove")
 async def prebuild_remove(payload: PrebuildRemoveRequest):
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
@@ -679,6 +683,24 @@ async def prebuild_remove(payload: PrebuildRemoveRequest):
         _err(msg, 400)
         return
     return _ok(None, msg)
+
+
+@app.post("/api/prebuild/remove_batch")
+async def prebuild_remove_batch(payload: PrebuildRemoveBatchRequest):
+    prebuild_mgr = getattr(app.state, "prebuild_manager", None)
+    if prebuild_mgr is None:
+        _err("Prebuild manager not initialized", 400)
+        return
+
+    removed = 0
+    failed = 0
+    for code in payload.codes:
+        ok, _ = prebuild_mgr.remove_images(code)
+        if ok:
+            removed += 1
+        else:
+            failed += 1
+    return _ok({"removed": removed, "failed": failed}, f"已删除 {removed} 个题目的镜像")
 
 
 @app.post("/api/prebuild/remove_all")

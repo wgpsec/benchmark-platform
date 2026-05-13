@@ -52,6 +52,14 @@
         </button>
       </template>
 
+      <!-- Remove selected button -->
+      <template x-if="!building && selectedCount > 0 && challenges.some(c => selected[c.code] && c.status === 'cached')">
+        <button @click="removeSelected()"
+                class="h-9 px-4 text-red-600 bg-white border border-red-200 text-[12px] font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+          <span x-text="'删除选中 (' + challenges.filter(c => selected[c.code] && c.status === 'cached').length + ')'"></span>
+        </button>
+      </template>
+
       <!-- Stop button -->
       <template x-if="building">
         <button @click="stopBuild()"
@@ -254,6 +262,31 @@ function prebuildPage() {
         }
       } catch (e) {
         this.$dispatch('toast', {type:'error', message:'清理失败'});
+      }
+    },
+
+    async removeSelected() {
+      const codes = this.challenges
+        .filter(c => this.selected[c.code] && c.status === 'cached')
+        .map(c => c.code);
+      if (!codes.length) return;
+      if (!confirm(`确认删除选中的 ${codes.length} 个题目的镜像？`)) return;
+      try {
+        const res = await fetch('/api/prebuild/remove_batch', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({codes}),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          this.$dispatch('toast', {type:'success', message: data.message});
+          this.selected = {};
+          this.fetchStatus();
+        } else {
+          this.$dispatch('toast', {type:'error', message: '删除失败'});
+        }
+      } catch (e) {
+        this.$dispatch('toast', {type:'error', message:'删除失败'});
       }
     },
 
