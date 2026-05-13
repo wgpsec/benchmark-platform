@@ -107,14 +107,18 @@ class PrebuildManager:
         with ThreadPoolExecutor(max_workers=4) as executor:
             list(executor.map(_check_one, statuses))
 
-    def start(self, concurrency: int = 1) -> None:
-        """Start building images for all pending challenges."""
+    def start(self, concurrency: int = 1, codes: list[str] | None = None) -> None:
+        """Start building images for selected (or all pending) challenges."""
         if self._running:
             return
         self._stop_flag.clear()
         self._running = True
 
+        codes_set = set(codes) if codes else None
+
         for cs in self._statuses.values():
+            if codes_set and cs.benchmark_id not in codes_set:
+                continue
             if cs.status not in ("cached",):
                 cs.status = "pending"
                 cs.log_lines.clear()
