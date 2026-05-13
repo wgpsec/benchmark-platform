@@ -35,13 +35,21 @@ from benchmark_platform.db import (
 )
 
 
-app = FastAPI()
+# Mount MCP server at /mcp
+from contextlib import asynccontextmanager
+from benchmark_platform.mcp_server import mcp
+
+_mcp_app = mcp.http_app(path="/", transport="streamable-http")
+
+@asynccontextmanager
+async def lifespan(app):
+    async with _mcp_app.lifespan(app):
+        yield
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(web_router, prefix="/web")
-
-# Mount MCP server at /mcp
-from benchmark_platform.mcp_server import mcp
-app.mount("/mcp", mcp.http_app(path="/", transport="streamable-http"))
+app.mount("/mcp", _mcp_app)
 
 # ── tch Response helpers ──────────────────────────────────────────────────────
 
