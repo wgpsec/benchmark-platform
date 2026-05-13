@@ -41,7 +41,7 @@ app.include_router(web_router, prefix="/web")
 
 # Mount MCP server at /mcp
 from benchmark_platform.mcp_server import mcp
-app.mount("/mcp", mcp.http_app(transport="streamable-http"))
+app.mount("/mcp", mcp.http_app(path="/", transport="streamable-http"))
 
 # ── tch Response helpers ──────────────────────────────────────────────────────
 
