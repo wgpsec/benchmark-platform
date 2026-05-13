@@ -22,11 +22,25 @@
         </div>
       </template>
 
+      <!-- Quick-select buttons -->
+      <template x-if="!building">
+        <div class="flex items-center gap-2">
+          <button @click="selectByStatus('pending')"
+                  class="h-8 px-3 text-[12px] text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+            选择未缓存
+          </button>
+          <button @click="selectByStatus('failed')"
+                  class="h-8 px-3 text-[12px] text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+            选择失败
+          </button>
+        </div>
+      </template>
+
       <!-- Start button -->
       <template x-if="!building">
         <button @click="startBuild()"
                 class="h-9 px-4 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
-          开始预构建
+          <span x-text="selectedCount > 0 ? '构建选中 (' + selectedCount + ')' : '全部构建'"></span>
         </button>
       </template>
 
@@ -53,6 +67,10 @@
     <table class="w-full">
       <thead class="bg-gray-50 border-b border-gray-100">
         <tr>
+          <th class="px-4 py-3 text-left w-10" x-show="!building">
+            <input type="checkbox" :checked="allSelected" @change="toggleSelectAll()"
+                   class="rounded border-gray-300 text-gray-900 focus:ring-gray-300 cursor-pointer">
+          </th>
           <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Benchmark ID</th>
           <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">名称</th>
           <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">状态</th>
@@ -62,10 +80,14 @@
       <tbody class="divide-y divide-gray-100">
         <template x-for="item in challenges" :key="item.code">
           <tr>
-            <td colspan="4" class="p-0">
+            <td colspan="5" class="p-0">
               <div>
                 <!-- Row -->
                 <div class="flex items-center hover:bg-gray-50 transition-colors px-4 py-3">
+                  <div class="w-10 flex-shrink-0" x-show="!building">
+                    <input type="checkbox" x-model="selected[item.code]"
+                           class="rounded border-gray-300 text-gray-900 focus:ring-gray-300 cursor-pointer">
+                  </div>
                   <div @click="toggle(item.code)" class="flex-1 text-[12px] text-gray-700 font-mono cursor-pointer" x-text="item.benchmark_id"></div>
                   <div @click="toggle(item.code)" class="flex-1 text-[12px] text-gray-700 cursor-pointer" x-text="item.name"></div>
                   <div @click="toggle(item.code)" class="flex-1 cursor-pointer">
@@ -107,6 +129,28 @@ function prebuildPage() {
     cachedCount: {{ cached_count }},
     totalCount: {{ total_count }},
     expanded: {},
+    selected: {},
+
+    get selectedCount() {
+      return Object.values(this.selected).filter(Boolean).length;
+    },
+
+    get allSelected() {
+      const pending = this.challenges.filter(c => c.status !== 'cached');
+      return pending.length > 0 && pending.every(c => this.selected[c.code]);
+    },
+
+    toggleSelectAll() {
+      const pending = this.challenges.filter(c => c.status !== 'cached');
+      const allSel = this.allSelected;
+      pending.forEach(c => { this.selected[c.code] = !allSel; });
+    },
+
+    selectByStatus(status) {
+      this.challenges.forEach(c => { this.selected[c.code] = false; });
+      this.challenges.filter(c => c.status === status).forEach(c => { this.selected[c.code] = true; });
+    },
+
     pollTimer: null,
 
     init() {
@@ -147,14 +191,21 @@ function prebuildPage() {
 
     async startBuild() {
       try {
+        const body = { concurrency: this.concurrency };
+        if (this.selectedCount > 0) {
+          body.codes = this.challenges
+            .filter(c => this.selected[c.code])
+            .map(c => c.code);
+        }
         const res = await fetch('/api/prebuild/start', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({concurrency: this.concurrency}),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (data.code === 0) {
           this.building = true;
+          this.selected = {};
           this.startPolling();
         }
       } catch (e) {
