@@ -39,6 +39,10 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(web_router, prefix="/web")
 
+# Mount MCP server at /mcp
+from benchmark_platform.mcp_server import mcp
+app.mount("/mcp", mcp.http_app(transport="streamable-http"))
+
 # ── tch Response helpers ──────────────────────────────────────────────────────
 
 def _ok(data=None, message: str = "success") -> dict:
