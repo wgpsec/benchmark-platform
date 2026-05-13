@@ -123,7 +123,7 @@ class PrebuildManager:
                 cs.status = "pending"
                 cs.log_lines.clear()
 
-        thread = threading.Thread(target=self._run_builds, args=(concurrency,), daemon=True)
+        thread = threading.Thread(target=self._run_builds, args=(concurrency, codes_set), daemon=True)
         thread.start()
 
     def stop(self) -> None:
@@ -219,11 +219,11 @@ class PrebuildManager:
         except Exception:
             return []
 
-    def _run_builds(self, concurrency: int) -> None:
+    def _run_builds(self, concurrency: int, codes_set: set[str] | None = None) -> None:
         """Run docker compose build for each pending challenge."""
         pending = [
             cs for cs in self._statuses.values()
-            if cs.status == "pending"
+            if cs.status == "pending" and (codes_set is None or cs.benchmark_id in codes_set)
         ]
 
         with ThreadPoolExecutor(max_workers=concurrency) as executor:
