@@ -941,6 +941,10 @@ def serve(
     manager.start()
     CHALLENGES = manager.challenges
 
+    # Inject manager reference into MCP server module
+    from benchmark_platform.mcp_server import set_manager
+    set_manager(manager)
+
     default_team = get_or_create_default_team()
 
     # Sync solved state from DB to Challenge objects

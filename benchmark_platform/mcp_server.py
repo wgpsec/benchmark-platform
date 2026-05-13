@@ -22,6 +22,15 @@ mcp = FastMCP(
     instructions="CTF challenge platform MCP server. Use tools to list challenges, start/stop instances, submit flags, and view hints.",
 )
 
+# Set by server.py after initialization — avoids circular import of server module
+_manager_ref = None
+
+
+def set_manager(mgr):
+    """Called by server.py to inject the ChallengeManager reference."""
+    global _manager_ref
+    _manager_ref = mgr
+
 
 def _get_team_from_request() -> dict:
     """Extract team from Authorization header of the current HTTP request."""
@@ -48,11 +57,10 @@ def _get_team_from_request() -> dict:
 
 
 def _get_manager():
-    """Get the ChallengeManager from the FastAPI app state."""
-    from benchmark_platform.server import manager
-    if manager is None:
+    """Get the ChallengeManager reference."""
+    if _manager_ref is None:
         raise ValueError("Server not initialized")
-    return manager
+    return _manager_ref
 
 
 @mcp.tool()
