@@ -25,6 +25,8 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         ]
 
     bm_id = challenge.get_benchmark_id()
+    from benchmark_platform.db import is_challenge_enabled
+    enabled = is_challenge_enabled(bm_id)
 
     if team_id:
         if team_progress is None:
@@ -63,6 +65,7 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "entrypoint": entrypoint,
         "emulated": challenge.emulated,
         "flag_states": flag_states,
+        "enabled": enabled,
     }
 
 
@@ -175,6 +178,7 @@ def challenges_context(manager: ChallengeManager, team_id: Optional[str] = None)
     for lv in sorted(groups.keys()):
         total = len(groups[lv])
         solved = sum(1 for card in groups[lv] if card["solved"])
+        enabled_count = sum(1 for card in groups[lv] if card["enabled"])
         level_groups.append({
             "level": lv,
             "challenges": groups[lv],
@@ -182,6 +186,9 @@ def challenges_context(manager: ChallengeManager, team_id: Optional[str] = None)
             "solved": solved,
             "all_solved": solved == total,
             "unlocked": manager.is_level_unlocked(lv, team_id),
+            "enabled_count": enabled_count,
+            "all_enabled": enabled_count == total,
+            "all_disabled": enabled_count == 0,
         })
 
     return {

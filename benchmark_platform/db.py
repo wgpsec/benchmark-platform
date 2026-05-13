@@ -58,6 +58,11 @@ def init_db() -> None:
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS challenge_visibility (
+            benchmark_id TEXT PRIMARY KEY,
+            enabled      INTEGER NOT NULL DEFAULT 1,
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     """)
     # Migrate old schema: rename challenge_code → benchmark_id if needed
     try:
@@ -193,6 +198,54 @@ def set_setting(key: str, value: str) -> None:
         (key, value),
     )
     conn.commit()
+
+
+def is_challenge_enabled(benchmark_id: str) -> bool:
+    """题目对 agent 可见性。未在表中视为开启 (默认行为)。"""
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            "SELECT enabled FROM challenge_visibility WHERE benchmark_id = ?",
+            (benchmark_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return True
+    return True if row is None else bool(row["enabled"])
+
+
+def set_challenge_enabled(benchmark_id: str, enabled: bool) -> None:
+    conn = _get_conn()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    conn.execute(
+        "INSERT INTO challenge_visibility (benchmark_id, enabled, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(benchmark_id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at",
+        (benchmark_id, 1 if enabled else 0, now),
+    )
+    conn.commit()
+
+
+def set_challenges_enabled_bulk(benchmark_ids: list[str], enabled: bool) -> int:
+    if not benchmark_ids:
+        return 0
+    conn = _get_conn()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    flag = 1 if enabled else 0
+    conn.executemany(
+        "INSERT INTO challenge_visibility (benchmark_id, enabled, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(benchmark_id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at",
+        [(bid, flag, now) for bid in benchmark_ids],
+    )
+    conn.commit()
+    return len(benchmark_ids)
+
+
+def get_challenge_visibility() -> dict:
+    """返回 {benchmark_id: enabled_bool}, 仅包含表中显式记录过的条目。"""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT benchmark_id, enabled FROM challenge_visibility"
+    ).fetchall()
+    return {r["benchmark_id"]: bool(r["enabled"]) for r in rows}
 
 
 def get_level_gate_config() -> dict:

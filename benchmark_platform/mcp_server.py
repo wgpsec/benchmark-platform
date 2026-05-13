@@ -15,6 +15,7 @@ from benchmark_platform.db import (
     mark_flag_solved,
     mark_hint_viewed,
     get_team_progress,
+    is_challenge_enabled,
 )
 
 mcp = FastMCP(
@@ -69,7 +70,10 @@ def list_challenges() -> str:
     team = _get_team_from_request()
     mgr = _get_manager()
 
-    all_challenges = mgr.challenges
+    all_challenges = [
+        c for c in mgr.challenges
+        if is_challenge_enabled(c.get_benchmark_id())
+    ]
     team_prog = get_team_progress(team["id"])
     challenge_list = []
     total_solved = 0
@@ -118,6 +122,11 @@ def list_challenges() -> str:
     }, ensure_ascii=False)
 
 
+def _ensure_enabled(challenge) -> None:
+    if not is_challenge_enabled(challenge.get_benchmark_id()):
+        raise ValueError("该题目已被管理员关闭")
+
+
 @mcp.tool()
 def start_challenge(code: str) -> str:
     """启动指定赛题的容器实例。每队最多同时运行3个实例，超出需先停止其他实例。
@@ -132,6 +141,8 @@ def start_challenge(code: str) -> str:
         challenge = mgr._find_by_code(code)
     except KeyError:
         raise ValueError(f"赛题 {code} 不存在")
+
+    _ensure_enabled(challenge)
 
     challenge_level = mgr.get_level_for_challenge(challenge)
     if not mgr.is_level_unlocked(challenge_level, team["id"]):
@@ -164,9 +175,11 @@ def stop_challenge(code: str) -> str:
     mgr = _get_manager()
 
     try:
-        mgr._find_by_code(code)
+        challenge = mgr._find_by_code(code)
     except KeyError:
         raise ValueError(f"赛题 {code} 不存在")
+
+    _ensure_enabled(challenge)
 
     if mgr.get_instance_status(code) not in ("running", "unhealthy"):
         raise ValueError("赛题实例未运行")
@@ -194,6 +207,8 @@ def submit_flag(code: str, flag: str) -> str:
         challenge = mgr._find_by_code(code)
     except KeyError:
         raise ValueError(f"赛题 {code} 不存在")
+
+    _ensure_enabled(challenge)
 
     challenge_level = mgr.get_level_for_challenge(challenge)
     if not mgr.is_level_unlocked(challenge_level, team["id"]):
@@ -255,6 +270,8 @@ def view_hint(code: str) -> str:
         challenge = mgr._find_by_code(code)
     except KeyError:
         raise ValueError(f"赛题 {code} 不存在")
+
+    _ensure_enabled(challenge)
 
     if mgr.get_instance_status(code) not in ("running", "unhealthy"):
         raise ValueError("请先启动赛题实例")
