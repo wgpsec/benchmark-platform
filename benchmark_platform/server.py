@@ -297,8 +297,7 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
 
     if manager.get_instance_status(payload.code) in ("running", "unhealthy"):
         entrypoints = [f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port]
-        started_at, expires_at = manager.get_instance_timestamps(payload.code)
-        return _ok({"entrypoint": entrypoints, "started_at": started_at, "expires_at": expires_at}, "赛题实例已在运行中")
+        return _ok(entrypoints, "赛题实例已在运行中")
 
     try:
         entrypoints = await asyncio.to_thread(manager.start_challenge_instance, payload.code)
@@ -307,8 +306,7 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         _err(f"赛题启动失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
 
-    started_at, expires_at = manager.get_instance_timestamps(challenge.challenge_code)
-    return _ok({"entrypoint": entrypoints, "started_at": started_at, "expires_at": expires_at}, "赛题实例启动成功")
+    return _ok(entrypoints, "赛题实例启动成功")
 
 
 class StopChallengeRequest(PydanticBaseModel):
