@@ -146,6 +146,9 @@ def start_challenge(code: str) -> str:
 
     _ensure_enabled(challenge)
 
+    if challenge.unsupported:
+        return json.dumps({"message": f"该赛题不支持当前平台: {challenge.unsupported_reason}", "unsupported": True}, ensure_ascii=False)
+
     challenge_level = mgr.get_level_for_challenge(challenge)
     if not mgr.is_level_unlocked(challenge_level, team["id"]):
         raise ValueError(f"尚未解锁关卡 {challenge_level}，请先通过前置关卡")

@@ -299,6 +299,9 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
 
     _ensure_challenge_enabled(challenge)
 
+    if challenge.unsupported:
+        return _ok({"unsupported": True}, f"该赛题不支持当前平台: {challenge.unsupported_reason}")
+
     challenge_level = manager.get_level_for_challenge(challenge)
     if not manager.is_level_unlocked(challenge_level, team["id"]):
         _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
