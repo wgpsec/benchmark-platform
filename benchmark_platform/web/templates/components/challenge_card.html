@@ -2,7 +2,7 @@
 {% set diff_label = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'} %}
 
 <div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3 transition-all{% if not card.enabled %} opacity-50 grayscale{% endif %}"
-     id="card-{{ card.challenge_code }}"
+     id="card-{{ card.benchmark_id }}"
      x-data="{ enabled: {{ 'true' if card.enabled else 'false' }}, toggling: false }">
   <!-- Header -->
   <div class="flex items-start justify-between gap-2">
@@ -29,8 +29,8 @@
               if (data.code === 0) {
                 enabled = next;
                 $dispatch('toast', {type:'success', message: data.message || (next ? '已开启' : '已关闭')});
-                fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
-                  document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+                fetch('/web/partials/challenge_card?benchmark_id={{ card.benchmark_id }}').then(r=>r.text()).then(html => {
+                  document.getElementById('card-{{ card.benchmark_id }}').outerHTML = html;
                 });
               } else {
                 $dispatch('toast', {type:'error', message: data.message || '切换失败'});
@@ -118,8 +118,8 @@
         })
         .catch(() => $dispatch('toast', {type:'error', message:'停止失败'}))
         .finally(() => {
-          fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
-            document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+          fetch('/web/partials/challenge_card?benchmark_id={{ card.benchmark_id }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.benchmark_id }}').outerHTML = html;
           });
         });
       "
@@ -152,8 +152,8 @@
           } else if(data.detail) {
             $dispatch('toast', {type:'error', message: data.detail.message || '获取提示失败'});
           }
-          fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
-            document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+          fetch('/web/partials/challenge_card?benchmark_id={{ card.benchmark_id }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.benchmark_id }}').outerHTML = html;
           });
         })
         .catch(() => $dispatch('toast', {type:'error', message:'获取提示失败'}));
@@ -176,8 +176,8 @@
         })
         .catch(() => $dispatch('toast', {type:'error', message:'启动失败'}))
         .finally(() => {
-          fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
-            document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+          fetch('/web/partials/challenge_card?benchmark_id={{ card.benchmark_id }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.benchmark_id }}').outerHTML = html;
           });
         });
       "

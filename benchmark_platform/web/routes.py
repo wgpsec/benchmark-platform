@@ -156,13 +156,21 @@ async def partial_dashboard_stats(request: Request):
 
 
 @web_router.get("/partials/challenge_card")
-async def partial_challenge_card(request: Request, code: str):
+async def partial_challenge_card(request: Request, code: str = "", benchmark_id: str = ""):
     manager = _get_manager(request)
     team_id = _get_selected_team_id(request)
     card = None
     if manager:
         try:
-            challenge = manager._find_by_code(code)
+            if benchmark_id:
+                challenge = next(
+                    (c for c in manager.challenges if c.get_benchmark_id() == benchmark_id),
+                    None,
+                )
+                if challenge is None:
+                    raise KeyError(benchmark_id)
+            else:
+                challenge = manager._find_by_code(code)
             card = _challenge_to_card(manager, challenge, team_id=team_id)
         except KeyError:
             pass
