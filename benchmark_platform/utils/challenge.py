@@ -396,8 +396,42 @@ class ChallengeManager:
     def start_challenge_instance(self, challenge_code: str) -> list[str]:
         """Start docker containers for one challenge. Return entrypoint list."""
         challenge = self._find_by_code(challenge_code)
-        self._compose(challenge.get_benchmark_id(), challenge_code, 'up', '-d')
+        benchmark_id = challenge.get_benchmark_id()
+
+        record = get_instance_by_benchmark_id(benchmark_id)
+        if record and record["status"] in ("stopped", "expired"):
+            old_runtime = Path(record["runtime_path"])
+            if old_runtime.exists():
+                shutil.rmtree(old_runtime, ignore_errors=True)
+
+            src_folder = self._find_source_folder(benchmark_id)
+            new_challenge = self._create_challenge(src_folder, benchmark_id)
+
+            challenge.challenge_code = new_challenge.challenge_code
+            challenge.target_info = new_challenge.target_info
+            challenge_code = challenge.challenge_code
+
+        self._compose(benchmark_id, challenge_code, 'up', '-d')
         self._instance_status[challenge_code] = "running"
+
+        timeout_config = get_instance_timeout_config()
+        level = self.get_level_for_challenge(challenge)
+        timeout_secs = timeout_config.get(level, 7200)
+        now = datetime.now(timezone.utc)
+        started_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        expires_at = (now + timedelta(seconds=timeout_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        upsert_instance(
+            instance_id=str(uuid.uuid4()),
+            benchmark_id=benchmark_id,
+            challenge_code=challenge_code,
+            runtime_path=str(Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir)),
+            ports=challenge.target_info.port,
+            status="running",
+            started_at=started_at,
+            expires_at=expires_at,
+        )
+
         return [
             f"{self.public_accessible_host}:{p}"
             for p in challenge.target_info.port
@@ -408,6 +442,7 @@ class ChallengeManager:
         challenge = self._find_by_code(challenge_code)
         self._compose(challenge.get_benchmark_id(), challenge_code, 'down')
         self._instance_status[challenge_code] = "stopped"
+        update_instance_status(challenge.get_benchmark_id(), "stopped")
 
     def get_instance_status(self, challenge_code: str) -> str:
         challenge = self._find_by_code(challenge_code)
@@ -415,6 +450,14 @@ class ChallengeManager:
         if status != "running":
             return status
         return self._check_container_health(challenge)
+
+    def get_instance_timestamps(self, challenge_code: str) -> tuple[str | None, str | None]:
+        """Return (started_at, expires_at) for a challenge instance."""
+        challenge = self._find_by_code(challenge_code)
+        record = get_instance_by_benchmark_id(challenge.get_benchmark_id())
+        if record and record["status"] == "running":
+            return record["started_at"], record["expires_at"]
+        return None, None
 
     def _check_container_health(self, challenge: Challenge) -> str:
         path = Challenge.get_base_path(challenge.get_benchmark_id(), challenge.challenge_code, self.runtime_dir)
@@ -436,6 +479,17 @@ class ChallengeManager:
         except Exception:
             pass
         return "running"
+
+    def _find_source_folder(self, benchmark_id: str) -> Path:
+        """Find the source folder for a benchmark_id from benchmark_folders."""
+        for folder in self.benchmark_folders:
+            if (folder / benchmark_id).is_dir():
+                return folder
+            for entry in folder.iterdir():
+                if entry.is_dir() and not entry.name.startswith('.'):
+                    if (entry / benchmark_id / 'benchmark.json').exists():
+                        return entry
+        raise FileNotFoundError(f"Source folder for {benchmark_id} not found")
 
     def _find_by_code(self, challenge_code: str) -> Challenge:
         for c in self.challenges:
