@@ -6,7 +6,9 @@ import shutil
 import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import threading
 
 import portpicker
 import yaml
@@ -19,7 +21,11 @@ from benchmark_platform.base import FlagState
 from benchmark_platform.base import TargetInfo
 from benchmark_platform.models.benchmark import Benchmark
 from benchmark_platform.utils.logger import get_logger
-from benchmark_platform.db import get_level_gate_config, get_team_progress
+from benchmark_platform.db import (
+    get_level_gate_config, get_team_progress,
+    get_instance_by_benchmark_id, upsert_instance, update_instance_status,
+    get_instance_timeout_config,
+)
 
 logger = get_logger(Path('logs/competition-platform-server-logs.jsonl'))
 console = Console()
@@ -56,7 +62,6 @@ class ChallengeManager:
             logger.warning("no challenges found in any benchmark folder")
             return self
 
-        # Deduplicate by benchmark_id (first occurrence wins)
         seen: set[str] = set()
         unique: list[tuple[Path, str]] = []
         for folder, bid in discovered:
@@ -71,9 +76,8 @@ class ChallengeManager:
         errors = []
         for folder, benchmark_id in discovered:
             try:
-                challenge = self._create_challenge(folder, benchmark_id)
+                challenge = self._reconcile_or_create(folder, benchmark_id)
                 self.challenges.append(challenge)
-                self._instance_status[challenge.challenge_code] = "stopped"
             except Exception as e:
                 errors.append((benchmark_id, e))
                 logger.error("failed to prepare challenge",
@@ -87,6 +91,8 @@ class ChallengeManager:
             )
         logger.info("challenges prepared (not yet started)",
                     count=len(self.challenges))
+
+        self._cleanup_orphan_runtimes(seen)
         return self
 
     def reload(self) -> tuple[int, list[str]]:
@@ -237,6 +243,155 @@ class ChallengeManager:
             if path.exists():
                 shutil.rmtree(path)
             raise
+
+    def _reconcile_or_create(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
+        """Check DB for existing instance, reconcile with Docker, or create new."""
+        record = get_instance_by_benchmark_id(benchmark_id)
+
+        if record and record["status"] == "running":
+            runtime_path = Path(record["runtime_path"])
+            if runtime_path.exists() and self._is_docker_running(runtime_path):
+                challenge = self._restore_challenge(benchmark_id, record)
+                self._instance_status[challenge.challenge_code] = "running"
+                timeout_config = get_instance_timeout_config()
+                level = self.get_level_for_challenge(challenge)
+                timeout_secs = timeout_config.get(level, 7200)
+                now = datetime.now(timezone.utc)
+                expires_at = (now + timedelta(seconds=timeout_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                update_instance_status(benchmark_id, "running",
+                                       started_at=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                       expires_at=expires_at)
+                logger.info("recovered running instance",
+                            benchmark_id=benchmark_id,
+                            challenge_code=record["challenge_code"])
+                return challenge
+            else:
+                self._cleanup_stale_record(record)
+
+        if record and record["status"] in ("stopped", "expired"):
+            runtime_path = Path(record["runtime_path"])
+            if runtime_path.exists():
+                shutil.rmtree(runtime_path, ignore_errors=True)
+
+        challenge = self._create_challenge(benchmark_folder, benchmark_id)
+        self._instance_status[challenge.challenge_code] = "stopped"
+        upsert_instance(
+            instance_id=str(uuid.uuid4()),
+            benchmark_id=benchmark_id,
+            challenge_code=challenge.challenge_code,
+            runtime_path=str(Challenge.get_base_path(benchmark_id, challenge.challenge_code, self.runtime_dir)),
+            ports=challenge.target_info.port,
+            status="stopped",
+        )
+        return challenge
+
+    def _is_docker_running(self, runtime_path: Path) -> bool:
+        """Check if docker compose services are running in the given path."""
+        compose_file = runtime_path / 'docker-compose.yml'
+        if not compose_file.exists():
+            return False
+        try:
+            res = subprocess.run(
+                ['docker', 'compose', 'ps', '--format', 'json'],
+                cwd=runtime_path, capture_output=True, text=True, timeout=10,
+            )
+            if res.returncode != 0:
+                return False
+            for line in res.stdout.strip().splitlines():
+                info = json.loads(line)
+                state = info.get("State", "")
+                if state == "running":
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def _restore_challenge(self, benchmark_id: str, record: dict) -> Challenge:
+        """Rebuild a Challenge object from a DB record and its runtime directory."""
+        runtime_path = Path(record["runtime_path"])
+        challenge_code = record["challenge_code"]
+        ports = json.loads(record["ports"])
+
+        meta = json.loads((runtime_path / 'benchmark.json').read_text())
+        meta['id'] = benchmark_id
+        bm = Benchmark.model_validate(meta)
+
+        flag_states = []
+        bm_yaml_path = runtime_path / 'benchmark.yaml'
+        if bm_yaml_path.exists():
+            bm_yaml = yaml.safe_load(bm_yaml_path.read_text(encoding='utf-8'))
+            for flag_def in bm_yaml.get('flags', []):
+                flag_states.append(FlagState(
+                    id=flag_def['id'],
+                    route=flag_def.get('route', '/'),
+                    description=flag_def.get('description', ''),
+                ))
+
+        _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD}
+        import platform as _platform
+        host_is_arm = _platform.machine() in ('arm64', 'aarch64')
+
+        compose_path = runtime_path / 'docker-compose.yml'
+        with open(compose_path) as f:
+            data = yaml.safe_load(f)
+        is_emulated = host_is_arm and any(
+            svc.get('platform', '').endswith('amd64')
+            for svc in data.get('services', {}).values()
+        )
+
+        challenge = Challenge(
+            challenge_code=challenge_code,
+            difficulty=_level_map[bm.level],
+            points=bm.points,
+            hint_viewed=False,
+            solved=False,
+            target_info=TargetInfo(ip=self.public_accessible_host, port=ports),
+            flag_states=flag_states,
+            emulated=is_emulated,
+        )
+        challenge.set_benchmark_id(benchmark_id)
+        challenge.set_runtime_dir(self.runtime_dir)
+        return challenge
+
+    def _cleanup_stale_record(self, record: dict) -> None:
+        """Docker is dead but DB says running -- clean up."""
+        runtime_path = Path(record["runtime_path"])
+        if runtime_path.exists():
+            try:
+                subprocess.run(
+                    ['docker', 'compose', 'down'],
+                    cwd=runtime_path, capture_output=True, text=True, timeout=30,
+                )
+            except Exception:
+                pass
+            shutil.rmtree(runtime_path, ignore_errors=True)
+        update_instance_status(record["benchmark_id"], "stopped")
+        logger.info("cleaned stale instance",
+                    benchmark_id=record["benchmark_id"],
+                    challenge_code=record["challenge_code"])
+
+    def _cleanup_orphan_runtimes(self, known_benchmark_ids: set[str]) -> None:
+        """Remove runtime directories that have no matching discovered benchmark_id."""
+        if not self.runtime_dir.exists():
+            return
+        for entry in self.runtime_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            if entry.name in known_benchmark_ids:
+                continue
+            if entry.name.startswith('.'):
+                continue
+            logger.info("cleaning orphan runtime directory", path=str(entry))
+            compose_dirs = [d for d in entry.iterdir() if d.is_dir()]
+            for d in compose_dirs:
+                try:
+                    subprocess.run(
+                        ['docker', 'compose', 'down'],
+                        cwd=d, capture_output=True, text=True, timeout=30,
+                    )
+                except Exception:
+                    pass
+            shutil.rmtree(entry, ignore_errors=True)
 
     def start_challenge_instance(self, challenge_code: str) -> list[str]:
         """Start docker containers for one challenge. Return entrypoint list."""
