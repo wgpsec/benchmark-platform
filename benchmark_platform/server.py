@@ -269,6 +269,8 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
             "hint_viewed": hint_viewed,
             "instance_status": status,
             "entrypoint": entrypoint,
+            "unsupported": c.unsupported,
+            "unsupported_reason": c.unsupported_reason,
         })
 
     return _ok({
@@ -711,6 +713,8 @@ async def tch_start_level(payload: BatchLevelRequest):
         if manager.get_level_for_challenge(c) != payload.level:
             continue
         if not is_challenge_enabled(c.get_benchmark_id()):
+            continue
+        if c.unsupported:
             continue
         if c.solved:
             continue

@@ -112,6 +112,8 @@ def list_challenges() -> str:
             "hint_viewed": hint_viewed,
             "instance_status": status,
             "entrypoint": entrypoint,
+            "unsupported": c.unsupported,
+            "unsupported_reason": c.unsupported_reason,
         })
 
     return json.dumps({
