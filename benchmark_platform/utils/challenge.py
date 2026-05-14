@@ -552,7 +552,8 @@ class ChallengeManager:
             compose_path = Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir) / "docker-compose.yml"
             self._inject_windows_iso(compose_path, iso_path)
 
-        self._compose(benchmark_id, challenge_code, 'up', '-d')
+        compose_timeout = self._COMPOSE_TIMEOUT_WINDOWS if challenge.requires_windows_iso else None
+        self._compose(benchmark_id, challenge_code, 'up', '-d', timeout=compose_timeout)
         self._instance_status[challenge_code] = "running"
 
         timeout_config = get_instance_timeout_config()
@@ -797,32 +798,34 @@ class ChallengeManager:
                 fpath.write_text(replaced, encoding='utf-8')
 
     _COMPOSE_TIMEOUT = 300  # 5 minutes
+    _COMPOSE_TIMEOUT_WINDOWS = 1800  # 30 minutes for Windows ISO challenges
 
-    def _compose(self, benchmark_id: str, code: str, *args) -> None:
+    def _compose(self, benchmark_id: str, code: str, *args, timeout: int | None = None) -> None:
         path = Challenge.get_base_path(benchmark_id, code, self.runtime_dir)
         if not (path / 'docker-compose.yml').exists():
             return
+        compose_timeout = timeout or self._COMPOSE_TIMEOUT
         cmd = ['docker', 'compose'] + list(args)
         logger.info("docker compose", action="compose", cmd=" ".join(cmd), cwd=str(path))
         try:
             res = subprocess.run(
                 cmd,
                 cwd=path, capture_output=True, text=True,
-                timeout=self._COMPOSE_TIMEOUT,
+                timeout=compose_timeout,
             )
         except subprocess.TimeoutExpired:
             logger.error("docker compose timed out", action="compose",
-                         cmd=" ".join(cmd), timeout=self._COMPOSE_TIMEOUT)
-            raise RuntimeError(f"Docker compose timed out after {self._COMPOSE_TIMEOUT}s")
+                         cmd=" ".join(cmd), timeout=compose_timeout)
+            raise RuntimeError(f"Docker compose timed out after {compose_timeout}s")
         if res.returncode != 0:
             if 'could not find an available, non-overlapping IPv4 address pool' in res.stderr:
                 logger.warning("address pool exhausted, pruning networks and retrying", benchmark_id=benchmark_id)
                 self._prune_orphan_networks()
                 try:
                     res = subprocess.run(cmd, cwd=path, capture_output=True, text=True,
-                                         timeout=self._COMPOSE_TIMEOUT)
+                                         timeout=compose_timeout)
                 except subprocess.TimeoutExpired:
-                    raise RuntimeError(f"Docker compose timed out after {self._COMPOSE_TIMEOUT}s (retry)")
+                    raise RuntimeError(f"Docker compose timed out after {compose_timeout}s (retry)")
                 if res.returncode == 0:
                     return
             logger.error("docker compose failed", action="compose",
