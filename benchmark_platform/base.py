@@ -41,6 +41,7 @@ class Challenge(BaseModel):
     emulated: bool = False
     unsupported: bool = False
     unsupported_reason: str = ""
+    requires_windows_iso: bool = False
     _benchmark_id: str | None = PrivateAttr(default=None)
     _runtime_dir: Path | None = PrivateAttr(default=None)
 
