@@ -11,7 +11,7 @@ import typer
 import uvicorn
 from fastapi import Depends, FastAPI, File, Request, UploadFile
 from fastapi import HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel as PydanticBaseModel
@@ -54,6 +54,17 @@ app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(web_router, prefix="/web")
 app.mount("/mcp", _mcp_app)
+
+
+@app.exception_handler(HTTPException)
+async def _tch_http_exception_handler(request: Request, exc: HTTPException):
+    """Return TCH-compatible error format: top-level {code, message, data}."""
+    if isinstance(exc.detail, dict) and "code" in exc.detail:
+        body = exc.detail
+    else:
+        body = {"code": -1, "message": str(exc.detail), "data": None}
+    return JSONResponse(status_code=exc.status_code, content=body)
+
 
 # ── tch Response helpers ──────────────────────────────────────────────────────
 
