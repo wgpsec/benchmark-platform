@@ -270,6 +270,21 @@ class ChallengeManager:
                 for svc in data.get('services', {}).values()
             )
 
+            is_unsupported = False
+            unsupported_reason = ""
+            if bm.requires:
+                if bm.requires.arch == "x86_64" and host_is_arm:
+                    is_unsupported = True
+                    unsupported_reason = "需要 x86_64 架构"
+                elif bm.requires.arch == "aarch64" and not host_is_arm:
+                    is_unsupported = True
+                    unsupported_reason = "需要 ARM64 架构"
+                if bm.requires.kvm and not Path('/dev/kvm').exists():
+                    is_unsupported = True
+                    unsupported_reason = "需要 KVM 虚拟化支持 (/dev/kvm)"
+                if bm.requires.arch == "x86_64" and host_is_arm and bm.requires.kvm:
+                    unsupported_reason = "需要 x86_64 架构 + KVM 虚拟化"
+
             challenge = Challenge(
                 challenge_code=challenge_id,
                 difficulty=_level_map[bm.level],
@@ -281,6 +296,8 @@ class ChallengeManager:
                 ),
                 flag_states=flag_states,
                 emulated=is_emulated,
+                unsupported=is_unsupported,
+                unsupported_reason=unsupported_reason,
             )
             challenge.set_benchmark_id(benchmark_id)
             challenge.set_runtime_dir(self.runtime_dir)
@@ -385,6 +402,21 @@ class ChallengeManager:
             for svc in data.get('services', {}).values()
         )
 
+        is_unsupported = False
+        unsupported_reason = ""
+        if bm.requires:
+            if bm.requires.arch == "x86_64" and host_is_arm:
+                is_unsupported = True
+                unsupported_reason = "需要 x86_64 架构"
+            elif bm.requires.arch == "aarch64" and not host_is_arm:
+                is_unsupported = True
+                unsupported_reason = "需要 ARM64 架构"
+            if bm.requires.kvm and not Path('/dev/kvm').exists():
+                is_unsupported = True
+                unsupported_reason = "需要 KVM 虚拟化支持 (/dev/kvm)"
+            if bm.requires.arch == "x86_64" and host_is_arm and bm.requires.kvm:
+                unsupported_reason = "需要 x86_64 架构 + KVM 虚拟化"
+
         challenge = Challenge(
             challenge_code=challenge_code,
             difficulty=_level_map[bm.level],
@@ -394,6 +426,8 @@ class ChallengeManager:
             target_info=TargetInfo(ip=self.public_accessible_host, port=ports),
             flag_states=flag_states,
             emulated=is_emulated,
+            unsupported=is_unsupported,
+            unsupported_reason=unsupported_reason,
         )
         challenge.set_benchmark_id(benchmark_id)
         challenge.set_runtime_dir(self.runtime_dir)
@@ -455,6 +489,8 @@ class ChallengeManager:
     def start_challenge_instance(self, challenge_code: str) -> list[str]:
         """Start docker containers for one challenge. Return entrypoint list."""
         challenge = self._find_by_code(challenge_code)
+        if challenge.unsupported:
+            raise RuntimeError(f"无法启动: {challenge.unsupported_reason}")
         benchmark_id = challenge.get_benchmark_id()
         old_code = challenge.challenge_code
 
