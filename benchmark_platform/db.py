@@ -346,6 +346,26 @@ def delete_instance(benchmark_id: str) -> None:
     conn.commit()
 
 
+_DEFAULT_INSTANCE_TIMEOUTS = {1: 3600, 2: 7200, 3: 14400}
+
+
+def get_instance_timeout_config() -> dict[int, int]:
+    result = {}
+    for level in (1, 2, 3):
+        val = get_setting(f"instance_timeout_level_{level}", None)
+        if val is not None:
+            result[level] = int(val)
+        else:
+            result[level] = _DEFAULT_INSTANCE_TIMEOUTS[level]
+    return result
+
+
+def set_instance_timeout_config(config: dict[int, int]) -> None:
+    for level in (1, 2, 3):
+        if level in config:
+            set_setting(f"instance_timeout_level_{level}", str(config[level]))
+
+
 def get_level_gate_config() -> dict:
     return {
         "mode": get_setting("level_gate_mode", "all"),

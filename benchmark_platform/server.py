@@ -34,6 +34,7 @@ from benchmark_platform.db import (
     get_setting, set_setting,
     is_challenge_enabled, set_challenge_enabled,
     set_challenges_enabled_bulk, get_challenge_visibility,
+    get_instance_timeout_config, set_instance_timeout_config,
 )
 
 
@@ -641,6 +642,27 @@ async def set_level_gate_config_api(payload: LevelGateConfigRequest):
         _err(str(e), 400)
         return
     return _ok(config)
+
+
+@app.get("/api/settings/instance_timeout")
+async def get_timeout_settings():
+    config = get_instance_timeout_config()
+    return _ok({"level_1": config[1], "level_2": config[2], "level_3": config[3]})
+
+
+class InstanceTimeoutRequest(PydanticBaseModel):
+    level_1: int
+    level_2: int
+    level_3: int
+
+
+@app.post("/api/settings/instance_timeout")
+async def set_timeout_settings(payload: InstanceTimeoutRequest):
+    if payload.level_1 < 60 or payload.level_2 < 60 or payload.level_3 < 60:
+        _err("超时时间不能小于 60 秒", 400)
+        return
+    set_instance_timeout_config({1: payload.level_1, 2: payload.level_2, 3: payload.level_3})
+    return _ok(None, "实例超时配置已保存")
 
 
 @app.get("/api/runtime_dir")

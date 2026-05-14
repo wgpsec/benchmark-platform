@@ -8,6 +8,7 @@ from benchmark_platform.db import (
     get_team_progress, reset_team_progress, _set_db_path,
     upsert_instance, get_instance_by_benchmark_id, get_running_instances,
     get_expired_instances, delete_instance,
+    get_instance_timeout_config, set_instance_timeout_config,
 )
 
 
@@ -169,3 +170,14 @@ def test_delete_instance():
     upsert_instance("id-1", "XBEN-001-24", "c1", "p1", [80], "stopped")
     delete_instance("XBEN-001-24")
     assert get_instance_by_benchmark_id("XBEN-001-24") is None
+
+
+def test_get_instance_timeout_config_defaults():
+    config = get_instance_timeout_config()
+    assert config == {1: 3600, 2: 7200, 3: 14400}
+
+
+def test_set_instance_timeout_config():
+    set_instance_timeout_config({1: 1800, 2: 3600, 3: 7200})
+    config = get_instance_timeout_config()
+    assert config == {1: 1800, 2: 3600, 3: 7200}
