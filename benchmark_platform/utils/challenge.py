@@ -218,6 +218,23 @@ class ChallengeManager:
                 return True
         return False
 
+    @staticmethod
+    def _inject_windows_iso(compose_path: Path, iso_path: str) -> None:
+        """Append ISO bind mount to dockur services in the compose file."""
+        with open(compose_path) as f:
+            data = yaml.safe_load(f)
+
+        for svc in data.get("services", {}).values():
+            image = svc.get("image", "")
+            if "dockur" in image.lower():
+                volumes = svc.setdefault("volumes", [])
+                mount = f"{iso_path}:/storage/custom.iso:ro"
+                if mount not in volumes:
+                    volumes.append(mount)
+
+        with open(compose_path, 'w') as f:
+            yaml.dump(data, f)
+
     def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
         challenge_id = str(uuid.uuid4())
         path = Challenge.get_base_path(benchmark_id, challenge_id, self.runtime_dir)
@@ -524,6 +541,16 @@ class ChallengeManager:
 
         if old_code != challenge.challenge_code:
             self._code_aliases[old_code] = benchmark_id
+
+        if challenge.requires_windows_iso:
+            from benchmark_platform.db import get_setting
+            iso_path = get_setting("win2022_iso_path", "")
+            if not iso_path:
+                raise RuntimeError("请先在系统设置中配置 Windows Server 2022 ISO 路径")
+            if not Path(iso_path).is_file():
+                raise RuntimeError(f"Windows ISO 文件不存在: {iso_path}")
+            compose_path = Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir) / "docker-compose.yml"
+            self._inject_windows_iso(compose_path, iso_path)
 
         self._compose(benchmark_id, challenge_code, 'up', '-d')
         self._instance_status[challenge_code] = "running"
