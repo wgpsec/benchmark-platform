@@ -209,6 +209,15 @@ class ChallengeManager:
                         result.append((entry, sub.name))
         return result
 
+    @staticmethod
+    def _detect_requires_windows_iso(compose_data: dict) -> bool:
+        """Check if any service uses a dockur/windows image."""
+        for svc in compose_data.get("services", {}).values():
+            image = svc.get("image", "")
+            if "dockur" in image.lower():
+                return True
+        return False
+
     def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
         challenge_id = str(uuid.uuid4())
         path = Challenge.get_base_path(benchmark_id, challenge_id, self.runtime_dir)
@@ -285,6 +294,8 @@ class ChallengeManager:
                 if bm.requires.arch == "x86_64" and host_is_arm and bm.requires.kvm:
                     unsupported_reason = "需要 x86_64 架构 + KVM 虚拟化"
 
+            requires_win_iso = self._detect_requires_windows_iso(data)
+
             challenge = Challenge(
                 challenge_code=challenge_id,
                 difficulty=_level_map[bm.level],
@@ -298,6 +309,7 @@ class ChallengeManager:
                 emulated=is_emulated,
                 unsupported=is_unsupported,
                 unsupported_reason=unsupported_reason,
+                requires_windows_iso=requires_win_iso,
             )
             challenge.set_benchmark_id(benchmark_id)
             challenge.set_runtime_dir(self.runtime_dir)
@@ -417,6 +429,8 @@ class ChallengeManager:
             if bm.requires.arch == "x86_64" and host_is_arm and bm.requires.kvm:
                 unsupported_reason = "需要 x86_64 架构 + KVM 虚拟化"
 
+        requires_win_iso = self._detect_requires_windows_iso(data)
+
         challenge = Challenge(
             challenge_code=challenge_code,
             difficulty=_level_map[bm.level],
@@ -428,6 +442,7 @@ class ChallengeManager:
             emulated=is_emulated,
             unsupported=is_unsupported,
             unsupported_reason=unsupported_reason,
+            requires_windows_iso=requires_win_iso,
         )
         challenge.set_benchmark_id(benchmark_id)
         challenge.set_runtime_dir(self.runtime_dir)
