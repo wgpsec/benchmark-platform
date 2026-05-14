@@ -1,7 +1,7 @@
 {% set diff_badge = {'easy': 'bg-emerald-50 text-emerald-600', 'medium': 'bg-amber-50 text-amber-600', 'hard': 'bg-red-50 text-red-600'} %}
 {% set diff_label = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'} %}
 
-<div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3 transition-all{% if not card.enabled %} opacity-50 grayscale{% endif %}"
+<div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3 transition-all{% if not card.enabled %} opacity-50 grayscale{% elif card.unsupported %} opacity-50{% endif %}"
      id="card-{{ card.benchmark_id }}"
      x-data="{ enabled: {{ 'true' if card.enabled else 'false' }}, toggling: false }">
   <!-- Header -->
@@ -71,6 +71,9 @@
     {% if card.emulated %}
     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-600">x86 模拟</span>
     {% endif %}
+    {% if card.unsupported %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-600">不支持</span>
+    {% endif %}
     {% if card.solved %}
     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-600">✓ 已完成</span>
     {% endif %}
@@ -99,7 +102,9 @@
 
   <!-- Actions -->
   <div class="flex items-center gap-2 pt-2 border-t border-gray-100" x-data="{loading: false}">
-    {% if not card.enabled %}
+    {% if card.unsupported %}
+    <span class="text-[12px] text-amber-600">当前环境不支持（{{ card.unsupported_reason }}）</span>
+    {% elif not card.enabled %}
     <span class="text-[12px] text-gray-400">该题目已对 Agent 关闭</span>
     {% elif card.solved %}
     <span class="text-[12px] text-gray-400">全部完成</span>
