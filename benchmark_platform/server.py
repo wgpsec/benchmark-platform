@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import os
 import signal
 import threading
 from pathlib import Path
@@ -699,6 +700,28 @@ async def set_runtime_dir_api(payload: RuntimeDirRequest):
         return
     set_setting("runtime_dir", path)
     return _ok({"runtime_dir": path})
+
+
+@app.get("/api/settings/win_iso")
+async def get_win_iso_api():
+    return _ok({"win2022_iso_path": get_setting("win2022_iso_path", "")})
+
+
+class WinIsoRequest(PydanticBaseModel):
+    path: str
+
+
+@app.post("/api/settings/win_iso")
+async def set_win_iso_api(payload: WinIsoRequest):
+    path = payload.path.strip()
+    if not path:
+        _err("路径不能为空", 400)
+        return
+    if not os.path.isfile(path):
+        _err(f"文件不存在: {path}", 400)
+        return
+    set_setting("win2022_iso_path", path)
+    return _ok({"win2022_iso_path": path}, "已保存")
 
 
 class BatchLevelRequest(PydanticBaseModel):
