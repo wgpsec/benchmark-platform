@@ -122,7 +122,7 @@
           if(r.ok) {
             $dispatch('toast', {type:'success', message:'靶机已停止'});
           } else {
-            return r.json().then(d => { $dispatch('toast', {type:'error', message: d.detail?.message || '停止失败'}); });
+            return r.json().then(d => { $dispatch('toast', {type:'error', message: d.message || d.detail?.message || '停止失败'}); });
           }
         })
         .catch(() => $dispatch('toast', {type:'error', message:'停止失败'}))
@@ -180,7 +180,7 @@
           if(r.ok) {
             $dispatch('toast', {type:'success', message:'靶机启动成功'});
           } else {
-            return r.json().then(d => { $dispatch('toast', {type:'error', message: d.detail?.message || '启动失败'}); });
+            return r.json().then(d => { $dispatch('toast', {type:'error', message: d.message || d.detail?.message || '启动失败'}); });
           }
         })
         .catch(() => $dispatch('toast', {type:'error', message:'启动失败'}))
