@@ -68,6 +68,8 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "instance_status": status,
         "entrypoint": entrypoint,
         "emulated": challenge.emulated,
+        "unsupported": challenge.unsupported,
+        "unsupported_reason": challenge.unsupported_reason,
         "flag_states": flag_states,
         "enabled": enabled,
         "started_at": started_at,
