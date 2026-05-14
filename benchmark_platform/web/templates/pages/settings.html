@@ -135,6 +135,32 @@
       <span x-show="savedTimeout" x-transition class="text-[11px] text-emerald-600 font-medium">已保存</span>
     </div>
   </div>
+
+  <!-- Windows ISO Settings -->
+  <div class="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+    <h3 class="text-[13px] font-semibold text-gray-800 mb-4">Windows ISO</h3>
+    <p class="text-[11px] text-gray-500 mb-4">AD 域渗透靶场（dockur/windows）启动时需要此 ISO。请提供 Windows Server 2022 Evaluation ISO 的本地绝对路径。</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-[11px] font-medium text-gray-600 mb-1.5">ISO 文件路径</label>
+        <div class="flex items-center gap-3">
+          <input type="text" x-model="winIsoPath" placeholder="/path/to/win2022.iso"
+                 class="flex-1 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 font-mono">
+        </div>
+        <p class="text-[10px] text-gray-400 mt-1.5">ISO 下载地址：https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2022</p>
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button @click="saveWinIso()" :disabled="savingWinIso"
+                class="h-9 px-5 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+          <span x-show="!savingWinIso">保存</span>
+          <span x-show="savingWinIso">保存中...</span>
+        </button>
+        <span x-show="savedWinIso" x-transition class="text-[11px] text-emerald-600 font-medium">已保存</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -152,6 +178,9 @@ function settingsPage() {
     timeoutL3: 240,
     savingTimeout: false,
     savedTimeout: false,
+    winIsoPath: '',
+    savingWinIso: false,
+    savedWinIso: false,
     init() {
       fetch('/api/level_gate_config')
         .then(r => r.json())
@@ -172,6 +201,11 @@ function settingsPage() {
             this.timeoutL2 = Math.round(d.data.level_2 / 60);
             this.timeoutL3 = Math.round(d.data.level_3 / 60);
           }
+        });
+      fetch('/api/settings/win_iso')
+        .then(r => r.json())
+        .then(d => {
+          this.winIsoPath = d.data.win2022_iso_path || '';
         });
     },
     save() {
@@ -235,6 +269,26 @@ function settingsPage() {
           setTimeout(() => this.savedTimeout = false, 3000);
         } else {
           this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
+        }
+      });
+    },
+    saveWinIso() {
+      this.savingWinIso = true;
+      this.savedWinIso = false;
+      fetch('/api/settings/win_iso', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: this.winIsoPath})
+      })
+      .then(r => r.json())
+      .then(d => {
+        this.savingWinIso = false;
+        if (d.code === 0) {
+          this.savedWinIso = true;
+          this.$dispatch('toast', {type: 'success', message: 'Windows ISO 路径已保存'});
+          setTimeout(() => this.savedWinIso = false, 3000);
+        } else {
+          this.$dispatch('toast', {type: 'error', message: d.detail?.message || d.message || '保存失败'});
         }
       });
     },
