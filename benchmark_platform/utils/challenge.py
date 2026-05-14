@@ -437,6 +437,19 @@ class ChallengeManager:
                 except Exception:
                     pass
             shutil.rmtree(entry, ignore_errors=True)
+        self._prune_orphan_networks()
+
+    def _prune_orphan_networks(self) -> None:
+        """Remove dangling Docker networks that are no longer attached to containers."""
+        try:
+            res = subprocess.run(
+                ['docker', 'network', 'prune', '-f'],
+                capture_output=True, text=True, timeout=30,
+            )
+            if res.stdout.strip():
+                logger.info("pruned orphan docker networks", output=res.stdout.strip()[:200])
+        except Exception as e:
+            logger.warning("failed to prune docker networks", error=str(e))
 
     def start_challenge_instance(self, challenge_code: str) -> list[str]:
         """Start docker containers for one challenge. Return entrypoint list."""
@@ -706,6 +719,12 @@ class ChallengeManager:
             cwd=path, capture_output=True, text=True,
         )
         if res.returncode != 0:
+            if 'could not find an available, non-overlapping IPv4 address pool' in res.stderr:
+                logger.warning("address pool exhausted, pruning networks and retrying", benchmark_id=benchmark_id)
+                self._prune_orphan_networks()
+                res = subprocess.run(cmd, cwd=path, capture_output=True, text=True)
+                if res.returncode == 0:
+                    return
             logger.error("docker compose failed", action="compose",
                          cmd=" ".join(cmd), stderr=res.stderr[:500], stdout=res.stdout[:200])
             raise RuntimeError(f"Docker compose failed: {res.stderr}")

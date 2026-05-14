@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import local
+from typing import Dict, List, Optional
 
 _DB_PATH = Path("data/benchmark.db")
 _local = local()
@@ -267,11 +268,11 @@ def upsert_instance(
     benchmark_id: str,
     challenge_code: str,
     runtime_path: str,
-    ports: list[int],
+    ports: List[int],
     status: str,
-    team_id: str | None = None,
-    started_at: str | None = None,
-    expires_at: str | None = None,
+    team_id: Optional[str] = None,
+    started_at: Optional[str] = None,
+    expires_at: Optional[str] = None,
 ) -> None:
     conn = _get_conn()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -296,7 +297,7 @@ def upsert_instance(
     conn.commit()
 
 
-def get_instance_by_benchmark_id(benchmark_id: str) -> dict | None:
+def get_instance_by_benchmark_id(benchmark_id: str) -> Optional[dict]:
     conn = _get_conn()
     row = conn.execute(
         "SELECT * FROM instance_lifecycle WHERE benchmark_id = ?",
@@ -305,7 +306,7 @@ def get_instance_by_benchmark_id(benchmark_id: str) -> dict | None:
     return dict(row) if row else None
 
 
-def get_running_instances() -> list[dict]:
+def get_running_instances() -> List[dict]:
     conn = _get_conn()
     rows = conn.execute(
         "SELECT * FROM instance_lifecycle WHERE status = 'running'"
@@ -313,7 +314,7 @@ def get_running_instances() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def get_expired_instances() -> list[dict]:
+def get_expired_instances() -> List[dict]:
     conn = _get_conn()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     rows = conn.execute(
@@ -324,8 +325,8 @@ def get_expired_instances() -> list[dict]:
 
 
 def update_instance_status(benchmark_id: str, status: str,
-                           started_at: str | None = None,
-                           expires_at: str | None = None) -> None:
+                           started_at: Optional[str] = None,
+                           expires_at: Optional[str] = None) -> None:
     conn = _get_conn()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
