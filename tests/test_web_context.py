@@ -121,3 +121,42 @@ def test_challenges_context_includes_status():
         ctx = challenges_context(mgr)
     card = ctx["level_groups"][0]["challenges"][0]
     assert card["instance_status"] == "running"
+
+
+def test_challenge_to_card_unsupported():
+    """Unsupported challenge should have unsupported=True in card context."""
+    c = Challenge(
+        challenge_code="ad001",
+        difficulty=Difficulty.MEDIUM,
+        points=300,
+        hint_viewed=False,
+        solved=False,
+        target_info=TargetInfo(ip="localhost", port=[8080]),
+        unsupported=True,
+        unsupported_reason="需要 x86_64 架构 + KVM 虚拟化",
+    )
+    c.set_benchmark_id("AD-001")
+
+    mgr = _make_manager([c])
+
+    with patch.object(Challenge, 'get_benchmark', _fake_get_benchmark):
+        with patch('benchmark_platform.db.is_challenge_enabled', return_value=True):
+            from benchmark_platform.web.context import _challenge_to_card
+            card = _challenge_to_card(mgr, c)
+
+    assert card["unsupported"] is True
+    assert card["unsupported_reason"] == "需要 x86_64 架构 + KVM 虚拟化"
+
+
+def test_challenge_to_card_supported():
+    """Normal challenge should have unsupported=False."""
+    c = _make_challenge("001", 1)
+    mgr = _make_manager([c])
+
+    with patch.object(Challenge, 'get_benchmark', _fake_get_benchmark):
+        with patch('benchmark_platform.db.is_challenge_enabled', return_value=True):
+            from benchmark_platform.web.context import _challenge_to_card
+            card = _challenge_to_card(mgr, c)
+
+    assert card["unsupported"] is False
+    assert card["unsupported_reason"] == ""
