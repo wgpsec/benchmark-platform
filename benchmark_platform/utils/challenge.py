@@ -48,6 +48,8 @@ class ChallengeManager:
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.challenges: list[Challenge] = []
         self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"
+        self._reaper_stop = threading.Event()
+        self._reaper_thread: threading.Thread | None = None
 
     def __enter__(self) -> 'ChallengeManager':
         self.start()
@@ -93,6 +95,7 @@ class ChallengeManager:
                     count=len(self.challenges))
 
         self._cleanup_orphan_runtimes(seen)
+        self._start_reaper()
         return self
 
     def reload(self) -> tuple[int, list[str]]:
@@ -129,9 +132,51 @@ class ChallengeManager:
         return added, errors
 
     def stop(self) -> None:
+        self._reaper_stop.set()
+        if self._reaper_thread is not None:
+            self._reaper_thread.join(timeout=5)
+            self._reaper_thread = None
         self._cleanup(self.challenges)
         self.challenges.clear()
         self._instance_status.clear()
+
+    def _start_reaper(self) -> None:
+        """Start the background reaper thread for expired instances."""
+        if self._reaper_thread is not None:
+            return
+        self._reaper_stop.clear()
+        self._reaper_thread = threading.Thread(target=self._reaper_loop, daemon=True)
+        self._reaper_thread.start()
+        logger.info("instance reaper started")
+
+    def _reaper_loop(self) -> None:
+        """Periodically check for and clean up expired instances."""
+        from benchmark_platform.db import get_expired_instances
+        while not self._reaper_stop.is_set():
+            try:
+                expired = get_expired_instances()
+                for record in expired:
+                    benchmark_id = record["benchmark_id"]
+                    challenge_code = record["challenge_code"]
+                    runtime_path = Path(record["runtime_path"])
+                    logger.info("reaping expired instance",
+                                benchmark_id=benchmark_id,
+                                challenge_code=challenge_code)
+                    try:
+                        if runtime_path.exists():
+                            subprocess.run(
+                                ['docker', 'compose', 'down'],
+                                cwd=runtime_path,
+                                capture_output=True, text=True, timeout=60,
+                            )
+                        update_instance_status(benchmark_id, "expired")
+                        self._instance_status[challenge_code] = "stopped"
+                    except Exception as e:
+                        logger.error("reaper failed for instance",
+                                     benchmark_id=benchmark_id, error=str(e))
+            except Exception as e:
+                logger.error("reaper loop error", error=str(e))
+            self._reaper_stop.wait(30)
 
     def _discover_challenges(self) -> list[tuple[Path, str]]:
         """Return (folder, benchmark_id) for every challenge in all benchmark_folders."""
