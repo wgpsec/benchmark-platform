@@ -160,3 +160,38 @@ def test_challenge_to_card_supported():
 
     assert card["unsupported"] is False
     assert card["unsupported_reason"] == ""
+
+
+def test_challenge_to_card_requires_windows_iso():
+    """Challenge with requires_windows_iso=True should expose it in card dict."""
+    c = Challenge(
+        challenge_code="ad001",
+        difficulty=Difficulty.MEDIUM,
+        points=300,
+        hint_viewed=False,
+        solved=False,
+        target_info=TargetInfo(ip="localhost", port=[8080]),
+        requires_windows_iso=True,
+    )
+    c.set_benchmark_id("AD-001")
+    mgr = _make_manager([c])
+
+    with patch.object(Challenge, 'get_benchmark', _fake_get_benchmark):
+        with patch('benchmark_platform.db.is_challenge_enabled', return_value=True):
+            from benchmark_platform.web.context import _challenge_to_card
+            card = _challenge_to_card(mgr, c)
+
+    assert card["requires_windows_iso"] is True
+
+
+def test_challenge_to_card_no_windows_iso():
+    """Normal challenge should have requires_windows_iso=False."""
+    c = _make_challenge("001", 1)
+    mgr = _make_manager([c])
+
+    with patch.object(Challenge, 'get_benchmark', _fake_get_benchmark):
+        with patch('benchmark_platform.db.is_challenge_enabled', return_value=True):
+            from benchmark_platform.web.context import _challenge_to_card
+            card = _challenge_to_card(mgr, c)
+
+    assert card["requires_windows_iso"] is False

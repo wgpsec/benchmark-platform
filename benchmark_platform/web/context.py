@@ -71,6 +71,7 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "unsupported": challenge.unsupported,
         "unsupported_reason": challenge.unsupported_reason,
         "flag_states": flag_states,
+        "requires_windows_iso": challenge.requires_windows_iso,
         "enabled": enabled,
         "started_at": started_at,
         "expires_at": expires_at,
