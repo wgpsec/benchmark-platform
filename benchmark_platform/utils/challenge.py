@@ -48,6 +48,7 @@ class ChallengeManager:
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.challenges: list[Challenge] = []
         self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"
+        self._code_aliases: dict[str, str] = {}  # old_challenge_code → benchmark_id
         self._reaper_stop = threading.Event()
         self._reaper_thread: threading.Thread | None = None
 
@@ -455,6 +456,7 @@ class ChallengeManager:
         """Start docker containers for one challenge. Return entrypoint list."""
         challenge = self._find_by_code(challenge_code)
         benchmark_id = challenge.get_benchmark_id()
+        old_code = challenge.challenge_code
 
         record = get_instance_by_benchmark_id(benchmark_id)
         if record and record["status"] in ("stopped", "expired"):
@@ -468,6 +470,9 @@ class ChallengeManager:
             challenge.challenge_code = new_challenge.challenge_code
             challenge.target_info = new_challenge.target_info
             challenge_code = challenge.challenge_code
+
+        if old_code != challenge.challenge_code:
+            self._code_aliases[old_code] = benchmark_id
 
         self._compose(benchmark_id, challenge_code, 'up', '-d')
         self._instance_status[challenge_code] = "running"
@@ -554,8 +559,9 @@ class ChallengeManager:
         for c in self.challenges:
             if c.challenge_code == challenge_code:
                 return c
+        bm_id = self._code_aliases.get(challenge_code, challenge_code)
         for c in self.challenges:
-            if c.get_benchmark_id() == challenge_code:
+            if c.get_benchmark_id() == bm_id:
                 return c
         raise KeyError(f"Challenge {challenge_code!r} not found")
 
