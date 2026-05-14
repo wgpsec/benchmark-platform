@@ -163,7 +163,7 @@ def start_challenge(code: str) -> str:
     except Exception as e:
         raise ValueError(f"赛题启动失败: {e}")
 
-    started_at, expires_at = mgr.get_instance_timestamps(code)
+    started_at, expires_at = mgr.get_instance_timestamps(challenge.challenge_code)
     return json.dumps({"message": "赛题实例启动成功", "entrypoint": entrypoints,
                        "started_at": started_at, "expires_at": expires_at}, ensure_ascii=False)
 

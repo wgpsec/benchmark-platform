@@ -306,7 +306,7 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         _err(f"赛题启动失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
 
-    started_at, expires_at = manager.get_instance_timestamps(payload.code)
+    started_at, expires_at = manager.get_instance_timestamps(challenge.challenge_code)
     return _ok({"entrypoint": entrypoints, "started_at": started_at, "expires_at": expires_at}, "赛题实例启动成功")
 
 
