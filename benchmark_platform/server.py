@@ -296,7 +296,8 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
 
     if manager.get_instance_status(payload.code) in ("running", "unhealthy"):
         entrypoints = [f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port]
-        return _ok(entrypoints, "赛题实例已在运行中")
+        started_at, expires_at = manager.get_instance_timestamps(payload.code)
+        return _ok({"entrypoint": entrypoints, "started_at": started_at, "expires_at": expires_at}, "赛题实例已在运行中")
 
     try:
         entrypoints = manager.start_challenge_instance(payload.code)
@@ -305,7 +306,8 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         _err(f"赛题启动失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
 
-    return _ok(entrypoints, "赛题实例启动成功")
+    started_at, expires_at = manager.get_instance_timestamps(payload.code)
+    return _ok({"entrypoint": entrypoints, "started_at": started_at, "expires_at": expires_at}, "赛题实例启动成功")
 
 
 class StopChallengeRequest(PydanticBaseModel):
@@ -763,12 +765,15 @@ async def tch_instance_statuses(request: Request):
         enabled = is_challenge_enabled(bm_id)
         if agent_view and not enabled:
             continue
+        started_at, expires_at = manager.get_instance_timestamps(c.challenge_code)
         statuses[c.challenge_code] = {
             "status": manager.get_instance_status(c.challenge_code),
             "benchmark_id": bm_id,
             "level": manager.get_level_for_challenge(c),
             "solved": c.solved,
             "enabled": enabled,
+            "started_at": started_at,
+            "expires_at": expires_at,
         }
     return _ok({"statuses": statuses, "batch_starting": getattr(app.state, "batch_starting", False)})
 

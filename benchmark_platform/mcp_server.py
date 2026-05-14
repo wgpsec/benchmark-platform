@@ -154,14 +154,18 @@ def start_challenge(code: str) -> str:
 
     if mgr.get_instance_status(code) in ("running", "unhealthy"):
         entrypoints = [f"{mgr.public_accessible_host}:{p}" for p in challenge.target_info.port]
-        return json.dumps({"message": "赛题实例已在运行中", "entrypoint": entrypoints}, ensure_ascii=False)
+        started_at, expires_at = mgr.get_instance_timestamps(code)
+        return json.dumps({"message": "赛题实例已在运行中", "entrypoint": entrypoints,
+                           "started_at": started_at, "expires_at": expires_at}, ensure_ascii=False)
 
     try:
         entrypoints = mgr.start_challenge_instance(code)
     except Exception as e:
         raise ValueError(f"赛题启动失败: {e}")
 
-    return json.dumps({"message": "赛题实例启动成功", "entrypoint": entrypoints}, ensure_ascii=False)
+    started_at, expires_at = mgr.get_instance_timestamps(code)
+    return json.dumps({"message": "赛题实例启动成功", "entrypoint": entrypoints,
+                       "started_at": started_at, "expires_at": expires_at}, ensure_ascii=False)
 
 
 @mcp.tool()
