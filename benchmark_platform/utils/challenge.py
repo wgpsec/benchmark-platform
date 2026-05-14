@@ -498,13 +498,14 @@ class ChallengeManager:
     def stop_challenge_instance(self, challenge_code: str) -> None:
         """Stop docker containers for one challenge."""
         challenge = self._find_by_code(challenge_code)
-        self._compose(challenge.get_benchmark_id(), challenge_code, 'down')
-        self._instance_status[challenge_code] = "stopped"
+        actual_code = challenge.challenge_code
+        self._compose(challenge.get_benchmark_id(), actual_code, 'down')
+        self._instance_status[actual_code] = "stopped"
         update_instance_status(challenge.get_benchmark_id(), "stopped")
 
     def get_instance_status(self, challenge_code: str) -> str:
         challenge = self._find_by_code(challenge_code)
-        status = self._instance_status.get(challenge_code, "stopped")
+        status = self._instance_status.get(challenge.challenge_code, "stopped")
         if status != "running":
             return status
         return self._check_container_health(challenge)
@@ -552,6 +553,9 @@ class ChallengeManager:
     def _find_by_code(self, challenge_code: str) -> Challenge:
         for c in self.challenges:
             if c.challenge_code == challenge_code:
+                return c
+        for c in self.challenges:
+            if c.get_benchmark_id() == challenge_code:
                 return c
         raise KeyError(f"Challenge {challenge_code!r} not found")
 
