@@ -1,17 +1,51 @@
 {% set diff_badge = {'easy': 'bg-emerald-50 text-emerald-600', 'medium': 'bg-amber-50 text-amber-600', 'hard': 'bg-red-50 text-red-600'} %}
 {% set diff_label = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'} %}
 
-<div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3"
-     id="card-{{ card.challenge_code }}">
+<div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3 transition-all{% if not card.enabled %} opacity-50 grayscale{% endif %}"
+     id="card-{{ card.challenge_code }}"
+     x-data="{ enabled: {{ 'true' if card.enabled else 'false' }}, toggling: false }">
   <!-- Header -->
-  <div class="flex items-start justify-between">
+  <div class="flex items-start justify-between gap-2">
     <div class="min-w-0">
       <div class="text-[11px] text-gray-400 font-mono">{{ card.benchmark_id }}</div>
       <div class="text-[15px] font-medium text-gray-900 truncate">{{ card.name }}</div>
     </div>
-    <span class="flex-shrink-0 ml-2 px-2.5 py-1 text-[11px] font-medium rounded-full {{ diff_badge.get(card.difficulty, '') }}">
-      {{ diff_label.get(card.difficulty, card.difficulty) }}
-    </span>
+    <div class="flex flex-col items-end gap-1.5 flex-shrink-0 ml-2">
+      <span class="px-2.5 py-1 text-[11px] font-medium rounded-full {{ diff_badge.get(card.difficulty, '') }}">
+        {{ diff_label.get(card.difficulty, card.difficulty) }}
+      </span>
+      <!-- Agent visibility toggle -->
+      <label class="flex items-center gap-1.5 cursor-pointer select-none" :title="enabled ? '已对 Agent 开放，点击关闭' : '已对 Agent 关闭，点击开启'">
+        <span class="text-[10px] font-medium" :class="enabled ? 'text-emerald-600' : 'text-gray-400'"
+              x-text="enabled ? '对 Agent 开放' : '已关闭'"></span>
+        <button type="button"
+          :disabled="toggling"
+          @click.stop="
+            toggling = true;
+            const next = !enabled;
+            fetch('/api/challenges/visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'{{ card.challenge_code }}', enabled: next})})
+            .then(r => r.json())
+            .then(data => {
+              if (data.code === 0) {
+                enabled = next;
+                $dispatch('toast', {type:'success', message: data.message || (next ? '已开启' : '已关闭')});
+                fetch('/web/partials/challenge_card?code={{ card.challenge_code }}').then(r=>r.text()).then(html => {
+                  document.getElementById('card-{{ card.challenge_code }}').outerHTML = html;
+                });
+              } else {
+                $dispatch('toast', {type:'error', message: data.message || '切换失败'});
+              }
+            })
+            .catch(() => $dispatch('toast', {type:'error', message:'切换失败'}))
+            .finally(() => { toggling = false; });
+          "
+          class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors disabled:opacity-60 disabled:cursor-wait cursor-pointer"
+          :class="enabled ? 'bg-emerald-500' : 'bg-gray-300'">
+          <span class="inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform"
+                :class="enabled ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
+        </button>
+      </label>
+    </div>
   </div>
 
   <!-- Description -->
@@ -65,7 +99,9 @@
 
   <!-- Actions -->
   <div class="flex items-center gap-2 pt-2 border-t border-gray-100" x-data="{loading: false}">
-    {% if card.solved %}
+    {% if not card.enabled %}
+    <span class="text-[12px] text-gray-400">该题目已对 Agent 关闭</span>
+    {% elif card.solved %}
     <span class="text-[12px] text-gray-400">全部完成</span>
     {% elif card.instance_status in ('running', 'unhealthy') %}
     <button

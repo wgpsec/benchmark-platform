@@ -8,7 +8,7 @@ from typing import NoReturn
 
 import typer
 import uvicorn
-from fastapi import Depends, FastAPI, File, UploadFile
+from fastapi import Depends, FastAPI, File, Request, UploadFile
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +32,8 @@ from benchmark_platform.db import (
     is_hint_viewed, mark_hint_viewed, get_team_progress,
     get_level_gate_config, set_level_gate_config,
     get_setting, set_setting,
+    is_challenge_enabled, set_challenge_enabled,
+    set_challenges_enabled_bulk, get_challenge_visibility,
 )
 
 
@@ -190,13 +192,22 @@ async def index():
 
 # ── tch-compatible API routes ─────────────────────────────────────────────────
 
+def _ensure_challenge_enabled(challenge) -> None:
+    """Agent-facing guard: 403 if admin has disabled this challenge for agents."""
+    if not is_challenge_enabled(challenge.get_benchmark_id()):
+        _err("该题目已被管理员关闭", 403)
+
+
 @app.get("/api/challenges")
 async def tch_get_challenges(team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return  # unreachable, but makes control flow explicit
 
-    all_challenges = manager.challenges
+    all_challenges = [
+        c for c in manager.challenges
+        if is_challenge_enabled(c.get_benchmark_id())
+    ]
     team_progress = get_team_progress(team["id"])
     challenge_list = []
     total_solved_challenges = 0
@@ -271,6 +282,8 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
 
+    _ensure_challenge_enabled(challenge)
+
     challenge_level = manager.get_level_for_challenge(challenge)
     if not manager.is_level_unlocked(challenge_level, team["id"]):
         _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
@@ -305,10 +318,12 @@ async def tch_stop_challenge(payload: StopChallengeRequest, team: dict = Depends
         return  # unreachable, but makes control flow explicit
 
     try:
-        manager._find_by_code(payload.code)
+        challenge = manager._find_by_code(payload.code)
     except KeyError:
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
+
+    _ensure_challenge_enabled(challenge)
 
     if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
         _err("赛题实例未运行", 400)
@@ -339,6 +354,8 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
     except KeyError:
         _err(f"Challenge {payload.code} not found", 404)
         return
+
+    _ensure_challenge_enabled(challenge)
 
     challenge_level = manager.get_level_for_challenge(challenge)
     if not manager.is_level_unlocked(challenge_level, team["id"]):
@@ -425,6 +442,8 @@ async def tch_get_progress(code: str, team: dict = Depends(get_current_team)):
         _err(f"Challenge {code} not found", 404)
         return
 
+    _ensure_challenge_enabled(challenge)
+
     team_progress = get_team_progress(team["id"])
     bm_id = challenge.get_benchmark_id()
     progress_for_challenge = team_progress.get(bm_id, {})
@@ -462,6 +481,8 @@ async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team))
         _err(f"Challenge {payload.code} not found", 404)
         return  # unreachable, but makes control flow explicit
 
+    _ensure_challenge_enabled(challenge)
+
     if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
         _err("请先启动赛题实例", 400)
         return  # unreachable, but makes control flow explicit
@@ -491,6 +512,106 @@ def tch_stop_all(team: dict = Depends(get_current_team)):
             except Exception:
                 pass
     return _ok({"stopped_count": len(stopped)}, f"已停止 {len(stopped)} 个实例")
+
+
+def _stop_instance_if_running(challenge_code: str) -> bool:
+    if manager is None:
+        return False
+    if manager.get_instance_status(challenge_code) not in ("running", "unhealthy"):
+        return False
+    try:
+        manager.stop_challenge_instance(challenge_code)
+        return True
+    except Exception as e:
+        logger.error("auto-stop on disable failed", challenge_code=challenge_code, error=str(e))
+        return False
+
+
+class ChallengeVisibilityRequest(PydanticBaseModel):
+    code: str
+    enabled: bool
+
+
+@app.post("/api/challenges/visibility")
+async def tch_set_challenge_visibility(payload: ChallengeVisibilityRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    try:
+        challenge = manager._find_by_code(payload.code)
+    except KeyError:
+        _err(f"Challenge {payload.code} not found", 404)
+        return
+
+    set_challenge_enabled(challenge.get_benchmark_id(), payload.enabled)
+    stopped = False
+    if not payload.enabled:
+        stopped = _stop_instance_if_running(payload.code)
+
+    msg = ("已开启" if payload.enabled else "已关闭") + ("，并停止运行中的实例" if stopped else "")
+    return _ok({
+        "code": payload.code,
+        "enabled": payload.enabled,
+        "stopped": stopped,
+    }, msg)
+
+
+class LevelVisibilityRequest(PydanticBaseModel):
+    level: int
+    enabled: bool
+
+
+@app.post("/api/level_visibility")
+async def tch_set_level_visibility(payload: LevelVisibilityRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    bm_ids: list[str] = []
+    affected_codes: list[str] = []
+    for c in manager.challenges:
+        if manager.get_level_for_challenge(c) != payload.level:
+            continue
+        bm_ids.append(c.get_benchmark_id())
+        affected_codes.append(c.challenge_code)
+
+    if not bm_ids:
+        return _ok({"affected": 0, "stopped": 0}, "该 level 没有题目")
+
+    set_challenges_enabled_bulk(bm_ids, payload.enabled)
+
+    stopped_count = 0
+    if not payload.enabled:
+        for code in affected_codes:
+            if _stop_instance_if_running(code):
+                stopped_count += 1
+
+    action = "开启" if payload.enabled else "关闭"
+    extra = f"，并停止 {stopped_count} 个运行中实例" if stopped_count else ""
+    return _ok({
+        "level": payload.level,
+        "enabled": payload.enabled,
+        "affected": len(bm_ids),
+        "stopped": stopped_count,
+    }, f"Level {payload.level} 已{action} {len(bm_ids)} 道题{extra}")
+
+
+@app.get("/api/challenges/visibility")
+async def tch_get_challenge_visibility():
+    """Web UI 用,返回所有 benchmark_id 的当前开关状态。"""
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+    explicit = get_challenge_visibility()
+    visibility = {}
+    for c in manager.challenges:
+        bm_id = c.get_benchmark_id()
+        visibility[c.challenge_code] = {
+            "benchmark_id": bm_id,
+            "enabled": explicit.get(bm_id, True),
+        }
+    return _ok({"visibility": visibility})
 
 
 @app.post("/api/toggle_level_gate")
@@ -555,6 +676,8 @@ async def tch_start_level(payload: BatchLevelRequest):
     for c in manager.challenges:
         if manager.get_level_for_challenge(c) != payload.level:
             continue
+        if not is_challenge_enabled(c.get_benchmark_id()):
+            continue
         if c.solved:
             continue
         if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
@@ -599,18 +722,31 @@ def tch_stop_level(payload: BatchLevelRequest):
 
 
 @app.get("/api/instance_statuses")
-async def tch_instance_statuses():
-    """Lightweight endpoint for polling instance statuses."""
+async def tch_instance_statuses(request: Request):
+    """Lightweight endpoint for polling instance statuses.
+
+    Agent callers (with Agent-Token) get only enabled challenges.
+    Web UI callers (no Agent-Token, browser session) get all challenges so the
+    challenges page can keep refreshing disabled cards too.
+    """
     if manager is None:
         _err("Server not initialized", 503)
         return
+
+    agent_view = request.headers.get("Agent-Token") is not None
+
     statuses = {}
     for c in manager.challenges:
+        bm_id = c.get_benchmark_id()
+        enabled = is_challenge_enabled(bm_id)
+        if agent_view and not enabled:
+            continue
         statuses[c.challenge_code] = {
             "status": manager.get_instance_status(c.challenge_code),
-            "benchmark_id": c.get_benchmark_id(),
+            "benchmark_id": bm_id,
             "level": manager.get_level_for_challenge(c),
             "solved": c.solved,
+            "enabled": enabled,
         }
     return _ok({"statuses": statuses, "batch_starting": getattr(app.state, "batch_starting", False)})
 

@@ -49,8 +49,49 @@
         需通过 Level {{ lg.level - 1 }} 解锁
       </span>
       {% endif %}
+      <div class="ml-auto flex items-center gap-2"
+           x-data="{visEnabling: false, visDisabling: false}">
+        <button :disabled="visEnabling || visDisabling" @click="
+          if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 开放吗?')) return;
+          visEnabling = true;
+          fetch('/api/level_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}, enabled: true})})
+          .then(r => r.json())
+          .then(data => {
+            if (data.code === 0) {
+              $dispatch('toast', {type:'success', message: data.message});
+              setTimeout(() => location.reload(), 600);
+            } else {
+              $dispatch('toast', {type:'error', message: data.message || '操作失败'});
+              visEnabling = false;
+            }
+          })
+          .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visEnabling = false; });
+        " class="h-7 px-2.5 text-[11px] font-medium text-emerald-700 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+          <span x-show="!visEnabling">全部开启</span>
+          <span x-show="visEnabling">开启中...</span>
+        </button>
+        <button :disabled="visEnabling || visDisabling" @click="
+          if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 关闭吗?\n如有运行中实例将一并停止。')) return;
+          visDisabling = true;
+          fetch('/api/level_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}, enabled: false})})
+          .then(r => r.json())
+          .then(data => {
+            if (data.code === 0) {
+              $dispatch('toast', {type:'success', message: data.message});
+              setTimeout(() => location.reload(), 600);
+            } else {
+              $dispatch('toast', {type:'error', message: data.message || '操作失败'});
+              visDisabling = false;
+            }
+          })
+          .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visDisabling = false; });
+        " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+          <span x-show="!visDisabling">全部关闭</span>
+          <span x-show="visDisabling">关闭中...</span>
+        </button>
+      </div>
       {% if lg.unlocked %}
-      <div class="ml-auto flex items-center gap-2" x-data="{startLoading: false, stopLoading: false, pollTimer: null}"
+      <div class="flex items-center gap-2" x-data="{startLoading: false, stopLoading: false, pollTimer: null}"
            x-effect="if(!startLoading && !stopLoading && pollTimer) { clearInterval(pollTimer); pollTimer = null; }">
         <button :disabled="startLoading || stopLoading" @click="
           startLoading = true;
@@ -105,7 +146,8 @@
            data-solved="{{ 'true' if card.solved else 'false' }}"
            data-status="{{ card.instance_status }}"
            data-name="{{ card.name }}"
-           data-benchmark-id="{{ card.benchmark_id }}">
+           data-benchmark-id="{{ card.benchmark_id }}"
+           data-enabled="{{ 'true' if card.enabled else 'false' }}">
         {% include "components/challenge_card.html" %}
       </div>
       {% endfor %}
