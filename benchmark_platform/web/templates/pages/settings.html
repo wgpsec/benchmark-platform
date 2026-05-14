@@ -99,6 +99,42 @@
       </div>
     </div>
   </div>
+
+  <!-- Instance Timeout Settings -->
+  <div class="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+    <h3 class="text-[13px] font-semibold text-gray-800 mb-4">实例超时</h3>
+    <p class="text-[11px] text-gray-500 mb-4">按难度等级设置实例自动回收时间。超时后容器自动停止并清理，Agent 需重新启动。</p>
+
+    <div class="space-y-3">
+      <div class="flex items-center gap-3">
+        <label class="w-28 text-[11px] font-medium text-gray-600">Level 1 (Easy)</label>
+        <input type="number" x-model="timeoutL1" min="1"
+               class="w-24 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400">
+        <span class="text-[11px] text-gray-400">分钟</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="w-28 text-[11px] font-medium text-gray-600">Level 2 (Medium)</label>
+        <input type="number" x-model="timeoutL2" min="1"
+               class="w-24 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400">
+        <span class="text-[11px] text-gray-400">分钟</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="w-28 text-[11px] font-medium text-gray-600">Level 3 (Hard)</label>
+        <input type="number" x-model="timeoutL3" min="1"
+               class="w-24 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400">
+        <span class="text-[11px] text-gray-400">分钟</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 pt-4">
+      <button @click="saveTimeout()" :disabled="savingTimeout"
+              class="h-9 px-5 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+        <span x-show="!savingTimeout">保存</span>
+        <span x-show="savingTimeout">保存中...</span>
+      </button>
+      <span x-show="savedTimeout" x-transition class="text-[11px] text-emerald-600 font-medium">已保存</span>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -111,6 +147,11 @@ function settingsPage() {
     runtimeDir: './runtime',
     savingRuntime: false,
     savedRuntime: false,
+    timeoutL1: 60,
+    timeoutL2: 120,
+    timeoutL3: 240,
+    savingTimeout: false,
+    savedTimeout: false,
     init() {
       fetch('/api/level_gate_config')
         .then(r => r.json())
@@ -122,6 +163,15 @@ function settingsPage() {
         .then(r => r.json())
         .then(d => {
           this.runtimeDir = d.data.runtime_dir;
+        });
+      fetch('/api/settings/instance_timeout')
+        .then(r => r.json())
+        .then(d => {
+          if (d.data) {
+            this.timeoutL1 = Math.round(d.data.level_1 / 60);
+            this.timeoutL2 = Math.round(d.data.level_2 / 60);
+            this.timeoutL3 = Math.round(d.data.level_3 / 60);
+          }
         });
     },
     save() {
@@ -163,7 +213,31 @@ function settingsPage() {
           this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
         }
       });
-    }
+    },
+    saveTimeout() {
+      this.savingTimeout = true;
+      this.savedTimeout = false;
+      fetch('/api/settings/instance_timeout', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          level_1: parseInt(this.timeoutL1) * 60,
+          level_2: parseInt(this.timeoutL2) * 60,
+          level_3: parseInt(this.timeoutL3) * 60
+        })
+      })
+      .then(r => r.json())
+      .then(d => {
+        this.savingTimeout = false;
+        if (d.code === 0) {
+          this.savedTimeout = true;
+          this.$dispatch('toast', {type: 'success', message: '实例超时配置已保存'});
+          setTimeout(() => this.savedTimeout = false, 3000);
+        } else {
+          this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
+        }
+      });
+    },
   };
 }
 </script>

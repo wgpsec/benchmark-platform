@@ -130,6 +130,13 @@
         停止中...
       </span>
     </button>
+    {% if card.expires_at %}
+    <span class="ml-auto text-[11px] font-mono"
+          x-data="countdown('{{ card.expires_at }}')"
+          :class="remaining < 600 ? 'text-red-500 font-semibold' : 'text-gray-400'">
+      <span x-text="display"></span>
+    </span>
+    {% endif %}
     <button
       @click="$dispatch('open-submit-modal', {code: '{{ card.challenge_code }}', name: '{{ card.name }}', solved_count: {{ card.solved_count }}, flag_count: {{ card.flag_count }}})"
       class="h-8 px-3 bg-red-600 text-white text-[12px] font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer">
@@ -184,3 +191,35 @@
     {% endif %}
   </div>
 </div>
+<script>
+function countdown(expiresAt) {
+  return {
+    remaining: 0,
+    display: '',
+    interval: null,
+    init() {
+      this.tick();
+      this.interval = setInterval(() => this.tick(), 1000);
+    },
+    tick() {
+      const exp = new Date(expiresAt).getTime();
+      const now = Date.now();
+      this.remaining = Math.max(0, Math.floor((exp - now) / 1000));
+      if (this.remaining <= 0) {
+        this.display = '已超时';
+        if (this.interval) clearInterval(this.interval);
+        return;
+      }
+      const h = Math.floor(this.remaining / 3600);
+      const m = Math.floor((this.remaining % 3600) / 60);
+      const s = this.remaining % 60;
+      this.display = h > 0
+        ? `${h}h ${m.toString().padStart(2,'0')}m`
+        : `${m}m ${s.toString().padStart(2,'0')}s`;
+    },
+    destroy() {
+      if (this.interval) clearInterval(this.interval);
+    }
+  };
+}
+</script>

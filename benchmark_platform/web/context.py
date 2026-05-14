@@ -49,6 +49,10 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
             for fs in challenge.flag_states
         ]
 
+    started_at, expires_at = None, None
+    if manager.get_instance_status(challenge.challenge_code) in ("running", "unhealthy"):
+        started_at, expires_at = manager.get_instance_timestamps(challenge.challenge_code)
+
     return {
         "challenge_code": challenge.challenge_code,
         "benchmark_id": bm_id,
@@ -66,6 +70,8 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "emulated": challenge.emulated,
         "flag_states": flag_states,
         "enabled": enabled,
+        "started_at": started_at,
+        "expires_at": expires_at,
     }
 
 
