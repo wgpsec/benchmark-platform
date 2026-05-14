@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import atexit
 import signal
 import threading
@@ -300,7 +301,7 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         return _ok({"entrypoint": entrypoints, "started_at": started_at, "expires_at": expires_at}, "赛题实例已在运行中")
 
     try:
-        entrypoints = manager.start_challenge_instance(payload.code)
+        entrypoints = await asyncio.to_thread(manager.start_challenge_instance, payload.code)
     except Exception as e:
         logger.error("start_challenge failed", action="api", challenge_code=payload.code, error=str(e))
         _err(f"赛题启动失败: {e}", 502)
@@ -333,7 +334,7 @@ async def tch_stop_challenge(payload: StopChallengeRequest, team: dict = Depends
         return  # unreachable, but makes control flow explicit
 
     try:
-        manager.stop_challenge_instance(payload.code)
+        await asyncio.to_thread(manager.stop_challenge_instance, payload.code)
     except Exception as e:
         _err(f"停止失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
@@ -501,7 +502,7 @@ async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team))
 
 
 @app.post("/api/stop_all")
-def tch_stop_all(team: dict = Depends(get_current_team)):
+async def tch_stop_all(team: dict = Depends(get_current_team)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -510,20 +511,20 @@ def tch_stop_all(team: dict = Depends(get_current_team)):
     for c in manager.challenges:
         if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
             try:
-                manager.stop_challenge_instance(c.challenge_code)
+                await asyncio.to_thread(manager.stop_challenge_instance, c.challenge_code)
                 stopped.append(c.challenge_code)
             except Exception:
                 pass
     return _ok({"stopped_count": len(stopped)}, f"已停止 {len(stopped)} 个实例")
 
 
-def _stop_instance_if_running(challenge_code: str) -> bool:
+async def _stop_instance_if_running(challenge_code: str) -> bool:
     if manager is None:
         return False
     if manager.get_instance_status(challenge_code) not in ("running", "unhealthy"):
         return False
     try:
-        manager.stop_challenge_instance(challenge_code)
+        await asyncio.to_thread(manager.stop_challenge_instance, challenge_code)
         return True
     except Exception as e:
         logger.error("auto-stop on disable failed", challenge_code=challenge_code, error=str(e))
@@ -550,7 +551,7 @@ async def tch_set_challenge_visibility(payload: ChallengeVisibilityRequest):
     set_challenge_enabled(challenge.get_benchmark_id(), payload.enabled)
     stopped = False
     if not payload.enabled:
-        stopped = _stop_instance_if_running(payload.code)
+        stopped = await _stop_instance_if_running(payload.code)
 
     msg = ("已开启" if payload.enabled else "已关闭") + ("，并停止运行中的实例" if stopped else "")
     return _ok({
@@ -587,7 +588,7 @@ async def tch_set_level_visibility(payload: LevelVisibilityRequest):
     stopped_count = 0
     if not payload.enabled:
         for code in affected_codes:
-            if _stop_instance_if_running(code):
+            if await _stop_instance_if_running(code):
                 stopped_count += 1
 
     action = "开启" if payload.enabled else "关闭"
@@ -725,20 +726,27 @@ async def tch_start_level(payload: BatchLevelRequest):
 
 
 @app.post("/api/stop_level")
-def tch_stop_level(payload: BatchLevelRequest):
+async def tch_stop_level(payload: BatchLevelRequest):
     if manager is None:
         _err("Server not initialized", 503)
         return
 
-    stopped = []
+    to_stop = []
     for c in manager.challenges:
         if manager.get_level_for_challenge(c) != payload.level:
             continue
         if manager.get_instance_status(c.challenge_code) not in ("running", "unhealthy"):
             continue
+        to_stop.append(c.challenge_code)
+
+    if not to_stop:
+        return _ok({"stopped": 0}, "没有运行中的实例")
+
+    stopped = []
+    for code in to_stop:
         try:
-            manager.stop_challenge_instance(c.challenge_code)
-            stopped.append(c.challenge_code)
+            await asyncio.to_thread(manager.stop_challenge_instance, code)
+            stopped.append(code)
         except Exception:
             pass
 
