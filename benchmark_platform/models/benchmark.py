@@ -16,6 +16,11 @@ class FlagDef(BaseModel):
     hint: str = Field(default="", description='Technical hint, only revealed on request')
 
 
+class Requirements(BaseModel):
+    arch: str | None = Field(default=None, description='Required CPU architecture: x86_64 or aarch64')
+    kvm: bool = Field(default=False, description='Requires /dev/kvm hardware virtualization')
+
+
 class Benchmark(BaseModel):
     id: str = Field(..., description='The id of the benchmark')
     name: str = Field(..., description='The name of the benchmark')
@@ -37,6 +42,10 @@ class Benchmark(BaseModel):
     flags: list[FlagDef] = Field(
         default_factory=list,
         description='Multi-flag definitions (empty = legacy single-flag)',
+    )
+    requires: Requirements | None = Field(
+        default=None,
+        description='Hardware/environment requirements (null = no special requirements)',
     )
 
     @computed_field  # type: ignore[prop-decorator]

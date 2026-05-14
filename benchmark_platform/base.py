@@ -39,6 +39,8 @@ class Challenge(BaseModel):
     target_info: TargetInfo
     flag_states: list[FlagState] = []
     emulated: bool = False
+    unsupported: bool = False
+    unsupported_reason: str = ""
     _benchmark_id: str | None = PrivateAttr(default=None)
     _runtime_dir: Path | None = PrivateAttr(default=None)
 
