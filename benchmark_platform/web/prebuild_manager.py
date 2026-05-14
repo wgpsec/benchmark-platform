@@ -18,8 +18,9 @@ class ChallengeStatus:
     benchmark_id: str
     name: str
     source_path: Path = field(repr=False)
-    status: str = "pending"  # pending | building | cached | failed
+    status: str = "pending"  # pending | building | cached | failed | unsupported
     log_lines: list[str] = field(default_factory=list)
+    unsupported_reason: str = ""
 
 
 class PrebuildManager:
@@ -64,11 +65,14 @@ class PrebuildManager:
             if source_path is None:
                 source_path = Path("challenges") / bm_id
 
+            status = "unsupported" if c.unsupported else "pending"
             self._statuses[bm_id] = ChallengeStatus(
                 code=bm_id,
                 benchmark_id=bm_id,
                 name=bm.name,
                 source_path=source_path,
+                status=status,
+                unsupported_reason=c.unsupported_reason if c.unsupported else "",
             )
 
     # ── Public API ──────────────────────────────────────────────────────
@@ -76,6 +80,9 @@ class PrebuildManager:
     def check_cached(self) -> None:
         """Check which images are already cached (built/pulled). Runs in parallel."""
         def _check_one(cs: ChallengeStatus) -> None:
+            if cs.status == "unsupported":
+                return
+
             path = cs.source_path
             if not (path / "docker-compose.yml").exists():
                 cs.status = "failed"
@@ -119,9 +126,10 @@ class PrebuildManager:
         for cs in self._statuses.values():
             if codes_set and cs.benchmark_id not in codes_set:
                 continue
-            if cs.status not in ("cached",):
-                cs.status = "pending"
-                cs.log_lines.clear()
+            if cs.status in ("cached", "unsupported"):
+                continue
+            cs.status = "pending"
+            cs.log_lines.clear()
 
         thread = threading.Thread(target=self._run_builds, args=(concurrency, codes_set), daemon=True)
         thread.start()
@@ -140,6 +148,7 @@ class PrebuildManager:
                 "name": cs.name,
                 "status": cs.status,
                 "log_lines": cs.log_lines[-200:],
+                "unsupported_reason": cs.unsupported_reason,
             })
         return result
 

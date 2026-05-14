@@ -91,16 +91,19 @@
             <td colspan="5" class="p-0">
               <div>
                 <!-- Row -->
-                <div class="flex items-center hover:bg-gray-50 transition-colors px-4 py-3">
+                <div class="flex items-center hover:bg-gray-50 transition-colors px-4 py-3"
+                     :class="item.status === 'unsupported' ? 'opacity-50' : ''">
                   <div class="w-10 flex-shrink-0" x-show="!building">
                     <input type="checkbox" x-model="selected[item.code]"
-                           class="rounded border-gray-300 text-gray-900 focus:ring-gray-300 cursor-pointer">
+                           :disabled="item.status === 'unsupported'"
+                           class="rounded border-gray-300 text-gray-900 focus:ring-gray-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                   </div>
                   <div @click="toggle(item.code)" class="flex-1 text-[12px] text-gray-700 font-mono cursor-pointer" x-text="item.benchmark_id"></div>
                   <div @click="toggle(item.code)" class="flex-1 text-[12px] text-gray-700 cursor-pointer" x-text="item.name"></div>
                   <div @click="toggle(item.code)" class="flex-1 cursor-pointer">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
                           :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
+                    <span x-show="item.status === 'unsupported'" class="ml-1 text-[10px] text-amber-600" x-text="item.unsupported_reason"></span>
                   </div>
                   <div class="w-16 text-right">
                     <button x-show="item.status === 'cached'" @click.stop="removeOne(item.code)"
@@ -144,12 +147,12 @@ function prebuildPage() {
     },
 
     get allSelected() {
-      const pending = this.challenges.filter(c => c.status !== 'cached');
+      const pending = this.challenges.filter(c => c.status !== 'cached' && c.status !== 'unsupported');
       return pending.length > 0 && pending.every(c => this.selected[c.code]);
     },
 
     toggleSelectAll() {
-      const pending = this.challenges.filter(c => c.status !== 'cached');
+      const pending = this.challenges.filter(c => c.status !== 'cached' && c.status !== 'unsupported');
       const allSel = this.allSelected;
       pending.forEach(c => { this.selected[c.code] = !allSel; });
     },
@@ -306,6 +309,7 @@ function prebuildPage() {
         case 'cached': return 'bg-emerald-50 text-emerald-700';
         case 'building': return 'bg-blue-50 text-blue-700';
         case 'failed': return 'bg-red-50 text-red-700';
+        case 'unsupported': return 'bg-amber-50 text-amber-700';
         default: return 'bg-gray-100 text-gray-600';
       }
     },
@@ -315,6 +319,7 @@ function prebuildPage() {
         case 'cached': return '已缓存';
         case 'building': return '构建中';
         case 'failed': return '失败';
+        case 'unsupported': return '不支持';
         default: return '未缓存';
       }
     },
