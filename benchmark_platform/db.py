@@ -1,6 +1,7 @@
 # benchmark_platform/db.py
 """SQLite database for team management and per-team progress."""
 
+import json
 import secrets
 import sqlite3
 import uuid
@@ -62,6 +63,19 @@ def init_db() -> None:
             benchmark_id TEXT PRIMARY KEY,
             enabled      INTEGER NOT NULL DEFAULT 1,
             updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS instance_lifecycle (
+            id             TEXT PRIMARY KEY,
+            benchmark_id   TEXT NOT NULL UNIQUE,
+            challenge_code TEXT NOT NULL UNIQUE,
+            team_id        TEXT,
+            runtime_path   TEXT NOT NULL,
+            ports          TEXT NOT NULL,
+            status         TEXT NOT NULL DEFAULT 'stopped',
+            started_at     TEXT,
+            expires_at     TEXT,
+            created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
         );
     """)
     # Migrate old schema: rename challenge_code → benchmark_id if needed
@@ -246,6 +260,90 @@ def get_challenge_visibility() -> dict:
         "SELECT benchmark_id, enabled FROM challenge_visibility"
     ).fetchall()
     return {r["benchmark_id"]: bool(r["enabled"]) for r in rows}
+
+
+def upsert_instance(
+    instance_id: str,
+    benchmark_id: str,
+    challenge_code: str,
+    runtime_path: str,
+    ports: list[int],
+    status: str,
+    team_id: str | None = None,
+    started_at: str | None = None,
+    expires_at: str | None = None,
+) -> None:
+    conn = _get_conn()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ports_json = json.dumps(ports)
+    conn.execute(
+        """INSERT INTO instance_lifecycle
+           (id, benchmark_id, challenge_code, team_id, runtime_path, ports, status, started_at, expires_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(benchmark_id) DO UPDATE SET
+             challenge_code = excluded.challenge_code,
+             team_id = excluded.team_id,
+             runtime_path = excluded.runtime_path,
+             ports = excluded.ports,
+             status = excluded.status,
+             started_at = excluded.started_at,
+             expires_at = excluded.expires_at,
+             updated_at = excluded.updated_at
+        """,
+        (instance_id, benchmark_id, challenge_code, team_id, runtime_path,
+         ports_json, status, started_at, expires_at, now),
+    )
+    conn.commit()
+
+
+def get_instance_by_benchmark_id(benchmark_id: str) -> dict | None:
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT * FROM instance_lifecycle WHERE benchmark_id = ?",
+        (benchmark_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def get_running_instances() -> list[dict]:
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT * FROM instance_lifecycle WHERE status = 'running'"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_expired_instances() -> list[dict]:
+    conn = _get_conn()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = conn.execute(
+        "SELECT * FROM instance_lifecycle WHERE status = 'running' AND expires_at < ?",
+        (now,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_instance_status(benchmark_id: str, status: str,
+                           started_at: str | None = None,
+                           expires_at: str | None = None) -> None:
+    conn = _get_conn()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    conn.execute(
+        """UPDATE instance_lifecycle
+           SET status = ?, started_at = ?, expires_at = ?, updated_at = ?
+           WHERE benchmark_id = ?""",
+        (status, started_at, expires_at, now, benchmark_id),
+    )
+    conn.commit()
+
+
+def delete_instance(benchmark_id: str) -> None:
+    conn = _get_conn()
+    conn.execute(
+        "DELETE FROM instance_lifecycle WHERE benchmark_id = ?",
+        (benchmark_id,),
+    )
+    conn.commit()
 
 
 def get_level_gate_config() -> dict:

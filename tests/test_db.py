@@ -6,6 +6,8 @@ from benchmark_platform.db import (
     get_or_create_default_team, mark_flag_solved,
     get_team_solved_count, is_hint_viewed, mark_hint_viewed,
     get_team_progress, reset_team_progress, _set_db_path,
+    upsert_instance, get_instance_by_benchmark_id, get_running_instances,
+    get_expired_instances, delete_instance,
 )
 
 
@@ -101,3 +103,69 @@ def test_reset_team_progress():
     reset_team_progress(team["id"])
     assert get_team_solved_count(team["id"], "XBEN-001-24") == 0
     assert is_hint_viewed(team["id"], "XBEN-001-24") is False
+
+
+def test_upsert_instance_insert():
+    upsert_instance(
+        instance_id="id-1",
+        benchmark_id="XBEN-001-24",
+        challenge_code="uuid-1",
+        runtime_path="runtime/XBEN-001-24/uuid-1",
+        ports=[8081, 8082],
+        status="stopped",
+    )
+    row = get_instance_by_benchmark_id("XBEN-001-24")
+    assert row is not None
+    assert row["challenge_code"] == "uuid-1"
+    assert row["status"] == "stopped"
+    assert row["ports"] == "[8081, 8082]"
+
+
+def test_upsert_instance_update():
+    upsert_instance(
+        instance_id="id-1",
+        benchmark_id="XBEN-001-24",
+        challenge_code="uuid-1",
+        runtime_path="runtime/XBEN-001-24/uuid-1",
+        ports=[8081],
+        status="stopped",
+    )
+    upsert_instance(
+        instance_id="id-1",
+        benchmark_id="XBEN-001-24",
+        challenge_code="uuid-2",
+        runtime_path="runtime/XBEN-001-24/uuid-2",
+        ports=[9091],
+        status="running",
+        started_at="2026-05-14T00:00:00Z",
+        expires_at="2026-05-14T01:00:00Z",
+    )
+    row = get_instance_by_benchmark_id("XBEN-001-24")
+    assert row["challenge_code"] == "uuid-2"
+    assert row["status"] == "running"
+    assert row["ports"] == "[9091]"
+
+
+def test_get_running_instances():
+    upsert_instance("id-1", "XBEN-001-24", "c1", "p1", [80], "running",
+                    started_at="2026-05-14T00:00:00Z", expires_at="2026-05-14T01:00:00Z")
+    upsert_instance("id-2", "XBEN-002-24", "c2", "p2", [81], "stopped")
+    rows = get_running_instances()
+    assert len(rows) == 1
+    assert rows[0]["benchmark_id"] == "XBEN-001-24"
+
+
+def test_get_expired_instances():
+    upsert_instance("id-1", "XBEN-001-24", "c1", "p1", [80], "running",
+                    started_at="2026-05-14T00:00:00Z", expires_at="2020-01-01T00:00:00Z")
+    upsert_instance("id-2", "XBEN-002-24", "c2", "p2", [81], "running",
+                    started_at="2026-05-14T00:00:00Z", expires_at="2099-01-01T00:00:00Z")
+    rows = get_expired_instances()
+    assert len(rows) == 1
+    assert rows[0]["benchmark_id"] == "XBEN-001-24"
+
+
+def test_delete_instance():
+    upsert_instance("id-1", "XBEN-001-24", "c1", "p1", [80], "stopped")
+    delete_instance("XBEN-001-24")
+    assert get_instance_by_benchmark_id("XBEN-001-24") is None
