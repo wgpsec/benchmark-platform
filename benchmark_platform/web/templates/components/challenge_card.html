@@ -66,6 +66,14 @@
     <span class="text-amber-600 flex items-center gap-1">
       <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> 异常
     </span>
+    {% elif card.instance_status == 'starting' %}
+    <span class="text-emerald-600 flex items-center gap-1">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 启动中…
+    </span>
+    {% elif card.instance_status == 'stopping' %}
+    <span class="text-gray-500 flex items-center gap-1">
+      <span class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse"></span> 停止中…
+    </span>
     {% else %}
     <span class="text-gray-400 flex items-center gap-1">
       <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span> stopped
@@ -112,6 +120,11 @@
     <span class="text-[12px] text-gray-400">该题目已对 Agent 关闭</span>
     {% elif card.solved %}
     <span class="text-[12px] text-gray-400">全部完成</span>
+    {% elif card.instance_status in ('starting', 'stopping') %}
+    <button disabled
+      class="h-8 px-3 text-gray-400 bg-gray-100 border border-gray-200 text-[12px] font-medium rounded-lg cursor-not-allowed">
+      {{ '启动中…' if card.instance_status == 'starting' else '停止中…' }}
+    </button>
     {% elif card.instance_status in ('running', 'unhealthy') %}
     <button
       :disabled="loading"
@@ -171,6 +184,35 @@
       查看提示
     </button>
     {% else %}
+    {% if card.requires_windows_iso %}
+    <button
+      :disabled="loading"
+      @click="
+        loading = true;
+        fetch('/api/start_challenge', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'{{ card.challenge_code }}'})})
+        .then(r => r.json())
+        .then(data => {
+          if(data.code === 0) {
+            $dispatch('toast', {type:'success', message: data.message || '启动请求已提交'});
+          } else {
+            $dispatch('toast', {type:'error', message: data.message || '启动失败'});
+          }
+        })
+        .catch(() => $dispatch('toast', {type:'error', message:'启动失败'}))
+        .finally(() => {
+          fetch('/web/partials/challenge_card?benchmark_id={{ card.benchmark_id }}').then(r=>r.text()).then(html => {
+            document.getElementById('card-{{ card.benchmark_id }}').outerHTML = html;
+          });
+        });
+      "
+      class="h-8 px-3 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+      <span x-show="!loading">启动</span>
+      <span x-show="loading" class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        启动中...
+      </span>
+    </button>
+    {% else %}
     <button
       :disabled="loading"
       @click="
@@ -198,7 +240,21 @@
       </span>
     </button>
     {% endif %}
+    {% endif %}
   </div>
+
+  <!-- Log panel for AD challenges (requires_windows_iso) -->
+  {% if card.requires_windows_iso and card.instance_status in ('starting', 'stopping') %}
+  <div class="mt-2" x-data="composeLogPanel('{{ card.benchmark_id }}')">
+    <div class="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300 leading-relaxed"
+         x-ref="logContainer">
+      <template x-for="(line, idx) in lines" :key="idx">
+        <div x-text="line"></div>
+      </template>
+      <div x-show="lines.length === 0" class="text-gray-500">等待日志输出...</div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 <script>
 function countdown(expiresAt) {
@@ -225,6 +281,59 @@ function countdown(expiresAt) {
       this.display = h > 0
         ? `${h}h ${m.toString().padStart(2,'0')}m`
         : `${m}m ${s.toString().padStart(2,'0')}s`;
+    },
+    destroy() {
+      if (this.interval) clearInterval(this.interval);
+    }
+  };
+}
+
+function composeLogPanel(benchmarkId) {
+  return {
+    lines: [],
+    offset: 0,
+    interval: null,
+    failed: false,
+    init() {
+      this.fetchLogs();
+      this.interval = setInterval(() => this.fetchLogs(), 2000);
+    },
+    fetchLogs() {
+      fetch(`/api/instance_logs?benchmark_id=${benchmarkId}&offset=${this.offset}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.code !== 0) return;
+          const d = data.data;
+          if (d.total < this.offset) {
+            this.lines = [];
+            this.offset = 0;
+            return;
+          }
+          if (d.logs && d.logs.length > 0) {
+            this.lines = this.lines.concat(d.logs);
+            this.offset = d.total;
+            this.$nextTick(() => {
+              const container = this.$refs.logContainer;
+              if (container) container.scrollTop = container.scrollHeight;
+            });
+          }
+          if (d.status === 'running') {
+            if (this.interval) clearInterval(this.interval);
+            setTimeout(() => {
+              fetch(`/web/partials/challenge_card?benchmark_id=${benchmarkId}`)
+                .then(r => r.text())
+                .then(html => {
+                  const el = document.getElementById(`card-${benchmarkId}`);
+                  if (el) el.outerHTML = html;
+                });
+            }, 500);
+          } else if (d.status === 'stopped') {
+            if (this.interval) clearInterval(this.interval);
+            this.failed = true;
+            this.lines.push('--- 启动失败 ---');
+          }
+        })
+        .catch(() => {});
     },
     destroy() {
       if (this.interval) clearInterval(this.interval);

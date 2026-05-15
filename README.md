@@ -42,6 +42,10 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 ### Install
 
 ```bash
+python3 -m venv venv
+
+source venv/bin/activate
+
 pip install -e .
 ```
 

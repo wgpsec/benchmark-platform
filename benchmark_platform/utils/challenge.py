@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -47,7 +48,8 @@ class ChallengeManager:
         self.runtime_dir = runtime_dir or Path('runtime')
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.challenges: list[Challenge] = []
-        self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"
+        self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"|"starting"|"stopping"
+        self._instance_logs: dict[str, list[str]] = {}  # benchmark_id → log lines
         self._code_aliases: dict[str, str] = {}  # old_challenge_code → benchmark_id
         self._reaper_stop = threading.Event()
         self._reaper_thread: threading.Thread | None = None
@@ -518,8 +520,13 @@ class ChallengeManager:
         except Exception as e:
             logger.warning("failed to prune docker networks", error=str(e))
 
-    def start_challenge_instance(self, challenge_code: str) -> list[str]:
-        """Start docker containers for one challenge. Return entrypoint list."""
+    def start_challenge_instance(self, challenge_code: str) -> list[str] | None:
+        """Start docker containers for one challenge.
+
+        For AD challenges (requires_windows_iso), starts compose in a background
+        thread and returns None immediately (caller gets 202).
+        For other challenges, blocks until compose completes and returns entrypoint list.
+        """
         challenge = self._find_by_code(challenge_code)
         if challenge.unsupported:
             raise RuntimeError(f"无法启动: {challenge.unsupported_reason}")
@@ -552,10 +559,43 @@ class ChallengeManager:
             compose_path = Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir) / "docker-compose.yml"
             self._inject_windows_iso(compose_path, iso_path)
 
-        compose_timeout = self._COMPOSE_TIMEOUT_WINDOWS if challenge.requires_windows_iso else None
-        self._compose(benchmark_id, challenge_code, 'up', '-d', timeout=compose_timeout)
-        self._instance_status[challenge_code] = "running"
+        self._instance_status[challenge_code] = "starting"
 
+        if challenge.requires_windows_iso:
+            threading.Thread(
+                target=self._async_compose_start,
+                args=(challenge, benchmark_id, challenge_code),
+                daemon=True,
+            ).start()
+            return None
+
+        try:
+            self._compose(benchmark_id, challenge_code, 'up', '-d')
+        except Exception:
+            self._instance_status[challenge_code] = "stopped"
+            raise
+        self._instance_status[challenge_code] = "running"
+        self._finalize_start(challenge, benchmark_id, challenge_code)
+        return [
+            f"{self.public_accessible_host}:{p}"
+            for p in challenge.target_info.port
+        ]
+
+    def _async_compose_start(self, challenge: Challenge, benchmark_id: str, challenge_code: str) -> None:
+        """Background thread for AD challenge compose up."""
+        try:
+            self._compose(benchmark_id, challenge_code, 'up', '-d',
+                          timeout=self._COMPOSE_TIMEOUT_WINDOWS)
+            self._instance_status[challenge_code] = "running"
+            self._finalize_start(challenge, benchmark_id, challenge_code)
+        except Exception as e:
+            logger.error("async compose start failed",
+                         benchmark_id=benchmark_id, error=str(e))
+            self._instance_logs.setdefault(benchmark_id, []).append(f"ERROR: {e}")
+            self._instance_status[challenge_code] = "stopped"
+
+    def _finalize_start(self, challenge: Challenge, benchmark_id: str, challenge_code: str) -> None:
+        """Record instance as running in DB after successful compose up."""
         timeout_config = get_instance_timeout_config()
         level = self.get_level_for_challenge(challenge)
         timeout_secs = timeout_config.get(level, 7200)
@@ -574,15 +614,11 @@ class ChallengeManager:
             expires_at=expires_at,
         )
 
-        return [
-            f"{self.public_accessible_host}:{p}"
-            for p in challenge.target_info.port
-        ]
-
     def stop_challenge_instance(self, challenge_code: str) -> None:
         """Stop docker containers for one challenge."""
         challenge = self._find_by_code(challenge_code)
         actual_code = challenge.challenge_code
+        self._instance_status[actual_code] = "stopping"
         self._compose(challenge.get_benchmark_id(), actual_code, 'down')
         self._instance_status[actual_code] = "stopped"
         update_instance_status(challenge.get_benchmark_id(), "stopped")
@@ -807,30 +843,74 @@ class ChallengeManager:
         compose_timeout = timeout or self._COMPOSE_TIMEOUT
         cmd = ['docker', 'compose'] + list(args)
         logger.info("docker compose", action="compose", cmd=" ".join(cmd), cwd=str(path))
+
+        self._instance_logs[benchmark_id] = []
+        logs = self._instance_logs[benchmark_id]
+
+        start_time = time.monotonic()
+
+        proc = subprocess.Popen(
+            cmd, cwd=path,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
         try:
-            res = subprocess.run(
-                cmd,
-                cwd=path, capture_output=True, text=True,
-                timeout=compose_timeout,
-            )
-        except subprocess.TimeoutExpired:
-            logger.error("docker compose timed out", action="compose",
-                         cmd=" ".join(cmd), timeout=compose_timeout)
-            raise RuntimeError(f"Docker compose timed out after {compose_timeout}s")
-        if res.returncode != 0:
-            if 'could not find an available, non-overlapping IPv4 address pool' in res.stderr:
+            while True:
+                line = proc.stdout.readline()
+                if not line and proc.poll() is not None:
+                    break
+                if line:
+                    logs.append(line.rstrip('\n'))
+                    if len(logs) > 500:
+                        del logs[:len(logs) - 500]
+                if time.monotonic() - start_time > compose_timeout:
+                    proc.terminate()
+                    proc.wait(timeout=10)
+                    logger.error("docker compose timed out", action="compose",
+                                 cmd=" ".join(cmd), timeout=compose_timeout)
+                    raise RuntimeError(f"Docker compose timed out after {compose_timeout}s")
+        except RuntimeError:
+            raise
+        except Exception:
+            proc.kill()
+            raise
+
+        if proc.returncode != 0:
+            output = '\n'.join(logs[-20:])
+            if 'could not find an available, non-overlapping IPv4 address pool' in output:
                 logger.warning("address pool exhausted, pruning networks and retrying", benchmark_id=benchmark_id)
                 self._prune_orphan_networks()
-                try:
-                    res = subprocess.run(cmd, cwd=path, capture_output=True, text=True,
-                                         timeout=compose_timeout)
-                except subprocess.TimeoutExpired:
-                    raise RuntimeError(f"Docker compose timed out after {compose_timeout}s (retry)")
-                if res.returncode == 0:
+                self._instance_logs[benchmark_id] = []
+                logs = self._instance_logs[benchmark_id]
+                start_time = time.monotonic()
+                proc = subprocess.Popen(
+                    cmd, cwd=path,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                )
+                while True:
+                    line = proc.stdout.readline()
+                    if not line and proc.poll() is not None:
+                        break
+                    if line:
+                        logs.append(line.rstrip('\n'))
+                        if len(logs) > 500:
+                            del logs[:len(logs) - 500]
+                    if time.monotonic() - start_time > compose_timeout:
+                        proc.terminate()
+                        proc.wait(timeout=10)
+                        raise RuntimeError(f"Docker compose timed out after {compose_timeout}s (retry)")
+                if proc.returncode == 0:
                     return
             logger.error("docker compose failed", action="compose",
-                         cmd=" ".join(cmd), stderr=res.stderr[:500], stdout=res.stdout[:200])
-            raise RuntimeError(f"Docker compose failed: {res.stderr}")
+                         cmd=" ".join(cmd), stderr=output[:500])
+            raise RuntimeError(f"Docker compose failed: {output[:500]}")
+
+    def get_instance_logs(self, benchmark_id: str, offset: int = 0) -> tuple[list[str], int]:
+        """Return (log_lines_from_offset, total_line_count) for a benchmark."""
+        logs = self._instance_logs.get(benchmark_id, [])
+        total = len(logs)
+        if offset >= total:
+            return [], total
+        return logs[offset:], total
 
     def print_summary_table(self) -> None:
         if not self.challenges:

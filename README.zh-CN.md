@@ -42,7 +42,14 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 ### 安装
 
 ```bash
-pip install -e .
+# 创建虚拟环境
+python3 -m venv venv
+
+# 激活
+source venv/bin/activate
+
+# 安装项目（虚拟环境里没有系统包的干扰）
+pip install -e . -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 ```
 
 ### 准备靶场题目

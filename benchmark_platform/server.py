@@ -312,18 +312,31 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
     if team_solved >= challenge.flag_count:
         return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
 
-    if manager.get_instance_status(payload.code) in ("running", "unhealthy"):
+    current_status = manager.get_instance_status(payload.code)
+    if current_status in ("running", "unhealthy"):
         entrypoints = [f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port]
         return _ok(entrypoints, "赛题实例已在运行中")
 
+    if current_status == "starting":
+        return JSONResponse(
+            status_code=202,
+            content=_ok(None, "赛题正在启动中"),
+        )
+
     try:
-        entrypoints = await asyncio.to_thread(manager.start_challenge_instance, payload.code)
+        result = await asyncio.to_thread(manager.start_challenge_instance, payload.code)
     except Exception as e:
         logger.error("start_challenge failed", action="api", challenge_code=payload.code, error=str(e))
         _err(f"赛题启动失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
 
-    return _ok(entrypoints, "赛题实例启动成功")
+    if result is None:
+        return JSONResponse(
+            status_code=202,
+            content=_ok(None, "赛题正在启动中，请通过日志面板查看进度"),
+        )
+
+    return _ok(result, "赛题实例启动成功")
 
 
 class StopChallengeRequest(PydanticBaseModel):
@@ -823,6 +836,27 @@ async def tch_instance_statuses(request: Request):
             "expires_at": expires_at,
         }
     return _ok({"statuses": statuses, "batch_starting": getattr(app.state, "batch_starting", False)})
+
+
+@app.get("/api/instance_logs")
+async def tch_instance_logs(benchmark_id: str, offset: int = 0):
+    """Return compose logs for a challenge instance (used by Web UI log panel)."""
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    challenge = None
+    for c in manager.challenges:
+        if c.get_benchmark_id() == benchmark_id:
+            challenge = c
+            break
+    if challenge is None:
+        _err(f"Challenge {benchmark_id} not found", 404)
+        return
+
+    status = manager.get_instance_status(challenge.challenge_code)
+    logs, total = manager.get_instance_logs(benchmark_id, offset)
+    return _ok({"status": status, "logs": logs, "total": total})
 
 
 # ── Prebuild/Cache API ──────────────────────────────────────────────────────
