@@ -142,6 +142,7 @@ class ChallengeManager:
         self._cleanup(self.challenges)
         self.challenges.clear()
         self._instance_status.clear()
+        self._prune_orphan_volumes()
 
     def _start_reaper(self) -> None:
         """Start the background reaper thread for expired instances."""
@@ -168,7 +169,7 @@ class ChallengeManager:
                     try:
                         if runtime_path.exists():
                             subprocess.run(
-                                ['docker', 'compose', 'down'],
+                                ['docker', 'compose', 'down', '-v', '--remove-orphans'],
                                 cwd=runtime_path,
                                 capture_output=True, text=True, timeout=60,
                             )
@@ -241,6 +242,27 @@ class ChallengeManager:
 
         logger.info("inject_windows_iso", compose_path=str(compose_path),
                     iso_path=iso_path, injected=injected)
+
+    @classmethod
+    def _inject_oem_flags(cls, runtime_path: Path) -> None:
+        """Write dynamic flags into OEM/flags.env so Windows VM can read them."""
+        import dotenv
+        env_path = runtime_path / '.env'
+        if not env_path.exists():
+            return
+        env_vars = dotenv.dotenv_values(env_path)
+        oem_dirs = list(runtime_path.glob('src/*/oem'))
+        if not oem_dirs:
+            oem_dirs = list(runtime_path.glob('*/oem'))
+        for oem_dir in oem_dirs:
+            flags_file = oem_dir / 'flags.env'
+            lines = []
+            for k, v in env_vars.items():
+                if k.upper().startswith('FLAG'):
+                    lines.append(f"{k}={v}")
+            if lines:
+                flags_file.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+                logger.info("inject_oem_flags", path=str(flags_file), count=len(lines))
 
     def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
         challenge_id = str(uuid.uuid4())
@@ -478,7 +500,7 @@ class ChallengeManager:
         if runtime_path.exists():
             try:
                 subprocess.run(
-                    ['docker', 'compose', 'down'],
+                    ['docker', 'compose', 'down', '-v', '--remove-orphans'],
                     cwd=runtime_path, capture_output=True, text=True, timeout=30,
                 )
             except Exception:
@@ -505,7 +527,7 @@ class ChallengeManager:
             for d in compose_dirs:
                 try:
                     subprocess.run(
-                        ['docker', 'compose', 'down'],
+                        ['docker', 'compose', 'down', '-v', '--remove-orphans'],
                         cwd=d, capture_output=True, text=True, timeout=30,
                     )
                 except Exception:
@@ -524,6 +546,18 @@ class ChallengeManager:
                 logger.info("pruned orphan docker networks", output=res.stdout.strip()[:200])
         except Exception as e:
             logger.warning("failed to prune docker networks", error=str(e))
+
+    def _prune_orphan_volumes(self) -> None:
+        """Remove dangling Docker volumes not referenced by any container."""
+        try:
+            res = subprocess.run(
+                ['docker', 'volume', 'prune', '-f'],
+                capture_output=True, text=True, timeout=60,
+            )
+            if res.stdout.strip():
+                logger.info("pruned orphan docker volumes", output=res.stdout.strip()[:200])
+        except Exception as e:
+            logger.warning("failed to prune docker volumes", error=str(e))
 
     def start_challenge_instance(self, challenge_code: str) -> list[str] | None:
         """Start docker containers for one challenge.
@@ -561,8 +595,10 @@ class ChallengeManager:
                 raise RuntimeError("请先在系统设置中配置 Windows Server 2022 ISO 路径")
             if not Path(iso_path).is_file():
                 raise RuntimeError(f"Windows ISO 文件不存在: {iso_path}")
-            compose_path = Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir) / "docker-compose.yml"
+            runtime_path = Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir)
+            compose_path = runtime_path / "docker-compose.yml"
             self._inject_windows_iso(compose_path, iso_path)
+            self._inject_oem_flags(runtime_path)
 
         self._instance_status[challenge_code] = "starting"
 
@@ -624,7 +660,7 @@ class ChallengeManager:
         challenge = self._find_by_code(challenge_code)
         actual_code = challenge.challenge_code
         self._instance_status[actual_code] = "stopping"
-        self._compose(challenge.get_benchmark_id(), actual_code, 'down')
+        self._compose(challenge.get_benchmark_id(), actual_code, 'down', '-v', '--remove-orphans')
         self._instance_status[actual_code] = "stopped"
         update_instance_status(challenge.get_benchmark_id(), "stopped")
 
@@ -691,7 +727,7 @@ class ChallengeManager:
         logger.info('cleaning up challenges', count=len(challenges))
         with ThreadPoolExecutor() as executor:
             list(executor.map(
-                lambda c: self._compose(c.get_benchmark_id(), c.challenge_code, 'down'),
+                lambda c: self._compose(c.get_benchmark_id(), c.challenge_code, 'down', '-v', '--remove-orphans'),
                 challenges,
             ))
             def remove_dir(c):

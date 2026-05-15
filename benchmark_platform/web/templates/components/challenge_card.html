@@ -177,6 +177,31 @@
         停止中...
       </span>
     </button>
+    {% if card.requires_windows_iso %}
+    <div x-data="{ vncUrl: null, enabling: false }">
+      <button
+        :disabled="enabling"
+        x-show="!vncUrl"
+        @click="
+          enabling = true;
+          fetch('/api/vnc/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({benchmark_id:'{{ card.benchmark_id }}'})})
+          .then(r => r.json())
+          .then(data => {
+            if(data.code === 0) { vncUrl = data.data.url; }
+            else { $dispatch('toast', {type:'error', message: data.message || '开启失败'}); }
+          })
+          .catch(() => $dispatch('toast', {type:'error', message:'开启失败'}))
+          .finally(() => { enabling = false; });
+        "
+        class="h-8 px-3 text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+        VNC
+      </button>
+      <a x-show="vncUrl" :href="vncUrl" target="_blank"
+         class="h-8 px-3 inline-flex items-center text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors">
+        打开 VNC
+      </a>
+    </div>
+    {% endif %}
     {% if card.expires_at %}
     <span class="ml-auto text-[11px] font-mono"
           x-data="countdown('{{ card.expires_at }}')"
@@ -270,7 +295,7 @@
 
   <!-- Log panel for AD challenges (requires_windows_iso) -->
   {% if card.requires_windows_iso and card.instance_status in ('starting', 'stopping') %}
-  <div class="mt-2" x-data="composeLogPanel('{{ card.benchmark_id }}')">
+  <div class="mt-2" x-data="composeLogPanel('{{ card.benchmark_id }}', '{{ card.instance_status }}')">
     <div class="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300 leading-relaxed"
          x-ref="logContainer">
       <template x-for="(line, idx) in lines" :key="idx">
@@ -313,7 +338,7 @@ function countdown(expiresAt) {
   };
 }
 
-function composeLogPanel(benchmarkId) {
+function composeLogPanel(benchmarkId, mode) {
   return {
     lines: [],
     offset: 0,
@@ -354,8 +379,20 @@ function composeLogPanel(benchmarkId) {
             }, 500);
           } else if (d.status === 'stopped') {
             if (this.interval) clearInterval(this.interval);
-            this.failed = true;
-            this.lines.push('--- 启动失败 ---');
+            if (mode === 'stopping') {
+              this.lines.push('--- 已停止 ---');
+            } else {
+              this.failed = true;
+              this.lines.push('--- 启动失败 ---');
+            }
+            setTimeout(() => {
+              fetch(`/web/partials/challenge_card?benchmark_id=${benchmarkId}`)
+                .then(r => r.text())
+                .then(html => {
+                  const el = document.getElementById(`card-${benchmarkId}`);
+                  if (el) el.outerHTML = html;
+                });
+            }, 1500);
           }
         })
         .catch(() => {});

@@ -26,37 +26,34 @@ _active_proxies: dict[str, str] = {}
 
 
 def _get_container_ip(benchmark_id: str, runtime_dir: Path) -> str | None:
-    """Find the DC container's IP by inspecting docker compose services."""
-    from benchmark_platform.db import get_instance_by_benchmark_id
-    record = get_instance_by_benchmark_id(benchmark_id)
-    if not record:
-        return None
-    runtime_path = Path(record["runtime_path"])
-    if not runtime_path.exists():
-        return None
-
+    """Find the DC container's IP for a given benchmark."""
     try:
         res = subprocess.run(
-            ['docker', 'compose', 'ps', '--format', 'json'],
-            cwd=runtime_path, capture_output=True, text=True, timeout=10,
+            ['docker', 'ps', '--filter', 'label=com.docker.compose.service=dc',
+             '--format', '{{.ID}}'],
+            capture_output=True, text=True, timeout=10,
         )
-        if res.returncode != 0:
+        if res.returncode != 0 or not res.stdout.strip():
             return None
-        for line in res.stdout.strip().splitlines():
-            info = json.loads(line)
-            name = info.get("Name", "").lower()
-            if "dc" in name:
-                container_id = info.get("ID", "")
-                if container_id:
-                    ip_res = subprocess.run(
-                        ['docker', 'inspect', '-f',
-                         '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',
-                         container_id],
-                        capture_output=True, text=True, timeout=5,
-                    )
-                    ip = ip_res.stdout.strip()
-                    if ip:
-                        return ip
+
+        for container_id in res.stdout.strip().splitlines():
+            inspect_res = subprocess.run(
+                ['docker', 'inspect', '--format',
+                 '{{index .Config.Labels "com.docker.compose.project.working_dir"}}||'
+                 '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}',
+                 container_id.strip()],
+                capture_output=True, text=True, timeout=5,
+            )
+            if inspect_res.returncode != 0:
+                continue
+            parts = inspect_res.stdout.strip().split('||')
+            if len(parts) != 2:
+                continue
+            working_dir, ips = parts
+            if f'/{benchmark_id}/' in working_dir:
+                ip = ips.strip().split()[0] if ips.strip() else ""
+                if ip:
+                    return ip
     except Exception as e:
         logger.error("failed to get container IP", benchmark_id=benchmark_id, error=str(e))
     return None
