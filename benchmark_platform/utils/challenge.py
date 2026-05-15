@@ -220,22 +220,27 @@ class ChallengeManager:
                 return True
         return False
 
-    @staticmethod
-    def _inject_windows_iso(compose_path: Path, iso_path: str) -> None:
+    @classmethod
+    def _inject_windows_iso(cls, compose_path: Path, iso_path: str) -> None:
         """Append ISO bind mount to dockur services in the compose file."""
         with open(compose_path) as f:
             data = yaml.safe_load(f)
 
-        for svc in data.get("services", {}).values():
+        injected = False
+        for svc_name, svc in data.get("services", {}).items():
             image = svc.get("image", "")
             if "dockur" in image.lower():
                 volumes = svc.setdefault("volumes", [])
                 mount = f"{iso_path}:/storage/custom.iso:ro"
                 if mount not in volumes:
                     volumes.append(mount)
+                    injected = True
 
         with open(compose_path, 'w') as f:
             yaml.dump(data, f)
+
+        logger.info("inject_windows_iso", compose_path=str(compose_path),
+                    iso_path=iso_path, injected=injected)
 
     def _create_challenge(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
         challenge_id = str(uuid.uuid4())
@@ -287,7 +292,7 @@ class ChallengeManager:
                         description=flag_def.get('description', ''),
                     ))
 
-            _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD}
+            _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD, 4: Difficulty.AD}
             if bm.level not in _level_map:
                 raise ValueError(f"Unknown level {bm.level!r} in benchmark {benchmark_id!r}")
 
@@ -936,7 +941,7 @@ class ChallengeManager:
 
     def get_level_for_challenge(self, challenge: Challenge) -> int:
         """Return the level (1/2/3) for a challenge based on its difficulty."""
-        level_map = {Difficulty.EASY: 1, Difficulty.MEDIUM: 2, Difficulty.HARD: 3}
+        level_map = {Difficulty.EASY: 1, Difficulty.MEDIUM: 2, Difficulty.HARD: 3, Difficulty.AD: 4}
         return level_map[challenge.difficulty]
 
     def get_current_level(self, team_id: str = None) -> int:

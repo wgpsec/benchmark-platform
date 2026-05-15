@@ -1,5 +1,5 @@
-{% set diff_badge = {'easy': 'bg-emerald-50 text-emerald-600', 'medium': 'bg-amber-50 text-amber-600', 'hard': 'bg-red-50 text-red-600'} %}
-{% set diff_label = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'} %}
+{% set diff_badge = {'easy': 'bg-emerald-50 text-emerald-600', 'medium': 'bg-amber-50 text-amber-600', 'hard': 'bg-red-50 text-red-600', 'ad': 'bg-purple-50 text-purple-600'} %}
+{% set diff_label = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard', 'ad': 'AD'} %}
 
 <div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3 transition-all{% if not card.enabled %} opacity-50 grayscale{% elif card.unsupported %} opacity-50{% endif %}"
      id="card-{{ card.benchmark_id }}"
