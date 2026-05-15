@@ -125,6 +125,31 @@
       class="h-8 px-3 text-gray-400 bg-gray-100 border border-gray-200 text-[12px] font-medium rounded-lg cursor-not-allowed">
       {{ '启动中…' if card.instance_status == 'starting' else '停止中…' }}
     </button>
+    {% if card.requires_windows_iso and card.instance_status == 'starting' %}
+    <div x-data="{ vncUrl: null, enabling: false }">
+      <button
+        :disabled="enabling"
+        x-show="!vncUrl"
+        @click="
+          enabling = true;
+          fetch('/api/vnc/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({benchmark_id:'{{ card.benchmark_id }}'})})
+          .then(r => r.json())
+          .then(data => {
+            if(data.code === 0) { vncUrl = data.data.url; }
+            else { $dispatch('toast', {type:'error', message: data.message || '开启失败'}); }
+          })
+          .catch(() => $dispatch('toast', {type:'error', message:'开启失败'}))
+          .finally(() => { enabling = false; });
+        "
+        class="h-8 px-3 text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+        VNC 监控
+      </button>
+      <a x-show="vncUrl" :href="vncUrl" target="_blank"
+         class="h-8 px-3 inline-flex items-center text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors">
+        打开 VNC
+      </a>
+    </div>
+    {% endif %}
     {% elif card.instance_status in ('running', 'unhealthy') %}
     <button
       :disabled="loading"

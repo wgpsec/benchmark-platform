@@ -56,6 +56,9 @@ app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), na
 app.include_router(web_router, prefix="/web")
 app.mount("/mcp", _mcp_app)
 
+from benchmark_platform.web.vnc_proxy import router as vnc_router
+app.include_router(vnc_router)
+
 
 @app.exception_handler(HTTPException)
 async def _tch_http_exception_handler(request: Request, exc: HTTPException):
@@ -735,6 +738,39 @@ async def set_win_iso_api(payload: WinIsoRequest):
         return
     set_setting("win2022_iso_path", path)
     return _ok({"win2022_iso_path": path}, "已保存")
+
+
+# ── Admin VNC Proxy API ──────────────────────────────────────────────────────
+
+class VncToggleRequest(PydanticBaseModel):
+    benchmark_id: str
+
+
+@app.post("/api/vnc/enable")
+async def vnc_enable_api(payload: VncToggleRequest):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    from benchmark_platform.web.vnc_proxy import enable_vnc
+    url = enable_vnc(payload.benchmark_id, manager.runtime_dir)
+    if url is None:
+        _err("无法获取容器 IP，请确认实例正在运行", 400)
+        return
+    return _ok({"url": url}, "VNC 代理已开启")
+
+
+@app.post("/api/vnc/disable")
+async def vnc_disable_api(payload: VncToggleRequest):
+    from benchmark_platform.web.vnc_proxy import disable_vnc
+    disable_vnc(payload.benchmark_id)
+    return _ok(None, "VNC 代理已关闭")
+
+
+@app.get("/api/vnc/status")
+async def vnc_status_api():
+    from benchmark_platform.web.vnc_proxy import get_active_proxies
+    return _ok({"active": get_active_proxies()})
 
 
 class BatchLevelRequest(PydanticBaseModel):
