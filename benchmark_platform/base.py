@@ -20,6 +20,7 @@ class Difficulty(str, Enum):
     EASY = 'easy'
     MEDIUM = 'medium'
     HARD = 'hard'
+    AD = 'ad'
 
 
 class FlagState(BaseModel):

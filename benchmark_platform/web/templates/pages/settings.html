@@ -161,6 +161,32 @@
       </div>
     </div>
   </div>
+
+  <!-- VNC Password Settings -->
+  <div class="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+    <h3 class="text-[13px] font-semibold text-gray-800 mb-4">VNC 监控密码</h3>
+    <p class="text-[11px] text-gray-500 mb-4">AD 靶场 Windows VM 的 noVNC 访问密码。用于防止 Agent 通过 VNC 非预期解题。修改后需重启靶机实例生效。</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-[11px] font-medium text-gray-600 mb-1.5">VNC 密码</label>
+        <div class="flex items-center gap-3">
+          <input type="text" x-model="vncPassword" placeholder="VncAdmin2024!"
+                 class="flex-1 h-9 px-3 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 font-mono">
+        </div>
+        <p class="text-[10px] text-gray-400 mt-1.5">用户名固定为 admin，此处设置密码。平台 VNC 代理会自动使用此密码访问容器。</p>
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button @click="saveVncPassword()" :disabled="savingVnc"
+                class="h-9 px-5 bg-gray-900 text-white text-[12px] font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50">
+          <span x-show="!savingVnc">保存</span>
+          <span x-show="savingVnc">保存中...</span>
+        </button>
+        <span x-show="savedVnc" x-transition class="text-[11px] text-emerald-600 font-medium">已保存</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -181,6 +207,9 @@ function settingsPage() {
     winIsoPath: '',
     savingWinIso: false,
     savedWinIso: false,
+    vncPassword: '',
+    savingVnc: false,
+    savedVnc: false,
     init() {
       fetch('/api/level_gate_config')
         .then(r => r.json())
@@ -206,6 +235,11 @@ function settingsPage() {
         .then(r => r.json())
         .then(d => {
           this.winIsoPath = d.data.win2022_iso_path || '';
+        });
+      fetch('/api/settings/vnc_password')
+        .then(r => r.json())
+        .then(d => {
+          this.vncPassword = d.data.vnc_password || '';
         });
     },
     save() {
@@ -289,6 +323,26 @@ function settingsPage() {
           setTimeout(() => this.savedWinIso = false, 3000);
         } else {
           this.$dispatch('toast', {type: 'error', message: d.detail?.message || d.message || '保存失败'});
+        }
+      });
+    },
+    saveVncPassword() {
+      this.savingVnc = true;
+      this.savedVnc = false;
+      fetch('/api/settings/vnc_password', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({password: this.vncPassword})
+      })
+      .then(r => r.json())
+      .then(d => {
+        this.savingVnc = false;
+        if (d.code === 0) {
+          this.savedVnc = true;
+          this.$dispatch('toast', {type: 'success', message: 'VNC 密码已保存'});
+          setTimeout(() => this.savedVnc = false, 3000);
+        } else {
+          this.$dispatch('toast', {type: 'error', message: d.message || '保存失败'});
         }
       });
     },
