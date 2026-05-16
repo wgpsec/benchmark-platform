@@ -9,6 +9,7 @@ Supports multiple Windows VMs per benchmark (e.g. AD-003 has dc + db).
 from __future__ import annotations
 
 import asyncio
+import base64
 import subprocess
 from pathlib import Path
 
@@ -21,6 +22,26 @@ from benchmark_platform.utils.logger import get_logger
 logger = get_logger(Path('logs/competition-platform-server-logs.jsonl'))
 
 router = APIRouter()
+
+_VNC_USER = "admin"
+
+
+def _get_vnc_password() -> str:
+    from benchmark_platform.db import get_setting
+    return get_setting("vnc_password", "VncAdmin2024!")
+
+
+def _build_auth() -> str:
+    return base64.b64encode(f"{_VNC_USER}:{_get_vnc_password()}".encode()).decode()
+
+
+_VNC_AUTH = _build_auth()
+
+
+def reload_auth():
+    """Reload auth header after password change."""
+    global _VNC_AUTH
+    _VNC_AUTH = _build_auth()
 
 # Active VNC proxies: benchmark_id → {service_name: container_ip}
 _active_proxies: dict[str, dict[str, str]] = {}
@@ -103,6 +124,7 @@ async def vnc_http_proxy(request: Request, benchmark_id: str, service: str, path
         body = await request.body()
         headers = dict(request.headers)
         headers.pop("host", None)
+        headers["authorization"] = f"Basic {_VNC_AUTH}"
 
         try:
             resp = await client.request(
@@ -144,7 +166,8 @@ async def vnc_ws_proxy(websocket: WebSocket, benchmark_id: str, service: str, pa
     import websockets
 
     try:
-        async with websockets.connect(ws_url) as upstream:
+        extra_headers = {"Authorization": f"Basic {_VNC_AUTH}"}
+        async with websockets.connect(ws_url, additional_headers=extra_headers) as upstream:
             async def client_to_upstream():
                 try:
                     while True:

@@ -718,6 +718,27 @@ async def set_runtime_dir_api(payload: RuntimeDirRequest):
     return _ok({"runtime_dir": path})
 
 
+@app.get("/api/settings/vnc_password")
+async def get_vnc_password_api():
+    return _ok({"vnc_password": get_setting("vnc_password", "VncAdmin2024!")})
+
+
+class VncPasswordRequest(PydanticBaseModel):
+    password: str
+
+
+@app.post("/api/settings/vnc_password")
+async def set_vnc_password_api(payload: VncPasswordRequest):
+    pwd = payload.password.strip()
+    if not pwd:
+        _err("密码不能为空", 400)
+        return
+    set_setting("vnc_password", pwd)
+    from benchmark_platform.web.vnc_proxy import reload_auth
+    reload_auth()
+    return _ok({"vnc_password": pwd}, "已保存")
+
+
 @app.get("/api/settings/win_iso")
 async def get_win_iso_api():
     return _ok({"win2022_iso_path": get_setting("win2022_iso_path", "")})
