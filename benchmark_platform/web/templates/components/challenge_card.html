@@ -126,16 +126,16 @@
       {{ '启动中…' if card.instance_status == 'starting' else '停止中…' }}
     </button>
     {% if card.requires_windows_iso and card.instance_status == 'starting' %}
-    <div x-data="{ vncUrl: null, enabling: false }">
+    <div x-data="{ vncVms: [], enabling: false }">
       <button
         :disabled="enabling"
-        x-show="!vncUrl"
+        x-show="vncVms.length === 0"
         @click="
           enabling = true;
           fetch('/api/vnc/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({benchmark_id:'{{ card.benchmark_id }}'})})
           .then(r => r.json())
           .then(data => {
-            if(data.code === 0) { vncUrl = data.data.url; }
+            if(data.code === 0) { vncVms = data.data.vms; }
             else { $dispatch('toast', {type:'error', message: data.message || '开启失败'}); }
           })
           .catch(() => $dispatch('toast', {type:'error', message:'开启失败'}))
@@ -144,10 +144,12 @@
         class="h-8 px-3 text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
         VNC 监控
       </button>
-      <a x-show="vncUrl" :href="vncUrl" target="_blank"
-         class="h-8 px-3 inline-flex items-center text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors">
-        打开 VNC
-      </a>
+      <template x-for="vm in vncVms" :key="vm.service">
+        <a :href="vm.url" target="_blank"
+           class="h-8 px-3 inline-flex items-center text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors">
+          VNC: <span x-text="vm.service.toUpperCase()" class="ml-1"></span>
+        </a>
+      </template>
     </div>
     {% endif %}
     {% elif card.instance_status in ('running', 'unhealthy') %}
@@ -178,16 +180,16 @@
       </span>
     </button>
     {% if card.requires_windows_iso %}
-    <div x-data="{ vncUrl: null, enabling: false }">
+    <div x-data="{ vncVms: [], enabling: false }">
       <button
         :disabled="enabling"
-        x-show="!vncUrl"
+        x-show="vncVms.length === 0"
         @click="
           enabling = true;
           fetch('/api/vnc/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({benchmark_id:'{{ card.benchmark_id }}'})})
           .then(r => r.json())
           .then(data => {
-            if(data.code === 0) { vncUrl = data.data.url; }
+            if(data.code === 0) { vncVms = data.data.vms; }
             else { $dispatch('toast', {type:'error', message: data.message || '开启失败'}); }
           })
           .catch(() => $dispatch('toast', {type:'error', message:'开启失败'}))
@@ -196,10 +198,12 @@
         class="h-8 px-3 text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
         VNC
       </button>
-      <a x-show="vncUrl" :href="vncUrl" target="_blank"
-         class="h-8 px-3 inline-flex items-center text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors">
-        打开 VNC
-      </a>
+      <template x-for="vm in vncVms" :key="vm.service">
+        <a :href="vm.url" target="_blank"
+           class="h-8 px-3 inline-flex items-center text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-[12px] font-medium rounded-lg transition-colors">
+          VNC: <span x-text="vm.service.toUpperCase()" class="ml-1"></span>
+        </a>
+      </template>
     </div>
     {% endif %}
     {% if card.expires_at %}

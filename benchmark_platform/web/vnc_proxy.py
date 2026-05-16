@@ -3,11 +3,12 @@
 Proxies noVNC (HTTP + WebSocket) traffic through the platform server,
 so no extra ports are exposed on the host. Admin manually enables/disables
 via API; the proxy route only exists while enabled.
+
+Supports multiple Windows VMs per benchmark (e.g. AD-003 has dc + db).
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import subprocess
 from pathlib import Path
 
@@ -21,25 +22,27 @@ logger = get_logger(Path('logs/competition-platform-server-logs.jsonl'))
 
 router = APIRouter()
 
-# Active VNC proxies: benchmark_id → container_ip
-_active_proxies: dict[str, str] = {}
+# Active VNC proxies: benchmark_id → {service_name: container_ip}
+_active_proxies: dict[str, dict[str, str]] = {}
 
 
-def _get_container_ip(benchmark_id: str, runtime_dir: Path) -> str | None:
-    """Find the DC container's IP for a given benchmark."""
+def _get_windows_containers(benchmark_id: str, runtime_dir: Path) -> dict[str, str]:
+    """Find all dockurr/windows containers for a benchmark. Returns {service: ip}."""
+    result: dict[str, str] = {}
     try:
         res = subprocess.run(
-            ['docker', 'ps', '--filter', 'label=com.docker.compose.service=dc',
+            ['docker', 'ps', '--filter', 'ancestor=dockurr/windows',
              '--format', '{{.ID}}'],
             capture_output=True, text=True, timeout=10,
         )
         if res.returncode != 0 or not res.stdout.strip():
-            return None
+            return result
 
         for container_id in res.stdout.strip().splitlines():
             inspect_res = subprocess.run(
                 ['docker', 'inspect', '--format',
                  '{{index .Config.Labels "com.docker.compose.project.working_dir"}}||'
+                 '{{index .Config.Labels "com.docker.compose.service"}}||'
                  '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}',
                  container_id.strip()],
                 capture_output=True, text=True, timeout=5,
@@ -47,35 +50,34 @@ def _get_container_ip(benchmark_id: str, runtime_dir: Path) -> str | None:
             if inspect_res.returncode != 0:
                 continue
             parts = inspect_res.stdout.strip().split('||')
-            if len(parts) != 2:
+            if len(parts) != 3:
                 continue
-            working_dir, ips = parts
-            if f'/{benchmark_id}/' in working_dir:
-                ip = ips.strip().split()[0] if ips.strip() else ""
-                if ip:
-                    return ip
+            working_dir, service, ips = parts
+            if f'/{benchmark_id}/' not in working_dir:
+                continue
+            ip = ips.strip().split()[0] if ips.strip() else ""
+            if ip and service:
+                result[service] = ip
     except Exception as e:
-        logger.error("failed to get container IP", benchmark_id=benchmark_id, error=str(e))
-    return None
+        logger.error("failed to discover windows containers", benchmark_id=benchmark_id, error=str(e))
+    return result
 
 
-def get_active_proxies() -> dict[str, str]:
+def get_active_proxies() -> dict[str, dict[str, str]]:
     """Return current active VNC proxy mappings."""
     return dict(_active_proxies)
 
 
-def enable_vnc(benchmark_id: str, runtime_dir: Path) -> str | None:
-    """Enable VNC proxy for a benchmark. Returns the proxy URL path or None on failure."""
-    if benchmark_id in _active_proxies:
-        return f"/admin/vnc/{benchmark_id}/"
-
-    ip = _get_container_ip(benchmark_id, runtime_dir)
-    if not ip:
+def enable_vnc(benchmark_id: str, runtime_dir: Path) -> list[dict[str, str]] | None:
+    """Enable VNC proxy for a benchmark. Returns list of {service, url} or None on failure."""
+    vms = _get_windows_containers(benchmark_id, runtime_dir)
+    if not vms:
         return None
 
-    _active_proxies[benchmark_id] = ip
-    logger.info("vnc proxy enabled", benchmark_id=benchmark_id, container_ip=ip)
-    return f"/admin/vnc/{benchmark_id}/"
+    _active_proxies[benchmark_id] = vms
+    logger.info("vnc proxy enabled", benchmark_id=benchmark_id, vms=list(vms.keys()))
+    return [{"service": svc, "url": f"/admin/vnc/{benchmark_id}/{svc}/"}
+            for svc in sorted(vms.keys())]
 
 
 def disable_vnc(benchmark_id: str) -> None:
@@ -85,13 +87,14 @@ def disable_vnc(benchmark_id: str) -> None:
         logger.info("vnc proxy disabled", benchmark_id=benchmark_id)
 
 
-@router.api_route("/admin/vnc/{benchmark_id}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
-async def vnc_http_proxy(request: Request, benchmark_id: str, path: str = ""):
+@router.api_route("/admin/vnc/{benchmark_id}/{service}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+async def vnc_http_proxy(request: Request, benchmark_id: str, service: str, path: str = ""):
     """Reverse proxy HTTP requests to the noVNC container."""
-    if benchmark_id not in _active_proxies:
-        return Response(content="VNC proxy not enabled for this challenge", status_code=404)
+    services = _active_proxies.get(benchmark_id)
+    if not services or service not in services:
+        return Response(content="VNC proxy not enabled for this service", status_code=404)
 
-    container_ip = _active_proxies[benchmark_id]
+    container_ip = services[service]
     target_url = f"http://{container_ip}:8006/{path}"
     if request.url.query:
         target_url += f"?{request.url.query}"
@@ -123,14 +126,15 @@ async def vnc_http_proxy(request: Request, benchmark_id: str, path: str = ""):
         )
 
 
-@router.websocket("/admin/vnc/{benchmark_id}/{path:path}")
-async def vnc_ws_proxy(websocket: WebSocket, benchmark_id: str, path: str = ""):
+@router.websocket("/admin/vnc/{benchmark_id}/{service}/{path:path}")
+async def vnc_ws_proxy(websocket: WebSocket, benchmark_id: str, service: str, path: str = ""):
     """Reverse proxy WebSocket connections to the noVNC container."""
-    if benchmark_id not in _active_proxies:
+    services = _active_proxies.get(benchmark_id)
+    if not services or service not in services:
         await websocket.close(code=4004)
         return
 
-    container_ip = _active_proxies[benchmark_id]
+    container_ip = services[service]
     ws_url = f"ws://{container_ip}:8006/{path}"
     if websocket.url.query:
         ws_url += f"?{websocket.url.query}"
@@ -164,7 +168,7 @@ async def vnc_ws_proxy(websocket: WebSocket, benchmark_id: str, path: str = ""):
 
             await asyncio.gather(client_to_upstream(), upstream_to_client())
     except Exception as e:
-        logger.error("vnc websocket proxy error", benchmark_id=benchmark_id, error=str(e))
+        logger.error("vnc websocket proxy error", benchmark_id=benchmark_id, service=service, error=str(e))
     finally:
         try:
             await websocket.close()

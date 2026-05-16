@@ -753,11 +753,11 @@ async def vnc_enable_api(payload: VncToggleRequest):
         return
 
     from benchmark_platform.web.vnc_proxy import enable_vnc
-    url = enable_vnc(payload.benchmark_id, manager.runtime_dir)
-    if url is None:
+    vms = enable_vnc(payload.benchmark_id, manager.runtime_dir)
+    if vms is None:
         _err("无法获取容器 IP，请确认实例正在运行", 400)
         return
-    return _ok({"url": url}, "VNC 代理已开启")
+    return _ok({"vms": vms}, "VNC 代理已开启")
 
 
 @app.post("/api/vnc/disable")
