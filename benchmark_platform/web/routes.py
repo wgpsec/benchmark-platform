@@ -5,7 +5,9 @@ from typing import Optional
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
+from starlette.responses import RedirectResponse
 
+from benchmark_platform.web.auth_middleware import create_session_cookie, _COOKIE_NAME
 from benchmark_platform.web.context import (
     _challenge_to_card,
     challenges_context,
@@ -13,6 +15,7 @@ from benchmark_platform.web.context import (
     history_context,
     status_context,
 )
+from benchmark_platform.db import get_team_by_token, get_or_create_default_team
 
 _templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=_templates_dir)
@@ -53,10 +56,73 @@ def _render(request: Request, template: str, ctx: dict):
     manager = _get_manager(request)
     ctx.setdefault("no_level_gate", manager.no_level_gate if manager else False)
     ctx.setdefault("version", __version__)
+    ctx.setdefault("user", getattr(request.state, "user", {}))
     team_selector = _get_teams_for_selector(_get_selected_team_id(request))
     ctx.setdefault("teams", team_selector["teams"])
     ctx.setdefault("selected_team_id", team_selector["selected_team_id"])
     return templates.TemplateResponse(request, template, context=ctx)
+
+
+# -- Auth routes ---------------------------------------------------------------
+
+@web_router.get("/login")
+async def login_page(request: Request):
+    return templates.TemplateResponse(request, "pages/login.html", context={"error": None})
+
+
+@web_router.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    token = form.get("token", "").strip()
+
+    if not token:
+        return templates.TemplateResponse(
+            request, "pages/login.html", context={"error": "Please enter a token"}
+        )
+
+    team = get_team_by_token(token)
+    if team is None:
+        return templates.TemplateResponse(
+            request, "pages/login.html", context={"error": "Invalid token"}
+        )
+
+    default_team = get_or_create_default_team()
+    role = "admin" if team["id"] == default_team["id"] else "observer"
+    cookie_value = create_session_cookie(team["id"], role, team["name"])
+
+    redirect_url = "/web/dashboard" if role == "admin" else "/web/scoreboard"
+    response = RedirectResponse(redirect_url, status_code=302)
+    response.set_cookie(
+        _COOKIE_NAME,
+        cookie_value,
+        max_age=7 * 24 * 3600,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@web_router.get("/logout")
+async def logout(request: Request):
+    response = RedirectResponse("/web/login", status_code=302)
+    response.delete_cookie(_COOKIE_NAME)
+    return response
+
+
+@web_router.get("/scoreboard")
+async def scoreboard_page(request: Request):
+    from benchmark_platform.db import list_teams
+    teams_data = list_teams()
+    user = getattr(request.state, "user", {})
+    return templates.TemplateResponse(
+        request,
+        "pages/scoreboard.html",
+        context={
+            "teams": teams_data,
+            "user": user,
+            "page": "scoreboard",
+        },
+    )
 
 
 # -- Page routes ---------------------------------------------------------------

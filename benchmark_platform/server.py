@@ -26,6 +26,7 @@ from benchmark_platform.base import SubmitAnswerResponse
 from benchmark_platform.utils.challenge import ChallengeManager
 from benchmark_platform.utils.logger import get_logger
 from benchmark_platform.web.routes import web_router
+from benchmark_platform.web.auth_middleware import AuthMiddleware
 from benchmark_platform.web.submission_store import SubmissionStore
 from benchmark_platform.auth import get_current_team
 from benchmark_platform.db import (
@@ -52,6 +53,7 @@ async def lifespan(app):
         yield
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(AuthMiddleware)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(web_router, prefix="/web")
 app.mount("/mcp", _mcp_app)
