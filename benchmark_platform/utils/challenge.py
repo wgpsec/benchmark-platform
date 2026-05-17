@@ -662,71 +662,238 @@ class ChallengeManager:
         except Exception as e:
             logger.warning("failed to prune docker volumes", error=str(e))
 
-    def start_challenge_instance(self, challenge_code: str) -> list[str] | None:
-        """Start docker containers for one challenge.
+    def start_challenge_instance(self, challenge_code: str, team_id: str | None = None) -> list[str] | None:
+        """Start docker containers for one challenge (per-team isolation).
 
-        For AD challenges (requires_windows_iso), starts compose in a background
-        thread and returns None immediately (caller gets 202).
-        For other challenges, blocks until compose completes and returns entrypoint list.
+        For AD challenges, uses a shared instance.
+        For other challenges, creates a per-team instance.
+        Returns entrypoint list, or None if starting asynchronously (caller gets 202).
         """
         challenge = self._find_by_code(challenge_code)
         if challenge.unsupported:
             raise RuntimeError(f"无法启动: {challenge.unsupported_reason}")
         benchmark_id = challenge.get_benchmark_id()
-        old_code = challenge.challenge_code
 
-        record = get_instance_by_benchmark_id(benchmark_id)
+        # AD challenges use shared instance
+        if challenge.difficulty == Difficulty.AD:
+            return self._start_shared_instance(challenge)
+
+        # If no team_id provided, fall back to legacy behavior
+        if not team_id:
+            team_id = "__legacy__"
+
+        # Concurrent limit check
+        from benchmark_platform.db import get_team_running_count
+        running_count = get_team_running_count(team_id)
+        if running_count >= self.max_instances_per_team:
+            raise RuntimeError(f"已达到最大同时运行实例数 ({self.max_instances_per_team})，请先停止其他赛题")
+
+        # Check existing instance for this team+challenge
+        existing_code = self._team_instances.get((benchmark_id, team_id))
+        if existing_code:
+            status = self._instance_status.get(existing_code, "stopped")
+            if status in ("running", "unhealthy"):
+                ports = self._get_instance_ports(benchmark_id, team_id)
+                return [f"{self.public_accessible_host}:{p}" for p in ports]
+            if status == "starting":
+                return None
+
+        # Clean up old stopped instance if exists
+        from benchmark_platform.db import get_instance_by_benchmark_and_team
+        record = get_instance_by_benchmark_and_team(benchmark_id, team_id)
         if record and record["status"] in ("stopped", "expired"):
             old_runtime = Path(record["runtime_path"])
             if old_runtime.exists():
                 shutil.rmtree(old_runtime, ignore_errors=True)
 
-            src_folder = self._find_source_folder(benchmark_id)
-            new_challenge = self._create_challenge(src_folder, benchmark_id)
+        # Create new per-team instance
+        src_folder = self._find_source_folder(benchmark_id)
+        instance_code = str(uuid.uuid4())
+        runtime_path = self._get_runtime_path_for_instance(benchmark_id, instance_code, team_id)
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        src = src_folder / benchmark_id
+        shutil.copytree(src, runtime_path)
 
-            challenge.challenge_code = new_challenge.challenge_code
-            challenge.target_info = new_challenge.target_info
-            challenge_code = challenge.challenge_code
+        # Inject unique flags for this team
+        self._inject_dynamic_flags(runtime_path)
 
-        if old_code != challenge.challenge_code:
-            self._code_aliases[old_code] = benchmark_id
+        # Remap ports
+        compose_path = runtime_path / 'docker-compose.yml'
+        with open(compose_path) as f:
+            data = yaml.safe_load(f)
 
+        allocated_ports = []
+        for svc_name, svc in data.get('services', {}).items():
+            new_ports = []
+            for p in svc.get('ports', []):
+                if isinstance(p, str) and ':' in p:
+                    host_port = portpicker.pick_unused_port()
+                    allocated_ports.append(host_port)
+                    parts = p.split(':')
+                    new_ports.append(f"{host_port}:{parts[-1]}")
+                else:
+                    new_ports.append(p)
+            svc['ports'] = new_ports
+            if 'build' in svc and 'image' not in svc:
+                svc['image'] = f"{benchmark_id}-{svc_name}".lower()
+
+        with open(compose_path, 'w') as f:
+            yaml.dump(data, f)
+
+        # Handle Windows ISO
         if challenge.requires_windows_iso:
             from benchmark_platform.db import get_setting
             iso_path = get_setting("win2022_iso_path", "")
             if not iso_path:
+                shutil.rmtree(runtime_path, ignore_errors=True)
                 raise RuntimeError("请先在系统设置中配置 Windows Server 2022 ISO 路径")
             if not Path(iso_path).is_file():
+                shutil.rmtree(runtime_path, ignore_errors=True)
                 raise RuntimeError(f"Windows ISO 文件不存在: {iso_path}")
-            runtime_path = Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir)
-            compose_path = runtime_path / "docker-compose.yml"
             self._inject_windows_iso(compose_path, iso_path)
             self._inject_oem_flags(runtime_path)
 
-        self._instance_status[challenge_code] = "starting"
+        # Register instance
+        self._team_instances[(benchmark_id, team_id)] = instance_code
+        self._instance_status[instance_code] = "starting"
 
+        upsert_instance(
+            instance_id=str(uuid.uuid4()),
+            benchmark_id=benchmark_id,
+            challenge_code=instance_code,
+            runtime_path=str(runtime_path),
+            ports=allocated_ports,
+            status="starting",
+            team_id=team_id,
+        )
+
+        # Start compose
         if challenge.requires_windows_iso:
             threading.Thread(
-                target=self._async_compose_start,
-                args=(challenge, benchmark_id, challenge_code),
+                target=self._async_team_compose_start,
+                args=(challenge, benchmark_id, instance_code, team_id, allocated_ports),
                 daemon=True,
             ).start()
             return None
 
         try:
-            self._compose(benchmark_id, challenge_code, 'up', '-d')
+            self._compose_at_path(runtime_path, 'up', '-d')
         except Exception:
-            self._instance_status[challenge_code] = "stopped"
+            self._instance_status[instance_code] = "stopped"
+            from benchmark_platform.db import update_instance_status_by_team
+            update_instance_status_by_team(benchmark_id, team_id, "stopped")
             raise
-        self._instance_status[challenge_code] = "running"
-        self._finalize_start(challenge, benchmark_id, challenge_code)
-        return [
-            f"{self.public_accessible_host}:{p}"
-            for p in challenge.target_info.port
-        ]
+
+        self._instance_status[instance_code] = "running"
+        self._finalize_team_start(challenge, benchmark_id, instance_code, team_id, allocated_ports)
+        return [f"{self.public_accessible_host}:{p}" for p in allocated_ports]
+
+    def _start_shared_instance(self, challenge: Challenge) -> list[str] | None:
+        """Start a shared instance for AD challenges (no per-team isolation)."""
+        benchmark_id = challenge.get_benchmark_id()
+
+        # Check existing shared instance
+        existing_code = self._team_instances.get((benchmark_id, "__shared__"))
+        if existing_code:
+            status = self._instance_status.get(existing_code, "stopped")
+            if status in ("running", "unhealthy"):
+                ports = self._get_instance_ports(benchmark_id, None)
+                return [f"{self.public_accessible_host}:{p}" for p in ports]
+            if status == "starting":
+                return None
+
+        # Clean up old stopped shared instance if exists
+        from benchmark_platform.db import get_instance_by_benchmark_and_team
+        record = get_instance_by_benchmark_and_team(benchmark_id, None)
+        if record and record["status"] in ("stopped", "expired"):
+            old_runtime = Path(record["runtime_path"])
+            if old_runtime.exists():
+                shutil.rmtree(old_runtime, ignore_errors=True)
+
+        # Create new shared instance
+        src_folder = self._find_source_folder(benchmark_id)
+        instance_code = str(uuid.uuid4())
+        runtime_path = self._get_runtime_path_for_instance(benchmark_id, instance_code, "shared")
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        src = src_folder / benchmark_id
+        shutil.copytree(src, runtime_path)
+
+        # Inject unique flags
+        self._inject_dynamic_flags(runtime_path)
+
+        # Remap ports
+        compose_path = runtime_path / 'docker-compose.yml'
+        with open(compose_path) as f:
+            data = yaml.safe_load(f)
+
+        allocated_ports = []
+        for svc_name, svc in data.get('services', {}).items():
+            new_ports = []
+            for p in svc.get('ports', []):
+                if isinstance(p, str) and ':' in p:
+                    host_port = portpicker.pick_unused_port()
+                    allocated_ports.append(host_port)
+                    parts = p.split(':')
+                    new_ports.append(f"{host_port}:{parts[-1]}")
+                else:
+                    new_ports.append(p)
+            svc['ports'] = new_ports
+            if 'build' in svc and 'image' not in svc:
+                svc['image'] = f"{benchmark_id}-{svc_name}".lower()
+
+        with open(compose_path, 'w') as f:
+            yaml.dump(data, f)
+
+        # Handle Windows ISO
+        if challenge.requires_windows_iso:
+            from benchmark_platform.db import get_setting
+            iso_path = get_setting("win2022_iso_path", "")
+            if not iso_path:
+                shutil.rmtree(runtime_path, ignore_errors=True)
+                raise RuntimeError("请先在系统设置中配置 Windows Server 2022 ISO 路径")
+            if not Path(iso_path).is_file():
+                shutil.rmtree(runtime_path, ignore_errors=True)
+                raise RuntimeError(f"Windows ISO 文件不存在: {iso_path}")
+            self._inject_windows_iso(compose_path, iso_path)
+            self._inject_oem_flags(runtime_path)
+
+        # Register shared instance
+        self._team_instances[(benchmark_id, "__shared__")] = instance_code
+        self._instance_status[instance_code] = "starting"
+
+        upsert_instance(
+            instance_id=str(uuid.uuid4()),
+            benchmark_id=benchmark_id,
+            challenge_code=instance_code,
+            runtime_path=str(runtime_path),
+            ports=allocated_ports,
+            status="starting",
+            team_id=None,
+        )
+
+        # Start compose
+        if challenge.requires_windows_iso:
+            threading.Thread(
+                target=self._async_team_compose_start,
+                args=(challenge, benchmark_id, instance_code, None, allocated_ports),
+                daemon=True,
+            ).start()
+            return None
+
+        try:
+            self._compose_at_path(runtime_path, 'up', '-d')
+        except Exception:
+            self._instance_status[instance_code] = "stopped"
+            from benchmark_platform.db import update_instance_status_by_team
+            update_instance_status_by_team(benchmark_id, None, "stopped")
+            raise
+
+        self._instance_status[instance_code] = "running"
+        self._finalize_team_start(challenge, benchmark_id, instance_code, None, allocated_ports)
+        return [f"{self.public_accessible_host}:{p}" for p in allocated_ports]
 
     def _async_compose_start(self, challenge: Challenge, benchmark_id: str, challenge_code: str) -> None:
-        """Background thread for AD challenge compose up."""
+        """Background thread for legacy compose up (kept for backward compat)."""
         try:
             self._compose(benchmark_id, challenge_code, 'up', '-d',
                           timeout=self._COMPOSE_TIMEOUT_WINDOWS)
@@ -738,8 +905,24 @@ class ChallengeManager:
             self._instance_logs.setdefault(benchmark_id, []).append(f"ERROR: {e}")
             self._instance_status[challenge_code] = "stopped"
 
+    def _async_team_compose_start(self, challenge: Challenge, benchmark_id: str,
+                                   instance_code: str, team_id: str | None,
+                                   ports: list[int]) -> None:
+        """Background thread for per-team compose up (AD/Windows)."""
+        from benchmark_platform.db import update_instance_status_by_team
+        runtime_path = self._get_runtime_path_for_instance(benchmark_id, instance_code, team_id or "shared")
+        try:
+            self._compose_at_path(runtime_path, 'up', '-d', timeout=self._COMPOSE_TIMEOUT_WINDOWS)
+            self._instance_status[instance_code] = "running"
+            self._finalize_team_start(challenge, benchmark_id, instance_code, team_id, ports)
+        except Exception as e:
+            logger.error("async compose start failed", benchmark_id=benchmark_id, team_id=team_id, error=str(e))
+            self._instance_logs.setdefault(benchmark_id, []).append(f"ERROR: {e}")
+            self._instance_status[instance_code] = "stopped"
+            update_instance_status_by_team(benchmark_id, team_id, "stopped")
+
     def _finalize_start(self, challenge: Challenge, benchmark_id: str, challenge_code: str) -> None:
-        """Record instance as running in DB after successful compose up."""
+        """Record instance as running in DB after successful compose up (legacy)."""
         timeout_config = get_instance_timeout_config()
         level = self.get_level_for_challenge(challenge)
         timeout_secs = timeout_config.get(level, 7200)
@@ -758,14 +941,255 @@ class ChallengeManager:
             expires_at=expires_at,
         )
 
-    def stop_challenge_instance(self, challenge_code: str) -> None:
-        """Stop docker containers for one challenge."""
-        challenge = self._find_by_code(challenge_code)
-        actual_code = challenge.challenge_code
-        self._instance_status[actual_code] = "stopping"
-        self._compose(challenge.get_benchmark_id(), actual_code, 'down', '-v', '--remove-orphans')
-        self._instance_status[actual_code] = "stopped"
-        update_instance_status(challenge.get_benchmark_id(), "stopped")
+    def _finalize_team_start(self, challenge: Challenge, benchmark_id: str,
+                              instance_code: str, team_id: str | None,
+                              ports: list[int]) -> None:
+        """Record per-team instance as running in DB after successful compose up."""
+        timeout_config = get_instance_timeout_config()
+        level = self.get_level_for_challenge(challenge)
+        timeout_secs = timeout_config.get(level, 7200)
+        now = datetime.now(timezone.utc)
+        started_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        expires_at = (now + timedelta(seconds=timeout_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        upsert_instance(
+            instance_id=str(uuid.uuid4()),
+            benchmark_id=benchmark_id,
+            challenge_code=instance_code,
+            runtime_path=str(self._get_runtime_path_for_instance(benchmark_id, instance_code, team_id or "shared")),
+            ports=ports,
+            status="running",
+            team_id=team_id,
+            started_at=started_at,
+            expires_at=expires_at,
+        )
+
+    def stop_challenge_instance(self, challenge_code: str, team_id: str | None = None) -> None:
+        """Stop docker containers for one challenge (per-team isolation).
+
+        If team_id is provided, verifies ownership before stopping.
+        """
+        instance_code, benchmark_id, owner_team_id = self._resolve_instance(challenge_code, team_id)
+        if team_id and owner_team_id and owner_team_id != team_id:
+            raise PermissionError("无权停止其他队伍的实例")
+        self._instance_status[instance_code] = "stopping"
+        runtime_path = self._get_runtime_path_for_instance(benchmark_id, instance_code, owner_team_id or "shared")
+        if runtime_path.exists():
+            self._compose_at_path(runtime_path, 'down', '-v', '--remove-orphans')
+        self._instance_status[instance_code] = "stopped"
+        from benchmark_platform.db import update_instance_status_by_team
+        update_instance_status_by_team(benchmark_id, owner_team_id, "stopped")
+
+    def _resolve_instance(self, challenge_code: str, team_id: str | None) -> tuple[str, str, str | None]:
+        """Find (instance_code, benchmark_id, owner_team_id) for a challenge/team pair."""
+        # If challenge_code is a benchmark_id and team_id is given
+        if team_id:
+            existing = self._team_instances.get((challenge_code, team_id))
+            if existing:
+                return existing, challenge_code, team_id
+        # Search all team_instances for this code
+        for (bid, tid), code in self._team_instances.items():
+            if code == challenge_code:
+                real_team = tid if tid != "__shared__" else None
+                return code, bid, real_team
+        # Fallback: shared
+        existing = self._team_instances.get((challenge_code, "__shared__"))
+        if existing:
+            return existing, challenge_code, None
+        raise KeyError(f"Instance {challenge_code!r} not found")
+
+    def _get_instance_ports(self, benchmark_id: str, team_id: str | None) -> list[int]:
+        """Get ports from DB for a benchmark+team instance."""
+        from benchmark_platform.db import get_instance_by_benchmark_and_team
+        record = get_instance_by_benchmark_and_team(benchmark_id, team_id)
+        if record:
+            return json.loads(record["ports"])
+        return []
+
+    def _get_runtime_path_for_instance(self, benchmark_id: str, instance_code: str, team_id: str | None) -> Path:
+        """Compute the runtime path for a per-team instance."""
+        dir_name = team_id if team_id else "shared"
+        return Challenge.get_base_path(benchmark_id, instance_code, self.runtime_dir, team_id=dir_name)
+
+    def _compose_at_path(self, runtime_path: Path, *args, timeout: int | None = None) -> None:
+        """Run docker compose at a specific runtime path."""
+        if not (runtime_path / 'docker-compose.yml').exists():
+            return
+        compose_timeout = timeout or self._COMPOSE_TIMEOUT
+        cmd = ['docker', 'compose'] + list(args)
+        logger.info("docker compose", action="compose", cmd=" ".join(cmd), cwd=str(runtime_path))
+
+        # Extract benchmark_id from path for logging
+        # Path structure: runtime/<benchmark_id>/<team_id>/<instance_code>
+        # or legacy: runtime/<benchmark_id>/<instance_code>
+        parts = runtime_path.parts
+        runtime_idx = None
+        for i, part in enumerate(parts):
+            if part == self.runtime_dir.name:
+                runtime_idx = i
+                break
+        if runtime_idx is not None and runtime_idx + 1 < len(parts):
+            benchmark_id = parts[runtime_idx + 1]
+        else:
+            benchmark_id = runtime_path.parent.parent.name if len(parts) > 3 else runtime_path.parent.name
+
+        self._instance_logs[benchmark_id] = []
+        logs = self._instance_logs[benchmark_id]
+
+        start_time = time.monotonic()
+        proc = subprocess.Popen(cmd, cwd=runtime_path, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            while True:
+                line = proc.stdout.readline()
+                if not line and proc.poll() is not None:
+                    break
+                if line:
+                    logs.append(line.rstrip('\n'))
+                    if len(logs) > 500:
+                        del logs[:len(logs) - 500]
+                if time.monotonic() - start_time > compose_timeout:
+                    proc.terminate()
+                    proc.wait(timeout=10)
+                    raise RuntimeError(f"Docker compose timed out after {compose_timeout}s")
+        except RuntimeError:
+            raise
+        except Exception:
+            proc.kill()
+            raise
+
+        if proc.returncode != 0:
+            output = '\n'.join(logs[-20:])
+            if 'could not find an available, non-overlapping IPv4 address pool' in output:
+                self._prune_orphan_networks()
+                # Retry once
+                self._instance_logs[benchmark_id] = []
+                logs = self._instance_logs[benchmark_id]
+                start_time = time.monotonic()
+                proc = subprocess.Popen(cmd, cwd=runtime_path, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                while True:
+                    line = proc.stdout.readline()
+                    if not line and proc.poll() is not None:
+                        break
+                    if line:
+                        logs.append(line.rstrip('\n'))
+                        if len(logs) > 500:
+                            del logs[:len(logs) - 500]
+                    if time.monotonic() - start_time > compose_timeout:
+                        proc.terminate()
+                        proc.wait(timeout=10)
+                        raise RuntimeError(f"Docker compose timed out after {compose_timeout}s (retry)")
+                if proc.returncode == 0:
+                    return
+            raise RuntimeError(f"Docker compose failed: {output[:500]}")
+
+    def get_team_instance_status(self, benchmark_id: str, team_id: str) -> str:
+        """Get status for a team's challenge instance."""
+        challenge = self._find_by_code(benchmark_id)
+        if challenge.difficulty == Difficulty.AD:
+            code = self._team_instances.get((benchmark_id, "__shared__"))
+        else:
+            code = self._team_instances.get((benchmark_id, team_id))
+        if not code:
+            return "stopped"
+        status = self._instance_status.get(code, "stopped")
+        if status != "running":
+            return status
+        runtime_path = self._get_runtime_path_for_instance(
+            benchmark_id, code, team_id if challenge.difficulty != Difficulty.AD else "shared"
+        )
+        return self._check_health_at_path(runtime_path)
+
+    def get_team_instance_ports(self, benchmark_id: str, team_id: str) -> list[int]:
+        """Get ports for a team's challenge instance."""
+        challenge = self._find_by_code(benchmark_id)
+        if challenge.difficulty == Difficulty.AD:
+            return self._get_instance_ports(benchmark_id, None)
+        return self._get_instance_ports(benchmark_id, team_id)
+
+    def get_team_instance_timestamps(self, benchmark_id: str, team_id: str) -> tuple[str | None, str | None]:
+        """Get (started_at, expires_at) timestamps for a team's challenge instance."""
+        from benchmark_platform.db import get_instance_by_benchmark_and_team
+        challenge = self._find_by_code(benchmark_id)
+        lookup_team = team_id if challenge.difficulty != Difficulty.AD else None
+        record = get_instance_by_benchmark_and_team(benchmark_id, lookup_team)
+        if record and record["status"] == "running":
+            return record["started_at"], record["expires_at"]
+        return None, None
+
+    def get_team_instance_flags(self, benchmark_id: str, team_id: str) -> dict[str, str]:
+        """Read flags from a team's runtime .env file."""
+        import dotenv
+        challenge = self._find_by_code(benchmark_id)
+        if challenge.difficulty == Difficulty.AD:
+            code = self._team_instances.get((benchmark_id, "__shared__"))
+            lookup_team = "shared"
+        else:
+            code = self._team_instances.get((benchmark_id, team_id))
+            lookup_team = team_id
+        if not code:
+            return {}
+        runtime_path = self._get_runtime_path_for_instance(benchmark_id, code, lookup_team)
+        if not runtime_path.exists():
+            return {}
+        env_path = runtime_path / '.env'
+        if not env_path.exists():
+            return {}
+        data = dotenv.dotenv_values(env_path)
+        data_upper = {k.upper(): v for k, v in data.items()}
+        if challenge.flag_states:
+            result = {}
+            for i, fs in enumerate(challenge.flag_states):
+                key_by_id = f"FLAG_{fs.id}".upper()
+                key_by_idx = f"FLAG{i + 1}"
+                if key_by_id in data_upper:
+                    result[fs.id] = str(data_upper[key_by_id])
+                elif key_by_idx in data_upper:
+                    result[fs.id] = str(data_upper[key_by_idx])
+                elif "FLAG" in data_upper and len(challenge.flag_states) == 1:
+                    result[fs.id] = str(data_upper["FLAG"])
+            return result
+        if 'FLAG' not in data_upper:
+            return {}
+        return {"default": str(data_upper['FLAG'])}
+
+    def _check_health_at_path(self, runtime_path: Path) -> str:
+        """Check container health at a specific runtime path."""
+        if not runtime_path.exists() or not (runtime_path / 'docker-compose.yml').exists():
+            return "running"
+        try:
+            res = subprocess.run(
+                ['docker', 'compose', 'ps', '--format', 'json'],
+                cwd=runtime_path, capture_output=True, text=True, timeout=5,
+            )
+            if res.returncode != 0:
+                return "running"
+            for line in res.stdout.strip().splitlines():
+                info = json.loads(line)
+                if info.get("Health") == "unhealthy":
+                    return "unhealthy"
+        except Exception:
+            pass
+        return "running"
+
+    def stop_all_instances(self, team_id: str | None = None) -> int:
+        """Stop all running instances, optionally filtered by team_id."""
+        stopped = 0
+        for (bid, tid), code in list(self._team_instances.items()):
+            if team_id and tid != team_id:
+                continue
+            if self._instance_status.get(code) not in ("running", "unhealthy", "starting"):
+                continue
+            real_team = tid if tid != "__shared__" else None
+            try:
+                runtime_path = self._get_runtime_path_for_instance(bid, code, tid if tid != "__shared__" else "shared")
+                if runtime_path.exists():
+                    self._compose_at_path(runtime_path, 'down', '-v', '--remove-orphans')
+                self._instance_status[code] = "stopped"
+                from benchmark_platform.db import update_instance_status_by_team
+                update_instance_status_by_team(bid, real_team, "stopped")
+                stopped += 1
+            except Exception as e:
+                logger.error("stop_all failed for instance", benchmark_id=bid, team_id=tid, error=str(e))
+        return stopped
 
     def get_instance_status(self, challenge_code: str) -> str:
         challenge = self._find_by_code(challenge_code)
