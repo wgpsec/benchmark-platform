@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import json
 import os
 import secrets
 import signal
@@ -234,10 +235,11 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
     for c in all_challenges:
         bm = c.get_benchmark()
         bm_id = c.get_benchmark_id()
-        status = manager.get_instance_status(c.challenge_code)
+        status = manager.get_team_instance_status(bm_id, team["id"])
         entrypoint = None
         if status in ("running", "unhealthy"):
-            entrypoint = [f"{manager.public_accessible_host}:{p}" for p in c.target_info.port]
+            ports = manager.get_team_instance_ports(bm_id, team["id"])
+            entrypoint = [f"{manager.public_accessible_host}:{p}" for p in ports]
 
         team_solved = get_team_solved_count(team["id"], bm_id)
         all_solved = team_solved >= c.flag_count
@@ -264,7 +266,7 @@ async def tch_get_challenges(team: dict = Depends(get_current_team)):
         challenge_list.append({
             "benchmark_id": bm_id,
             "title": bm.name,
-            "code": c.challenge_code,
+            "code": bm_id,
             "difficulty": c.difficulty.value,
             "description": bm.description,
             "level": bm.level,
@@ -318,9 +320,10 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
     if team_solved >= challenge.flag_count:
         return _ok({"already_completed": True}, "该赛题已全部完成，无需再启动实例")
 
-    current_status = manager.get_instance_status(payload.code)
+    current_status = manager.get_team_instance_status(challenge.get_benchmark_id(), team["id"])
     if current_status in ("running", "unhealthy"):
-        entrypoints = [f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port]
+        ports = manager.get_team_instance_ports(challenge.get_benchmark_id(), team["id"])
+        entrypoints = [f"{manager.public_accessible_host}:{p}" for p in ports]
         return _ok(entrypoints, "赛题实例已在运行中")
 
     if current_status == "starting":
@@ -330,7 +333,13 @@ async def tch_start_challenge(payload: StartChallengeRequest, team: dict = Depen
         )
 
     try:
-        result = await asyncio.to_thread(manager.start_challenge_instance, payload.code)
+        result = await asyncio.to_thread(manager.start_challenge_instance, payload.code, team["id"])
+    except RuntimeError as e:
+        error_msg = str(e)
+        if "最大同时运行实例数" in error_msg:
+            raise HTTPException(status_code=429, detail={"code": -1, "message": error_msg, "data": None})
+        _err(f"赛题启动失败: {e}", 502)
+        return  # unreachable, but makes control flow explicit
     except Exception as e:
         logger.error("start_challenge failed", action="api", challenge_code=payload.code, error=str(e))
         _err(f"赛题启动失败: {e}", 502)
@@ -363,12 +372,15 @@ async def tch_stop_challenge(payload: StopChallengeRequest, team: dict = Depends
 
     _ensure_challenge_enabled(challenge)
 
-    if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
+    if manager.get_team_instance_status(challenge.get_benchmark_id(), team["id"]) not in ("running", "unhealthy"):
         _err("赛题实例未运行", 400)
         return  # unreachable, but makes control flow explicit
 
     try:
-        await asyncio.to_thread(manager.stop_challenge_instance, payload.code)
+        await asyncio.to_thread(manager.stop_challenge_instance, payload.code, team["id"])
+    except PermissionError as e:
+        _err(str(e), 403)
+        return  # unreachable, but makes control flow explicit
     except Exception as e:
         _err(f"停止失败: {e}", 502)
         return  # unreachable, but makes control flow explicit
@@ -400,14 +412,10 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
         _err(f"Level {challenge_level} 尚未解锁，请先通过前置关卡", 403)
         return
 
-    if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
-        _err("赛题实例未运行", 400)
-        return
-
-    try:
-        answers = challenge.get_expected_answers()
-    except Exception as e:
-        _err(f"Failed to get expected answers: {e}", 500)
+    benchmark_id = challenge.get_benchmark_id()
+    answers = manager.get_team_instance_flags(benchmark_id, team["id"])
+    if not answers:
+        _err("本队尚未启动该赛题实例，或实例已停止", 400)
         return
 
     matched_flag_id = None
@@ -420,15 +428,9 @@ async def tch_submit(payload: SubmitFlagRequest, team: dict = Depends(get_curren
 
     if is_correct:
         mark_flag_solved(team["id"], challenge.get_benchmark_id(), matched_flag_id)
-        for fs in challenge.flag_states:
-            if fs.id == matched_flag_id:
-                fs.solved = True
-                break
 
     team_solved = get_team_solved_count(team["id"], challenge.get_benchmark_id())
     all_solved = team_solved >= challenge.flag_count
-    if all_solved:
-        challenge.solved = True
 
     # Record submission
     from datetime import datetime
@@ -540,22 +542,15 @@ async def tch_stop_all(_=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
-
-    stopped = []
-    for c in manager.challenges:
-        if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
-            try:
-                await asyncio.to_thread(manager.stop_challenge_instance, c.challenge_code)
-                stopped.append(c.challenge_code)
-            except Exception:
-                pass
-    return _ok({"stopped_count": len(stopped)}, f"已停止 {len(stopped)} 个实例")
+    stopped = await asyncio.to_thread(manager.stop_all_instances)
+    return _ok({"stopped_count": stopped}, f"已停止 {stopped} 个实例")
 
 
 async def _stop_instance_if_running(challenge_code: str) -> bool:
     if manager is None:
         return False
-    if manager.get_instance_status(challenge_code) not in ("running", "unhealthy"):
+    status = manager.get_instance_status(challenge_code)
+    if status not in ("running", "unhealthy"):
         return False
     try:
         await asyncio.to_thread(manager.stop_challenge_instance, challenge_code)
@@ -743,6 +738,26 @@ async def set_vnc_password_api(payload: VncPasswordRequest, _=Depends(require_ad
     return _ok({"vnc_password": pwd}, "已保存")
 
 
+@app.get("/api/settings/max_instances")
+async def get_max_instances_api(_=Depends(require_admin)):
+    return _ok({"max_instances_per_team": int(get_setting("max_instances_per_team", "3"))})
+
+
+class MaxInstancesRequest(PydanticBaseModel):
+    max_instances_per_team: int
+
+
+@app.post("/api/settings/max_instances")
+async def set_max_instances_api(payload: MaxInstancesRequest, _=Depends(require_admin)):
+    if payload.max_instances_per_team < 1:
+        _err("并发实例数不能小于 1", 400)
+        return
+    set_setting("max_instances_per_team", str(payload.max_instances_per_team))
+    if manager:
+        manager.max_instances_per_team = payload.max_instances_per_team
+    return _ok(None, f"每队最大并发实例数已设置为 {payload.max_instances_per_team}")
+
+
 @app.get("/api/settings/win_iso")
 async def get_win_iso_api(_=Depends(require_admin)):
     return _ok({"win2022_iso_path": get_setting("win2022_iso_path", "")})
@@ -803,7 +818,7 @@ class BatchLevelRequest(PydanticBaseModel):
 
 
 @app.post("/api/start_level")
-async def tch_start_level(payload: BatchLevelRequest, _=Depends(require_admin)):
+async def tch_start_level(payload: BatchLevelRequest, admin: dict = Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -816,25 +831,25 @@ async def tch_start_level(payload: BatchLevelRequest, _=Depends(require_admin)):
             continue
         if c.unsupported:
             continue
-        if c.solved:
+        bm_id = c.get_benchmark_id()
+        status = manager.get_team_instance_status(bm_id, admin["id"])
+        if status in ("running", "unhealthy"):
             continue
-        if manager.get_instance_status(c.challenge_code) in ("running", "unhealthy"):
-            continue
-        to_start.append(c.challenge_code)
+        to_start.append(bm_id)
 
     if not to_start:
         return _ok({"started": 0, "total": 0}, "没有需要启动的实例")
 
-    def _start_in_background(codes: list[str]) -> None:
+    def _start_in_background(codes: list[str], team_id: str) -> None:
         for code in codes:
             try:
-                manager.start_challenge_instance(code)
+                manager.start_challenge_instance(code, team_id)
             except Exception as e:
-                logger.error("batch start failed", challenge_code=code, error=str(e))
+                logger.error("batch start failed", benchmark_id=code, error=str(e))
         app.state.batch_starting = False
 
     app.state.batch_starting = True
-    threading.Thread(target=_start_in_background, args=(to_start,), daemon=True).start()
+    threading.Thread(target=_start_in_background, args=(to_start, admin["id"]), daemon=True).start()
     return _ok({"started": 0, "total": len(to_start)}, f"正在启动 {len(to_start)} 个实例...")
 
 
@@ -844,58 +859,62 @@ async def tch_stop_level(payload: BatchLevelRequest, _=Depends(require_admin)):
         _err("Server not initialized", 503)
         return
 
-    to_stop = []
+    stopped = 0
     for c in manager.challenges:
         if manager.get_level_for_challenge(c) != payload.level:
             continue
-        if manager.get_instance_status(c.challenge_code) not in ("running", "unhealthy"):
-            continue
-        to_stop.append(c.challenge_code)
+        bm_id = c.get_benchmark_id()
+        for (bid, tid), code in list(manager._team_instances.items()):
+            if bid != bm_id:
+                continue
+            if manager._instance_status.get(code) in ("running", "unhealthy"):
+                try:
+                    real_team = tid if tid != "__shared__" else None
+                    await asyncio.to_thread(manager.stop_challenge_instance, code, real_team)
+                    stopped += 1
+                except Exception:
+                    pass
 
-    if not to_stop:
-        return _ok({"stopped": 0}, "没有运行中的实例")
-
-    stopped = []
-    for code in to_stop:
-        try:
-            await asyncio.to_thread(manager.stop_challenge_instance, code)
-            stopped.append(code)
-        except Exception:
-            pass
-
-    return _ok({"stopped": len(stopped)}, f"已停止 {len(stopped)} 个实例")
+    return _ok({"stopped": stopped}, f"已停止 {stopped} 个实例" if stopped else "没有运行中的实例")
 
 
 @app.get("/api/instance_statuses")
 async def tch_instance_statuses(request: Request, _=Depends(require_admin)):
-    """Lightweight endpoint for polling instance statuses.
-
-    Agent callers (with Agent-Token) get only enabled challenges.
-    Web UI callers (no Agent-Token, browser session) get all challenges so the
-    challenges page can keep refreshing disabled cards too.
-    """
     if manager is None:
         _err("Server not initialized", 503)
         return
 
-    agent_view = request.headers.get("Agent-Token") is not None
+    from benchmark_platform.db import get_all_instances
+    all_inst = get_all_instances()
 
     statuses = {}
+    for record in all_inst:
+        bm_id = record["benchmark_id"]
+        enabled = is_challenge_enabled(bm_id)
+        statuses[record["challenge_code"]] = {
+            "status": record["status"],
+            "benchmark_id": bm_id,
+            "team_id": record["team_id"],
+            "ports": json.loads(record["ports"]) if record["ports"] else [],
+            "started_at": record["started_at"],
+            "expires_at": record["expires_at"],
+            "enabled": enabled,
+        }
+
+    # Include challenges with no instances
     for c in manager.challenges:
         bm_id = c.get_benchmark_id()
-        enabled = is_challenge_enabled(bm_id)
-        if agent_view and not enabled:
-            continue
-        started_at, expires_at = manager.get_instance_timestamps(c.challenge_code)
-        statuses[c.challenge_code] = {
-            "status": manager.get_instance_status(c.challenge_code),
-            "benchmark_id": bm_id,
-            "level": manager.get_level_for_challenge(c),
-            "solved": c.solved,
-            "enabled": enabled,
-            "started_at": started_at,
-            "expires_at": expires_at,
-        }
+        if not any(s["benchmark_id"] == bm_id for s in statuses.values()):
+            statuses[bm_id] = {
+                "status": "stopped",
+                "benchmark_id": bm_id,
+                "team_id": None,
+                "ports": [],
+                "started_at": None,
+                "expires_at": None,
+                "enabled": is_challenge_enabled(bm_id),
+            }
+
     return _ok({"statuses": statuses, "batch_starting": getattr(app.state, "batch_starting", False)})
 
 
