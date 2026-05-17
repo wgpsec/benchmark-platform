@@ -247,6 +247,8 @@ XBEN-001-24/
 
 平台在每次启动实例时注入唯一的 `flag{uuid}` — 靶场源码应从 `FLAG` 环境变量读取 flag，而非硬编码。
 
+> **贡献题目：** 本仓库仅包含平台代码。靶场题目源码在 [benchmark-challenges](https://github.com/wgpsec/benchmark-challenges) 仓库，新增或修改题目请向该仓库提交 PR。
+
 ## 技术栈
 
 - **后端**: FastAPI + Uvicorn

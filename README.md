@@ -244,6 +244,8 @@ XBEN-001-24/
 
 The platform injects a unique `flag{uuid}` into each instance at startup — challenge source code should read the flag from the `FLAG` environment variable rather than hardcoding it.
 
+> **Contributing challenges:** This repo is the platform only. Challenge source code lives in [benchmark-challenges](https://github.com/wgpsec/benchmark-challenges). To add or modify challenges, submit PRs there.
+
 ## Tech Stack
 
 - **Backend**: FastAPI + Uvicorn
