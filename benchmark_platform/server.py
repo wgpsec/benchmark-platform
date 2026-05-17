@@ -523,7 +523,7 @@ async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team))
 
     _ensure_challenge_enabled(challenge)
 
-    if manager.get_instance_status(payload.code) not in ("running", "unhealthy"):
+    if manager.get_team_instance_status(challenge.get_benchmark_id(), team["id"]) not in ("running", "unhealthy"):
         _err("请先启动赛题实例", 400)
         return  # unreachable, but makes control flow explicit
 

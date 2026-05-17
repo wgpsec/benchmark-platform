@@ -94,10 +94,18 @@ def init_db() -> None:
         pass
     conn.commit()
 
-    # Migrate instance_lifecycle: add team_id column if missing
+    # Migrate instance_lifecycle: ensure correct schema with team_id + compound UNIQUE
     try:
         cols_il = [r[1] for r in conn.execute("PRAGMA table_info(instance_lifecycle)").fetchall()]
-        if "team_id" not in cols_il:
+        needs_recreate = "team_id" not in cols_il
+        if not needs_recreate:
+            # Check if old UNIQUE(benchmark_id) constraint exists (needs compound UNIQUE instead)
+            schema = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE name='instance_lifecycle'"
+            ).fetchone()[0]
+            if "benchmark_id   TEXT NOT NULL UNIQUE" in schema or "UNIQUE(benchmark_id, team_id)" not in schema:
+                needs_recreate = True
+        if needs_recreate:
             conn.execute("DROP TABLE instance_lifecycle")
             conn.execute("""
                 CREATE TABLE instance_lifecycle (
@@ -337,6 +345,12 @@ def upsert_instance(
     conn.commit()
 
 
+def delete_instance(instance_id: str) -> None:
+    conn = _get_conn()
+    conn.execute("DELETE FROM instance_lifecycle WHERE id = ?", (instance_id,))
+    conn.commit()
+
+
 def get_instance_by_benchmark_id(benchmark_id: str) -> Optional[dict]:
     conn = _get_conn()
     row = conn.execute(
@@ -378,11 +392,11 @@ def update_instance_status(benchmark_id: str, status: str,
     conn.commit()
 
 
-def delete_instance(benchmark_id: str) -> None:
+def delete_instance(instance_id: str) -> None:
     conn = _get_conn()
     conn.execute(
-        "DELETE FROM instance_lifecycle WHERE benchmark_id = ?",
-        (benchmark_id,),
+        "DELETE FROM instance_lifecycle WHERE id = ?",
+        (instance_id,),
     )
     conn.commit()
 

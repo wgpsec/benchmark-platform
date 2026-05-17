@@ -300,11 +300,20 @@ class ChallengeManager:
         )
         challenge.set_benchmark_id(benchmark_id)
         challenge.set_runtime_dir(self.runtime_dir)
+        challenge._cached_benchmark = bm
+        challenge._source_dir = src
         return challenge
 
     def _recover_running_instances(self) -> None:
-        """On startup, recover instances that DB says are running."""
-        from benchmark_platform.db import get_running_instances
+        """On startup, recover instances that DB says are running, clean stale ones."""
+        from benchmark_platform.db import get_running_instances, delete_instance, get_all_instances
+        for record in get_all_instances():
+            if record["status"] == "starting":
+                runtime_path = Path(record["runtime_path"])
+                if runtime_path.exists():
+                    shutil.rmtree(runtime_path, ignore_errors=True)
+                delete_instance(record["id"])
+
         for record in get_running_instances():
             benchmark_id = record["benchmark_id"]
             team_id = record["team_id"]
@@ -595,13 +604,14 @@ class ChallengeManager:
             if status == "starting":
                 return None
 
-        # Clean up old stopped instance if exists
-        from benchmark_platform.db import get_instance_by_benchmark_and_team
+        # Clean up old non-running instance if exists
+        from benchmark_platform.db import get_instance_by_benchmark_and_team, delete_instance
         record = get_instance_by_benchmark_and_team(benchmark_id, team_id)
-        if record and record["status"] in ("stopped", "expired"):
+        if record and record["status"] not in ("running", "unhealthy"):
             old_runtime = Path(record["runtime_path"])
             if old_runtime.exists():
                 shutil.rmtree(old_runtime, ignore_errors=True)
+            delete_instance(record["id"])
 
         # Create new per-team instance
         src_folder = self._find_source_folder(benchmark_id)
@@ -700,12 +710,13 @@ class ChallengeManager:
                 return None
 
         # Clean up old stopped shared instance if exists
-        from benchmark_platform.db import get_instance_by_benchmark_and_team
+        from benchmark_platform.db import get_instance_by_benchmark_and_team, delete_instance
         record = get_instance_by_benchmark_and_team(benchmark_id, None)
-        if record and record["status"] in ("stopped", "expired"):
+        if record and record["status"] not in ("running", "unhealthy"):
             old_runtime = Path(record["runtime_path"])
             if old_runtime.exists():
                 shutil.rmtree(old_runtime, ignore_errors=True)
+            delete_instance(record["id"])
 
         # Create new shared instance
         src_folder = self._find_source_folder(benchmark_id)
@@ -809,23 +820,15 @@ class ChallengeManager:
                               instance_code: str, team_id: str | None,
                               ports: list[int]) -> None:
         """Record per-team instance as running in DB after successful compose up."""
+        from benchmark_platform.db import update_instance_status_by_team
         timeout_config = get_instance_timeout_config()
         level = self.get_level_for_challenge(challenge)
         timeout_secs = timeout_config.get(level, 7200)
         now = datetime.now(timezone.utc)
         started_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         expires_at = (now + timedelta(seconds=timeout_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        upsert_instance(
-            instance_id=str(uuid.uuid4()),
-            benchmark_id=benchmark_id,
-            challenge_code=instance_code,
-            runtime_path=str(self._get_runtime_path_for_instance(benchmark_id, instance_code, team_id or "shared")),
-            ports=ports,
-            status="running",
-            team_id=team_id,
-            started_at=started_at,
-            expires_at=expires_at,
-        )
+        update_instance_status_by_team(benchmark_id, team_id, "running",
+                                       started_at=started_at, expires_at=expires_at)
 
     def stop_challenge_instance(self, challenge_code: str, team_id: str | None = None) -> None:
         """Stop docker containers for one challenge (per-team isolation).

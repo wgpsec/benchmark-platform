@@ -45,6 +45,8 @@ class Challenge(BaseModel):
     requires_windows_iso: bool = False
     _benchmark_id: str | None = PrivateAttr(default=None)
     _runtime_dir: Path | None = PrivateAttr(default=None)
+    _cached_benchmark: Benchmark | None = PrivateAttr(default=None)
+    _source_dir: Path | None = PrivateAttr(default=None)
 
     def set_benchmark_id(self, benchmark_id: str) -> None:
         """Store the benchmark id without exposing it via API responses."""
@@ -69,6 +71,8 @@ class Challenge(BaseModel):
         return base / benchmark_id / challenge_code
 
     def _get_path(self) -> Path:
+        if self._source_dir and self._source_dir.exists():
+            return self._source_dir
         return Challenge.get_base_path(self.get_benchmark_id(), self.challenge_code, self._runtime_dir)
 
     def get_expected_answers(self) -> dict[str, str]:
@@ -132,6 +136,8 @@ class Challenge(BaseModel):
         return metadata.get('description', '')
 
     def get_benchmark(self) -> Benchmark:
+        if self._cached_benchmark:
+            return self._cached_benchmark
         metadata_path = self._get_path() / 'benchmark.json'
         with open(metadata_path, encoding='utf-8') as f:
             metadata = json.load(f)

@@ -237,11 +237,7 @@ def submit_flag(code: str, flag: str) -> str:
         raise ValueError(f"获取预期答案失败: {e}")
 
     if not answers:
-        # Fall back to static answers if no runtime flags available
-        try:
-            answers = challenge.get_expected_answers()
-        except Exception as e:
-            raise ValueError(f"获取预期答案失败: {e}")
+        raise ValueError("无法获取当前实例的 Flag，请确认实例正在运行")
 
     matched_flag_id = None
     for fid, fval in answers.items():

@@ -171,7 +171,7 @@ def test_get_expired_instances():
 
 def test_delete_instance():
     upsert_instance("id-1", "XBEN-001-24", "c1", "p1", [80], "stopped")
-    delete_instance("XBEN-001-24")
+    delete_instance("id-1")
     assert get_instance_by_benchmark_id("XBEN-001-24") is None
 
 
