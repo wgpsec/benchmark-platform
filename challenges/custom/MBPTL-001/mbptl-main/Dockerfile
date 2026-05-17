@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt
 
+# Apache runs PHP as www-data. Some Docker overlay environments reject writes
+# to Debian's default 1733 session directory, so keep PHP sessions world-writable.
+RUN mkdir -p /var/lib/php/sessions && chmod 1777 /var/lib/php/sessions
+
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
 
