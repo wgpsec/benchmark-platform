@@ -396,6 +396,7 @@ class ChallengeManager:
 
             allocated_ports = []
             for svc_name, svc in data.get('services', {}).items():
+                svc.pop('container_name', None)
                 new_ports = []
                 for p in svc.get('ports', []):
                     if isinstance(p, str) and ':' in p:
@@ -626,13 +627,14 @@ class ChallengeManager:
         # Inject unique flags for this team
         self._inject_dynamic_flags(runtime_path)
 
-        # Remap ports
+        # Remap ports and strip container_name to avoid conflicts
         compose_path = runtime_path / 'docker-compose.yml'
         with open(compose_path) as f:
             data = yaml.safe_load(f)
 
         allocated_ports = []
         for svc_name, svc in data.get('services', {}).items():
+            svc.pop('container_name', None)
             new_ports = []
             for p in svc.get('ports', []):
                 if isinstance(p, str) and ':' in p:
@@ -731,13 +733,14 @@ class ChallengeManager:
         # Inject unique flags
         self._inject_dynamic_flags(runtime_path)
 
-        # Remap ports
+        # Remap ports and strip container_name to avoid conflicts
         compose_path = runtime_path / 'docker-compose.yml'
         with open(compose_path) as f:
             data = yaml.safe_load(f)
 
         allocated_ports = []
         for svc_name, svc in data.get('services', {}).items():
+            svc.pop('container_name', None)
             new_ports = []
             for p in svc.get('ports', []):
                 if isinstance(p, str) and ':' in p:
