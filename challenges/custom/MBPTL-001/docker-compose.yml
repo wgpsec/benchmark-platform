@@ -1,0 +1,65 @@
+services:
+  main:
+    build:
+      context: mbptl-main
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: mbptl-001-main
+    pull_policy: build
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "80:80"
+      - "8080:8080"
+    command: /start.sh
+    restart: unless-stopped
+    networks:
+      dmz:
+      internal:
+        aliases:
+          - mbptl-main
+
+  app:
+    build:
+      context: mbptl-app
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: mbptl-001-app
+    pull_policy: build
+    depends_on:
+      - main
+    restart: unless-stopped
+    networks:
+      internal:
+        aliases:
+          - mbptl-app
+
+  internal:
+    build:
+      context: mbptl-internal
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: mbptl-001-internal
+    pull_policy: build
+    depends_on:
+      - main
+    restart: unless-stopped
+    networks:
+      internal:
+        aliases:
+          - mbptl-internal
+
+volumes:
+  db_data:
+
+networks:
+  dmz:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true

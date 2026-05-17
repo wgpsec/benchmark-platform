@@ -739,7 +739,8 @@ class ChallengeManager:
 
     _FLAG_RE = re.compile(r'^(FLAG(?:_\w+|[0-9]*))\s*=\s*["\']?([^"\'\n]+)["\']?', re.MULTILINE)
     _TEXT_EXTENSIONS = {
-        '.py', '.js', '.ts', '.go', '.rb', '.php', '.java', '.sh', '.bash',
+        '.py', '.js', '.ts', '.go', '.rb', '.php', '.java', '.c', '.cc',
+        '.cpp', '.h', '.hpp', '.sh', '.bash',
         '.sql', '.html', '.htm', '.xml', '.json', '.yaml', '.yml', '.toml',
         '.env', '.txt', '.md', '.cfg', '.ini', '.conf', '.tpl', '.tmpl',
         '.jsx', '.tsx', '.vue', '.css', '.csv',
