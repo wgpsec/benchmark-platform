@@ -122,6 +122,17 @@
     </label>
   </div>
 
+  <!-- Logout -->
+  <div class="px-3 py-2 border-t border-gray-100">
+    <a href="/web/logout"
+       class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12px] font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/>
+      </svg>
+      退出登录
+    </a>
+  </div>
+
   <!-- Version -->
   <div class="px-4 py-2 flex items-center justify-center gap-1.5 text-[10px] text-gray-400">
     <span>v{{ version }}</span>
@@ -133,5 +144,4 @@
       </svg>
     </a>
   </div>
-  <a href="/web/logout" class="block text-xs text-gray-400 hover:text-red-500 mt-2 px-4 pb-2">Logout</a>
 </aside>
