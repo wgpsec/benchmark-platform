@@ -65,6 +65,31 @@ class Challenge(BaseModel):
     def _get_path(self) -> Path:
         return Challenge.get_base_path(self.get_benchmark_id(), self.challenge_code, self._runtime_dir)
 
+    def _find_source_path(self) -> Path | None:
+        benchmark_id = self.get_benchmark_id()
+        candidates = [
+            Path('challenges') / benchmark_id,
+            Path('challenges') / 'custom' / benchmark_id,
+            Path('challenges') / 'argus' / benchmark_id,
+            Path('challenges') / 'xbow' / benchmark_id,
+        ]
+        for base in Path('challenges').iterdir() if Path('challenges').exists() else []:
+            if base.is_dir():
+                candidates.append(base / benchmark_id)
+        for candidate in candidates:
+            if (candidate / 'benchmark.json').exists():
+                return candidate
+        return None
+
+    def _get_metadata_path(self) -> Path:
+        runtime_path = self._get_path() / 'benchmark.json'
+        if runtime_path.exists():
+            return runtime_path
+        source_path = self._find_source_path()
+        if source_path is not None:
+            return source_path / 'benchmark.json'
+        return runtime_path
+
     def get_expected_answers(self) -> dict[str, str]:
         """Return {flag_id: flag_value} for all flags."""
         env_path = self._get_path() / '.env'
@@ -103,12 +128,16 @@ class Challenge(BaseModel):
 
     def get_hint(self) -> str:
         base_path = self._get_path()
-        metadata_path = base_path / 'benchmark.json'
+        metadata_path = self._get_metadata_path()
         with open(metadata_path, encoding='utf-8') as f:
             metadata = json.load(f)
 
         if self.flag_states:
             yaml_path = base_path / 'benchmark.yaml'
+            if not yaml_path.exists():
+                source_path = self._find_source_path()
+                if source_path is not None:
+                    yaml_path = source_path / 'benchmark.yaml'
             if yaml_path.exists():
                 import yaml
                 with open(yaml_path, encoding='utf-8') as yf:
@@ -126,7 +155,7 @@ class Challenge(BaseModel):
         return metadata.get('description', '')
 
     def get_benchmark(self) -> Benchmark:
-        metadata_path = self._get_path() / 'benchmark.json'
+        metadata_path = self._get_metadata_path()
         with open(metadata_path, encoding='utf-8') as f:
             metadata = json.load(f)
             metadata['id'] = self.get_benchmark_id()

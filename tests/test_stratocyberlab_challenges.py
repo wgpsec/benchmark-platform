@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from benchmark_platform.base import Challenge, Difficulty, TargetInfo
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CUSTOM = ROOT / "challenges" / "custom"
@@ -42,3 +44,33 @@ def test_corporate_retreat_keeps_multinet_shape_without_external_network() -> No
     assert "playground-net" not in str(compose)
     assert "external" not in str(compose.get("networks", {}))
     assert {"cr-public", "cr-aux", "cr-cn1", "cr-dc1"} <= set(compose["networks"])
+
+
+def test_challenge_metadata_falls_back_to_source_when_runtime_missing(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "challenges" / "custom" / "JUMP-AROUND-001"
+    source.mkdir(parents=True)
+    (source / "benchmark.json").write_text(json.dumps({
+        "id": "JUMP-AROUND-001",
+        "name": "Jump Around",
+        "description": "source metadata",
+        "hint": "source hint",
+        "level": 3,
+        "win_condition": "flag",
+        "tags": ["custom"],
+        "canaries": ["FLAG{one}"],
+    }), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    challenge = Challenge(
+        challenge_code="missing-runtime",
+        difficulty=Difficulty.HARD,
+        points=500,
+        hint_viewed=False,
+        solved=False,
+        target_info=TargetInfo(ip="127.0.0.1", port=[12345]),
+    )
+    challenge.set_benchmark_id("JUMP-AROUND-001")
+    challenge.set_runtime_dir(tmp_path / "runtime")
+
+    assert challenge.get_benchmark().name == "Jump Around"
+    assert challenge.get_hint() == "source hint"
