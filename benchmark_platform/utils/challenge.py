@@ -51,6 +51,8 @@ class ChallengeManager:
         self._instance_status: dict[str, str] = {}  # challenge_code → "stopped"|"running"|"starting"|"stopping"
         self._instance_logs: dict[str, list[str]] = {}  # benchmark_id → log lines
         self._code_aliases: dict[str, str] = {}  # old_challenge_code → benchmark_id
+        self._team_instances: dict[tuple[str, str], str] = {}  # (benchmark_id, team_id) → challenge_code
+        self.max_instances_per_team: int = 3
         self._reaper_stop = threading.Event()
         self._reaper_thread: threading.Thread | None = None
 
@@ -81,24 +83,34 @@ class ChallengeManager:
         errors = []
         for folder, benchmark_id in discovered:
             try:
-                challenge = self._reconcile_or_create(folder, benchmark_id)
+                challenge = self._load_challenge_metadata(folder, benchmark_id)
                 self.challenges.append(challenge)
+                self._instance_status[challenge.challenge_code] = "stopped"
             except Exception as e:
                 errors.append((benchmark_id, e))
-                logger.error("failed to prepare challenge",
+                logger.error("failed to load challenge metadata",
                              benchmark_id=benchmark_id, error=str(e))
 
         if errors:
             self.stop()
             raise RuntimeError(
-                f"Failed to prepare {len(errors)} challenges: "
+                f"Failed to load {len(errors)} challenges: "
                 f"{[f'{bid}: {e}' for bid, e in errors]}"
             )
-        logger.info("challenges prepared (not yet started)",
+        logger.info("challenges loaded (metadata only)",
                     count=len(self.challenges))
 
+        self._recover_running_instances()
         self._cleanup_orphan_runtimes(seen)
         self._start_reaper()
+
+        # Load max_instances_per_team from settings
+        from benchmark_platform.db import get_setting
+        try:
+            self.max_instances_per_team = int(get_setting("max_instances_per_team", "3"))
+        except (ValueError, TypeError):
+            self.max_instances_per_team = 3
+
         return self
 
     def reload(self) -> tuple[int, list[str]]:
@@ -220,6 +232,97 @@ class ChallengeManager:
             if "dockur" in image.lower():
                 return True
         return False
+
+    def _load_challenge_metadata(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
+        """Load challenge metadata without creating a runtime instance."""
+        src = benchmark_folder / benchmark_id
+        meta = json.loads((src / 'benchmark.json').read_text(encoding='utf-8'))
+        meta['id'] = benchmark_id
+        bm = Benchmark.model_validate(meta)
+
+        flag_states = []
+        bm_yaml_path = src / 'benchmark.yaml'
+        if bm_yaml_path.exists():
+            bm_yaml = yaml.safe_load(bm_yaml_path.read_text(encoding='utf-8'))
+            for flag_def in bm_yaml.get('flags', []):
+                flag_states.append(FlagState(
+                    id=flag_def['id'],
+                    route=flag_def.get('route', '/'),
+                    description=flag_def.get('description', ''),
+                ))
+
+        _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD, 4: Difficulty.AD}
+        if bm.level not in _level_map:
+            raise ValueError(f"Unknown level {bm.level!r} in benchmark {benchmark_id!r}")
+
+        import platform as _platform
+        host_is_arm = _platform.machine() in ('arm64', 'aarch64')
+
+        compose_path = src / 'docker-compose.yml'
+        with open(compose_path) as f:
+            data = yaml.safe_load(f)
+
+        is_emulated = host_is_arm and any(
+            svc.get('platform', '').endswith('amd64')
+            for svc in data.get('services', {}).values()
+        )
+
+        is_unsupported = False
+        unsupported_reason = ""
+        if bm.requires:
+            if bm.requires.arch == "x86_64" and host_is_arm:
+                is_unsupported = True
+                unsupported_reason = "需要 x86_64 架构"
+            elif bm.requires.arch == "aarch64" and not host_is_arm:
+                is_unsupported = True
+                unsupported_reason = "需要 ARM64 架构"
+            if bm.requires.kvm and not Path('/dev/kvm').exists():
+                is_unsupported = True
+                unsupported_reason = "需要 KVM 虚拟化支持 (/dev/kvm)"
+            if bm.requires.arch == "x86_64" and host_is_arm and bm.requires.kvm:
+                unsupported_reason = "需要 x86_64 架构 + KVM 虚拟化"
+
+        requires_win_iso = self._detect_requires_windows_iso(data)
+
+        challenge = Challenge(
+            challenge_code=benchmark_id,  # Use benchmark_id as stable code
+            difficulty=_level_map[bm.level],
+            points=bm.points,
+            hint_viewed=False,
+            solved=False,
+            target_info=TargetInfo(ip=self.public_accessible_host, port=[]),
+            flag_states=flag_states,
+            emulated=is_emulated,
+            unsupported=is_unsupported,
+            unsupported_reason=unsupported_reason,
+            requires_windows_iso=requires_win_iso,
+        )
+        challenge.set_benchmark_id(benchmark_id)
+        challenge.set_runtime_dir(self.runtime_dir)
+        return challenge
+
+    def _recover_running_instances(self) -> None:
+        """On startup, recover instances that DB says are running."""
+        from benchmark_platform.db import get_running_instances
+        for record in get_running_instances():
+            benchmark_id = record["benchmark_id"]
+            team_id = record["team_id"]
+            challenge_code = record["challenge_code"]
+            runtime_path = Path(record["runtime_path"])
+
+            if not runtime_path.exists() or not self._is_docker_running(runtime_path):
+                self._cleanup_stale_record(record)
+                continue
+
+            self._instance_status[challenge_code] = "running"
+            if team_id:
+                self._team_instances[(benchmark_id, team_id)] = challenge_code
+            else:
+                self._team_instances[(benchmark_id, "__shared__")] = challenge_code
+
+            logger.info("recovered running instance",
+                        benchmark_id=benchmark_id, team_id=team_id,
+                        challenge_code=challenge_code)
 
     @classmethod
     def _inject_windows_iso(cls, compose_path: Path, iso_path: str) -> None:

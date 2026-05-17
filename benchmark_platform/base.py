@@ -62,8 +62,10 @@ class Challenge(BaseModel):
         return self._benchmark_id
 
     @staticmethod
-    def get_base_path(benchmark_id: str, challenge_code: str, runtime_dir: Path | None = None) -> Path:
+    def get_base_path(benchmark_id: str, challenge_code: str, runtime_dir: Path | None = None, team_id: str | None = None) -> Path:
         base = runtime_dir if runtime_dir else Path('runtime')
+        if team_id:
+            return base / benchmark_id / team_id / challenge_code
         return base / benchmark_id / challenge_code
 
     def _get_path(self) -> Path:
