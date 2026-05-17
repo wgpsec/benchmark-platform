@@ -1192,11 +1192,17 @@ class ChallengeManager:
         return stopped
 
     def get_instance_status(self, challenge_code: str) -> str:
-        challenge = self._find_by_code(challenge_code)
-        status = self._instance_status.get(challenge.challenge_code, "stopped")
-        if status != "running":
-            return status
-        return self._check_container_health(challenge)
+        """Legacy: get status for a challenge_code (checks all teams)."""
+        # Check direct match in _instance_status
+        if challenge_code in self._instance_status:
+            return self._instance_status[challenge_code]
+        # Check if it's a benchmark_id with any running instance
+        for (bid, tid), code in self._team_instances.items():
+            if bid == challenge_code:
+                status = self._instance_status.get(code, "stopped")
+                if status in ("running", "unhealthy", "starting"):
+                    return status
+        return "stopped"
 
     def get_instance_timestamps(self, challenge_code: str) -> tuple[str | None, str | None]:
         """Return (started_at, expires_at) for a challenge instance."""
@@ -1239,12 +1245,11 @@ class ChallengeManager:
         raise FileNotFoundError(f"Source folder for {benchmark_id} not found")
 
     def _find_by_code(self, challenge_code: str) -> Challenge:
+        """Find challenge metadata by benchmark_id or challenge_code."""
         for c in self.challenges:
             if c.challenge_code == challenge_code:
                 return c
-        bm_id = self._code_aliases.get(challenge_code, challenge_code)
-        for c in self.challenges:
-            if c.get_benchmark_id() == bm_id:
+            if c.get_benchmark_id() == challenge_code:
                 return c
         raise KeyError(f"Challenge {challenge_code!r} not found")
 
