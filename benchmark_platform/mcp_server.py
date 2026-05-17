@@ -81,10 +81,11 @@ def list_challenges() -> str:
     for c in all_challenges:
         bm = c.get_benchmark()
         bm_id = c.get_benchmark_id()
-        status = mgr.get_instance_status(c.challenge_code)
+        status = mgr.get_team_instance_status(bm_id, team["id"])
         entrypoint = None
         if status in ("running", "unhealthy"):
-            entrypoint = [f"{mgr.public_accessible_host}:{p}" for p in c.target_info.port]
+            ports = mgr.get_team_instance_ports(bm_id, team["id"])
+            entrypoint = [f"{mgr.public_accessible_host}:{p}" for p in ports]
 
         team_solved = get_team_solved_count(team["id"], bm_id)
         all_solved = team_solved >= c.flag_count
@@ -157,18 +158,20 @@ def start_challenge(code: str) -> str:
     if team_solved >= challenge.flag_count:
         return json.dumps({"message": "该赛题已全部完成，无需再启动实例", "already_completed": True}, ensure_ascii=False)
 
-    if mgr.get_instance_status(code) in ("running", "unhealthy"):
-        entrypoints = [f"{mgr.public_accessible_host}:{p}" for p in challenge.target_info.port]
-        started_at, expires_at = mgr.get_instance_timestamps(code)
+    bm_id = challenge.get_benchmark_id()
+    if mgr.get_team_instance_status(bm_id, team["id"]) in ("running", "unhealthy"):
+        ports = mgr.get_team_instance_ports(bm_id, team["id"])
+        entrypoints = [f"{mgr.public_accessible_host}:{p}" for p in ports]
+        started_at, expires_at = mgr.get_team_instance_timestamps(bm_id, team["id"])
         return json.dumps({"message": "赛题实例已在运行中", "entrypoint": entrypoints,
                            "started_at": started_at, "expires_at": expires_at}, ensure_ascii=False)
 
     try:
-        entrypoints = mgr.start_challenge_instance(code)
+        entrypoints = mgr.start_challenge_instance(code, team["id"])
     except Exception as e:
         raise ValueError(f"赛题启动失败: {e}")
 
-    started_at, expires_at = mgr.get_instance_timestamps(challenge.challenge_code)
+    started_at, expires_at = mgr.get_team_instance_timestamps(bm_id, team["id"])
     return json.dumps({"message": "赛题实例启动成功", "entrypoint": entrypoints,
                        "started_at": started_at, "expires_at": expires_at}, ensure_ascii=False)
 
@@ -190,11 +193,12 @@ def stop_challenge(code: str) -> str:
 
     _ensure_enabled(challenge)
 
-    if mgr.get_instance_status(code) not in ("running", "unhealthy"):
+    bm_id = challenge.get_benchmark_id()
+    if mgr.get_team_instance_status(bm_id, team["id"]) not in ("running", "unhealthy"):
         raise ValueError("赛题实例未运行")
 
     try:
-        mgr.stop_challenge_instance(code)
+        mgr.stop_challenge_instance(code, team["id"])
     except Exception as e:
         raise ValueError(f"停止失败: {e}")
 
@@ -223,13 +227,21 @@ def submit_flag(code: str, flag: str) -> str:
     if not mgr.is_level_unlocked(challenge_level, team["id"]):
         raise ValueError(f"尚未解锁关卡 {challenge_level}，请先通过前置关卡")
 
-    if mgr.get_instance_status(code) not in ("running", "unhealthy"):
+    bm_id = challenge.get_benchmark_id()
+    if mgr.get_team_instance_status(bm_id, team["id"]) not in ("running", "unhealthy"):
         raise ValueError("赛题实例未运行")
 
     try:
-        answers = challenge.get_expected_answers()
+        answers = mgr.get_team_instance_flags(bm_id, team["id"])
     except Exception as e:
         raise ValueError(f"获取预期答案失败: {e}")
+
+    if not answers:
+        # Fall back to static answers if no runtime flags available
+        try:
+            answers = challenge.get_expected_answers()
+        except Exception as e:
+            raise ValueError(f"获取预期答案失败: {e}")
 
     matched_flag_id = None
     for fid, fval in answers.items():
@@ -282,7 +294,8 @@ def view_hint(code: str) -> str:
 
     _ensure_enabled(challenge)
 
-    if mgr.get_instance_status(code) not in ("running", "unhealthy"):
+    bm_id = challenge.get_benchmark_id()
+    if mgr.get_team_instance_status(bm_id, team["id"]) not in ("running", "unhealthy"):
         raise ValueError("请先启动赛题实例")
 
     team_solved = get_team_solved_count(team["id"], challenge.get_benchmark_id())
