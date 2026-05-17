@@ -1264,10 +1264,6 @@ def serve(
     effective_token = admin_token if admin_token else secrets.token_hex(16)
     default_team = get_or_create_default_team(effective_token)
 
-    from rich.console import Console
-    console = Console()
-    console.print(f"\n  [bold green]Admin Token:[/bold green] {default_team['token']}\n")
-
     # Sync solved state from DB to Challenge objects
     team_progress = get_team_progress(default_team["id"])
     for c in manager.challenges:
@@ -1290,6 +1286,10 @@ def serve(
     app.state.challenges_dir = challenges_dir
 
     manager.print_summary_table()
+
+    from rich.console import Console
+    console = Console()
+    console.print(f"\n  [bold green]Admin Token:[/bold green] {default_team['token']}\n")
 
     logger.info("binding uvicorn", action="serve", host=host, port=port)
     try:
