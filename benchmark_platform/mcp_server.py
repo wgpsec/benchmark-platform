@@ -49,7 +49,7 @@ def _get_team_from_request() -> dict:
             token = agent_token
 
     if not token:
-        return get_or_create_default_team()
+        raise ValueError("Missing authentication token. Provide Authorization: Bearer <token> header.")
 
     team = get_team_by_token(token)
     if team is None:

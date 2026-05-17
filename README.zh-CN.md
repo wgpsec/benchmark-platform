@@ -19,6 +19,7 @@ CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态
 - 团队管理与多队伍评分
 - 运行时目录隔离（可通过 Web UI 配置）
 - **MCP Server** — Streamable HTTP 端点，支持 AI Agent 直接接入（Claude Code、LangChain、openai-agents 等）
+- **Web UI 认证** — 基于 Cookie 的登录机制，支持管理员/观察者角色；Admin Token 自动生成或用户自定义
 - Apple Silicon (ARM64) 兼容
 
 ## 界面截图
@@ -82,14 +83,17 @@ python3 -m benchmark_platform.server \
 | `--benchmark-folder` | 靶机题目目录（可多次指定） | 必填 |
 | `--benchmark-id` / `-i` | 只加载指定 ID 的题目 | 全部加载 |
 | `--challenges-dir` | 靶场管理下载根目录 | `./challenges` |
+| `--admin-token` | Web UI 管理员 Token（不指定则随机生成） | 随机 |
 | `--host` | 监听地址 | `0.0.0.0` |
 | `--port` | 服务端口 | 8088 |
 | `--public-accessible-host` | 靶机入口地址 | localhost |
 | `--no-level-gate` | 禁用分级解锁 | false |
 
+`--admin-token` 也可通过环境变量 `ADMIN_TOKEN` 设置。启动时控制台会打印当前生效的 Admin Token。
+
 ### 访问
 
-启动后浏览器打开 `http://localhost:8088` 进入 Web UI。
+启动后浏览器打开 `http://localhost:8088`，会跳转到登录页。输入控制台打印的 Admin Token 即可获得完整管理权限。各参赛队伍使用自己的 Agent-Token 登录后只能查看只读积分榜。
 
 ## 项目结构
 
@@ -107,6 +111,7 @@ benchmark_platform/
 │   └── logger.py          # 结构化日志
 ├── web/
 │   ├── routes.py          # Web UI 页面 & HTMX partial 路由
+│   ├── auth_middleware.py # Cookie 会话认证（管理员/观察者角色）
 │   ├── context.py         # 模板上下文构建
 │   ├── prebuild_manager.py # 镜像预构建管理器
 │   ├── submission_store.py # 提交记录持久化
@@ -127,6 +132,8 @@ tests/                     # 测试
 
 | 路由 | 说明 |
 |------|------|
+| `GET /web/login` | 登录页 |
+| `GET /web/scoreboard` | 观察者积分榜（只读） |
 | `GET /web/dashboard` | 仪表盘 |
 | `GET /web/challenges` | 题目列表 |
 | `GET /web/history` | 提交记录 |
@@ -138,6 +145,8 @@ tests/                     # 测试
 
 ### REST API
 
+所有接口均需 `Agent-Token` 请求头。标记 🔒 的接口需要管理员（默认团队）Token。
+
 | 路由 | 说明 |
 |------|------|
 | `GET /api/challenges` | 获取所有题目 |
@@ -145,14 +154,14 @@ tests/                     # 测试
 | `POST /api/stop_challenge` | 停止靶机 `{code}` |
 | `POST /api/submit` | 提交 Flag `{code, flag}` |
 | `POST /api/hint` | 获取提示 `{code}` |
-| `POST /api/stop_all` | 停止所有实例 |
 | `GET /api/challenges/{code}/progress` | 查询 Flag 进度 |
-| `POST /api/challenges/reload` | 热加载新下载的靶场 |
-| `POST /api/start_level` | 启动某一等级所有靶机 |
-| `POST /api/stop_level` | 停止某一等级所有靶机 |
-| `GET /api/instance_statuses` | 批量查询实例状态 |
+| `POST /api/stop_all` | 🔒 停止所有实例 |
+| `POST /api/challenges/reload` | 🔒 热加载新下载的靶场 |
+| `POST /api/start_level` | 🔒 启动某一等级所有靶机 |
+| `POST /api/stop_level` | 🔒 停止某一等级所有靶机 |
+| `GET /api/instance_statuses` | 🔒 批量查询实例状态 |
 
-### 靶场商店 API
+### 靶场商店 API（🔒 仅管理员）
 
 | 路由 | 说明 |
 |------|------|
@@ -162,7 +171,7 @@ tests/                     # 测试
 | `POST /api/store/delete` | 删除已下载的靶场 |
 | `POST /api/store/import` | 导入本地 zip 文件 |
 
-### 镜像预热 API
+### 镜像预热 API（🔒 仅管理员）
 
 | 路由 | 说明 |
 |------|------|

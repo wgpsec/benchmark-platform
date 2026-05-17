@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import os
+import secrets
 import signal
 import threading
 from pathlib import Path
@@ -28,7 +29,7 @@ from benchmark_platform.utils.logger import get_logger
 from benchmark_platform.web.routes import web_router
 from benchmark_platform.web.auth_middleware import AuthMiddleware
 from benchmark_platform.web.submission_store import SubmissionStore
-from benchmark_platform.auth import get_current_team
+from benchmark_platform.auth import get_current_team, require_admin
 from benchmark_platform.db import (
     init_db, get_or_create_default_team,
     mark_flag_solved, get_team_solved_count,
@@ -123,7 +124,7 @@ def _auto_reload_challenges() -> tuple[int, list[str]]:
 
 
 @app.post("/api/challenges/reload")
-async def reload_challenges():
+async def reload_challenges(_=Depends(require_admin)):
     if manager is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
     added, errors = _auto_reload_challenges()
@@ -535,7 +536,7 @@ async def tch_hint(payload: HintRequest, team: dict = Depends(get_current_team))
 
 
 @app.post("/api/stop_all")
-async def tch_stop_all(team: dict = Depends(get_current_team)):
+async def tch_stop_all(_=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -570,7 +571,7 @@ class ChallengeVisibilityRequest(PydanticBaseModel):
 
 
 @app.post("/api/challenges/visibility")
-async def tch_set_challenge_visibility(payload: ChallengeVisibilityRequest):
+async def tch_set_challenge_visibility(payload: ChallengeVisibilityRequest, _=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -600,7 +601,7 @@ class LevelVisibilityRequest(PydanticBaseModel):
 
 
 @app.post("/api/level_visibility")
-async def tch_set_level_visibility(payload: LevelVisibilityRequest):
+async def tch_set_level_visibility(payload: LevelVisibilityRequest, _=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -635,7 +636,7 @@ async def tch_set_level_visibility(payload: LevelVisibilityRequest):
 
 
 @app.get("/api/challenges/visibility")
-async def tch_get_challenge_visibility():
+async def tch_get_challenge_visibility(_=Depends(require_admin)):
     """Web UI 用,返回所有 benchmark_id 的当前开关状态。"""
     if manager is None:
         _err("Server not initialized", 503)
@@ -652,7 +653,7 @@ async def tch_get_challenge_visibility():
 
 
 @app.post("/api/toggle_level_gate")
-async def tch_toggle_level_gate():
+async def tch_toggle_level_gate(_=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -666,12 +667,12 @@ class LevelGateConfigRequest(PydanticBaseModel):
 
 
 @app.get("/api/level_gate_config")
-async def get_level_gate_config_api():
+async def get_level_gate_config_api(_=Depends(require_admin)):
     return _ok(get_level_gate_config())
 
 
 @app.post("/api/level_gate_config")
-async def set_level_gate_config_api(payload: LevelGateConfigRequest):
+async def set_level_gate_config_api(payload: LevelGateConfigRequest, _=Depends(require_admin)):
     try:
         config = set_level_gate_config(payload.mode, payload.threshold)
     except ValueError as e:
@@ -681,7 +682,7 @@ async def set_level_gate_config_api(payload: LevelGateConfigRequest):
 
 
 @app.get("/api/settings/instance_timeout")
-async def get_timeout_settings():
+async def get_timeout_settings(_=Depends(require_admin)):
     config = get_instance_timeout_config()
     return _ok({"level_1": config[1], "level_2": config[2], "level_3": config[3]})
 
@@ -693,7 +694,7 @@ class InstanceTimeoutRequest(PydanticBaseModel):
 
 
 @app.post("/api/settings/instance_timeout")
-async def set_timeout_settings(payload: InstanceTimeoutRequest):
+async def set_timeout_settings(payload: InstanceTimeoutRequest, _=Depends(require_admin)):
     if payload.level_1 < 60 or payload.level_2 < 60 or payload.level_3 < 60:
         _err("超时时间不能小于 60 秒", 400)
         return
@@ -702,7 +703,7 @@ async def set_timeout_settings(payload: InstanceTimeoutRequest):
 
 
 @app.get("/api/runtime_dir")
-async def get_runtime_dir_api():
+async def get_runtime_dir_api(_=Depends(require_admin)):
     return _ok({"runtime_dir": get_setting("runtime_dir", "./runtime")})
 
 
@@ -711,7 +712,7 @@ class RuntimeDirRequest(PydanticBaseModel):
 
 
 @app.post("/api/runtime_dir")
-async def set_runtime_dir_api(payload: RuntimeDirRequest):
+async def set_runtime_dir_api(payload: RuntimeDirRequest, _=Depends(require_admin)):
     path = payload.runtime_dir.strip()
     if not path:
         _err("路径不能为空", 400)
@@ -721,7 +722,7 @@ async def set_runtime_dir_api(payload: RuntimeDirRequest):
 
 
 @app.get("/api/settings/vnc_password")
-async def get_vnc_password_api():
+async def get_vnc_password_api(_=Depends(require_admin)):
     return _ok({"vnc_password": get_setting("vnc_password", "VncAdmin2024!")})
 
 
@@ -730,7 +731,7 @@ class VncPasswordRequest(PydanticBaseModel):
 
 
 @app.post("/api/settings/vnc_password")
-async def set_vnc_password_api(payload: VncPasswordRequest):
+async def set_vnc_password_api(payload: VncPasswordRequest, _=Depends(require_admin)):
     pwd = payload.password.strip()
     if not pwd:
         _err("密码不能为空", 400)
@@ -742,7 +743,7 @@ async def set_vnc_password_api(payload: VncPasswordRequest):
 
 
 @app.get("/api/settings/win_iso")
-async def get_win_iso_api():
+async def get_win_iso_api(_=Depends(require_admin)):
     return _ok({"win2022_iso_path": get_setting("win2022_iso_path", "")})
 
 
@@ -751,7 +752,7 @@ class WinIsoRequest(PydanticBaseModel):
 
 
 @app.post("/api/settings/win_iso")
-async def set_win_iso_api(payload: WinIsoRequest):
+async def set_win_iso_api(payload: WinIsoRequest, _=Depends(require_admin)):
     path = payload.path.strip()
     if not path:
         _err("路径不能为空", 400)
@@ -770,7 +771,7 @@ class VncToggleRequest(PydanticBaseModel):
 
 
 @app.post("/api/vnc/enable")
-async def vnc_enable_api(payload: VncToggleRequest):
+async def vnc_enable_api(payload: VncToggleRequest, _=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -784,14 +785,14 @@ async def vnc_enable_api(payload: VncToggleRequest):
 
 
 @app.post("/api/vnc/disable")
-async def vnc_disable_api(payload: VncToggleRequest):
+async def vnc_disable_api(payload: VncToggleRequest, _=Depends(require_admin)):
     from benchmark_platform.web.vnc_proxy import disable_vnc
     disable_vnc(payload.benchmark_id)
     return _ok(None, "VNC 代理已关闭")
 
 
 @app.get("/api/vnc/status")
-async def vnc_status_api():
+async def vnc_status_api(_=Depends(require_admin)):
     from benchmark_platform.web.vnc_proxy import get_active_proxies
     return _ok({"active": get_active_proxies()})
 
@@ -801,7 +802,7 @@ class BatchLevelRequest(PydanticBaseModel):
 
 
 @app.post("/api/start_level")
-async def tch_start_level(payload: BatchLevelRequest):
+async def tch_start_level(payload: BatchLevelRequest, _=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -837,7 +838,7 @@ async def tch_start_level(payload: BatchLevelRequest):
 
 
 @app.post("/api/stop_level")
-async def tch_stop_level(payload: BatchLevelRequest):
+async def tch_stop_level(payload: BatchLevelRequest, _=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -865,7 +866,7 @@ async def tch_stop_level(payload: BatchLevelRequest):
 
 
 @app.get("/api/instance_statuses")
-async def tch_instance_statuses(request: Request):
+async def tch_instance_statuses(request: Request, _=Depends(require_admin)):
     """Lightweight endpoint for polling instance statuses.
 
     Agent callers (with Agent-Token) get only enabled challenges.
@@ -898,7 +899,7 @@ async def tch_instance_statuses(request: Request):
 
 
 @app.get("/api/instance_logs")
-async def tch_instance_logs(benchmark_id: str, offset: int = 0):
+async def tch_instance_logs(benchmark_id: str, offset: int = 0, _=Depends(require_admin)):
     """Return compose logs for a challenge instance (used by Web UI log panel)."""
     if manager is None:
         _err("Server not initialized", 503)
@@ -926,7 +927,7 @@ class PrebuildStartRequest(PydanticBaseModel):
 
 
 @app.post("/api/prebuild/start")
-async def prebuild_start(payload: PrebuildStartRequest):
+async def prebuild_start(payload: PrebuildStartRequest, _=Depends(require_admin)):
     if manager is None:
         _err("Server not initialized", 503)
         return
@@ -948,7 +949,7 @@ async def prebuild_start(payload: PrebuildStartRequest):
 
 
 @app.post("/api/prebuild/stop")
-async def prebuild_stop():
+async def prebuild_stop(_=Depends(require_admin)):
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
     if prebuild_mgr is None:
         _err("No prebuild in progress", 400)
@@ -958,7 +959,7 @@ async def prebuild_stop():
 
 
 @app.get("/api/prebuild/status")
-async def prebuild_status():
+async def prebuild_status(_=Depends(require_admin)):
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
     if prebuild_mgr is None:
         # No manager yet — return empty state
@@ -987,7 +988,7 @@ class PrebuildRemoveBatchRequest(PydanticBaseModel):
 
 
 @app.post("/api/prebuild/remove")
-async def prebuild_remove(payload: PrebuildRemoveRequest):
+async def prebuild_remove(payload: PrebuildRemoveRequest, _=Depends(require_admin)):
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
     if prebuild_mgr is None:
         _err("Prebuild manager not initialized", 400)
@@ -1001,7 +1002,7 @@ async def prebuild_remove(payload: PrebuildRemoveRequest):
 
 
 @app.post("/api/prebuild/remove_batch")
-async def prebuild_remove_batch(payload: PrebuildRemoveBatchRequest):
+async def prebuild_remove_batch(payload: PrebuildRemoveBatchRequest, _=Depends(require_admin)):
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
     if prebuild_mgr is None:
         _err("Prebuild manager not initialized", 400)
@@ -1019,7 +1020,7 @@ async def prebuild_remove_batch(payload: PrebuildRemoveBatchRequest):
 
 
 @app.post("/api/prebuild/remove_all")
-async def prebuild_remove_all():
+async def prebuild_remove_all(_=Depends(require_admin)):
     prebuild_mgr = getattr(app.state, "prebuild_manager", None)
     if prebuild_mgr is None:
         _err("Prebuild manager not initialized", 400)
@@ -1032,7 +1033,7 @@ async def prebuild_remove_all():
 # -- Challenge Store API -------------------------------------------------------
 
 @app.get("/api/store/manifest")
-async def store_manifest(source: str = "all"):
+async def store_manifest(source: str = "all", _=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     if not hasattr(app.state, '_challenge_store'):
         app.state._challenge_store = ChallengeStore(challenges_dir=app.state.challenges_dir)
@@ -1057,7 +1058,7 @@ async def store_manifest(source: str = "all"):
 
 
 @app.post("/api/store/sizes")
-async def store_sizes(body: dict):
+async def store_sizes(body: dict, _=Depends(require_admin)):
     """Calculate directory sizes for challenges that have no stored size metadata."""
     import asyncio
     from pathlib import Path as _Path
@@ -1091,7 +1092,7 @@ async def store_sizes(body: dict):
 
 
 @app.post("/api/store/download")
-def store_download(body: dict):
+def store_download(body: dict, _=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     category = body.get("category")
     name = body.get("name")
@@ -1113,7 +1114,7 @@ def store_download(body: dict):
 
 
 @app.post("/api/store/delete")
-async def store_delete(body: dict):
+async def store_delete(body: dict, _=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     category = body.get("category")
     name = body.get("name")
@@ -1131,7 +1132,7 @@ async def store_delete(body: dict):
 
 
 @app.post("/api/store/download-all")
-async def store_download_all():
+async def store_download_all(_=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     store = ChallengeStore(
         challenges_dir=app.state.challenges_dir,
@@ -1157,7 +1158,7 @@ async def store_download_all():
 
 
 @app.post("/api/store/import")
-async def store_import(files: list[UploadFile] = File(...)):
+async def store_import(files: list[UploadFile] = File(...), _=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     store = ChallengeStore(
         challenges_dir=app.state.challenges_dir,
@@ -1199,6 +1200,12 @@ def serve(
         Path("challenges"),
         "--challenges-dir",
         help="Root directory for challenge store downloads.",
+    ),
+    admin_token: str = typer.Option(
+        "",
+        "--admin-token",
+        envvar="ADMIN_TOKEN",
+        help="Admin token for Web UI login. If empty, a random token is generated each startup.",
     ),
     no_level_gate: bool = typer.Option(
         False,
@@ -1248,7 +1255,12 @@ def serve(
     from benchmark_platform.mcp_server import set_manager
     set_manager(manager)
 
-    default_team = get_or_create_default_team()
+    effective_token = admin_token if admin_token else secrets.token_hex(16)
+    default_team = get_or_create_default_team(effective_token)
+
+    from rich.console import Console
+    console = Console()
+    console.print(f"\n  [bold green]Admin Token:[/bold green] {default_team['token']}\n")
 
     # Sync solved state from DB to Challenge objects
     team_progress = get_team_progress(default_team["id"])

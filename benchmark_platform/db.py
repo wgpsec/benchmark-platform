@@ -131,13 +131,26 @@ def get_team_by_token(token: str):
     return dict(row) if row else None
 
 
-def get_or_create_default_team() -> dict:
+def get_or_create_default_team(token: str | None = None) -> dict:
     conn = _get_conn()
     row = conn.execute(
         "SELECT id, name, token, created_at FROM teams WHERE name = 'default'"
     ).fetchone()
     if row:
-        return dict(row)
+        team = dict(row)
+        if token and team["token"] != token:
+            conn.execute("UPDATE teams SET token = ? WHERE id = ?", (token, team["id"]))
+            conn.commit()
+            team["token"] = token
+        return team
+    if token:
+        team_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO teams (id, name, token) VALUES (?, ?, ?)",
+            (team_id, "default", token),
+        )
+        conn.commit()
+        return {"id": team_id, "name": "default", "token": token}
     return create_team("default")
 
 

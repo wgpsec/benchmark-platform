@@ -19,6 +19,7 @@ A CTF challenge platform for security capability evaluation. Dynamically manages
 - Team management & multi-team scoring
 - Runtime directory isolation (configurable via Web UI)
 - **MCP Server** — Streamable HTTP endpoint for AI Agent integration (Claude Code, LangChain, openai-agents, etc.)
+- **Web UI Authentication** — cookie-based login with admin/observer roles; admin token auto-generated or user-defined
 - Apple Silicon (ARM64) compatibility
 
 ## Screenshots
@@ -79,14 +80,17 @@ Options:
 | `--benchmark-folder` | Challenge directory (can be repeated) | required |
 | `--benchmark-id` / `-i` | Load only specific IDs | all |
 | `--challenges-dir` | Root directory for store downloads | `./challenges` |
+| `--admin-token` | Admin token for Web UI login (random if omitted) | random |
 | `--host` | Host to bind to | `0.0.0.0` |
 | `--port` | Server port | 8088 |
 | `--public-accessible-host` | Public hostname for challenges | localhost |
 | `--no-level-gate` | Disable level-based unlock | false |
 
+The `--admin-token` can also be set via the `ADMIN_TOKEN` environment variable. On startup the server prints the active admin token to the console.
+
 ### Access
 
-Open `http://localhost:8088` in your browser after starting the server.
+Open `http://localhost:8088` in your browser. You will be redirected to the login page — enter the admin token printed in the console to get full access. Team observers log in with their own Agent-Token and see a read-only scoreboard.
 
 ## Project Structure
 
@@ -104,6 +108,7 @@ benchmark_platform/
 │   └── logger.py          # Structured logging
 ├── web/
 │   ├── routes.py          # Web UI page & HTMX partial routes
+│   ├── auth_middleware.py # Cookie-based session auth (admin/observer roles)
 │   ├── context.py         # Template context builders
 │   ├── prebuild_manager.py # Image pre-build manager
 │   ├── submission_store.py # Submission persistence
@@ -124,6 +129,8 @@ tests/                     # Tests
 
 | Route | Description |
 |-------|-------------|
+| `GET /web/login` | Login page |
+| `GET /web/scoreboard` | Observer scoreboard (read-only) |
 | `GET /web/dashboard` | Dashboard |
 | `GET /web/challenges` | Challenge list |
 | `GET /web/history` | Submission history |
@@ -135,6 +142,8 @@ tests/                     # Tests
 
 ### REST API
 
+All endpoints require `Agent-Token` header. Endpoints marked with 🔒 require the admin (default team) token.
+
 | Route | Description |
 |-------|-------------|
 | `GET /api/challenges` | List all challenges |
@@ -142,14 +151,14 @@ tests/                     # Tests
 | `POST /api/stop_challenge` | Stop instance `{code}` |
 | `POST /api/submit` | Submit flag `{code, flag}` |
 | `POST /api/hint` | Get hint `{code}` |
-| `POST /api/stop_all` | Stop all instances |
 | `GET /api/challenges/{code}/progress` | Query flag progress |
-| `POST /api/challenges/reload` | Hot-reload newly downloaded challenges |
-| `POST /api/start_level` | Start all challenges at a level |
-| `POST /api/stop_level` | Stop all challenges at a level |
-| `GET /api/instance_statuses` | Batch query instance statuses |
+| `POST /api/stop_all` | 🔒 Stop all instances |
+| `POST /api/challenges/reload` | 🔒 Hot-reload newly downloaded challenges |
+| `POST /api/start_level` | 🔒 Start all challenges at a level |
+| `POST /api/stop_level` | 🔒 Stop all challenges at a level |
+| `GET /api/instance_statuses` | 🔒 Batch query instance statuses |
 
-### Store API
+### Store API (🔒 Admin only)
 
 | Route | Description |
 |-------|-------------|
@@ -159,7 +168,7 @@ tests/                     # Tests
 | `POST /api/store/delete` | Delete a downloaded challenge |
 | `POST /api/store/import` | Import a local zip file |
 
-### Prebuild API
+### Prebuild API (🔒 Admin only)
 
 | Route | Description |
 |-------|-------------|
