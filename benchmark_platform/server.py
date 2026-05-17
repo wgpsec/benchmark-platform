@@ -658,6 +658,7 @@ async def tch_toggle_level_gate(_=Depends(require_admin)):
         _err("Server not initialized", 503)
         return
     manager.no_level_gate = not manager.no_level_gate
+    set_setting("no_level_gate", "1" if manager.no_level_gate else "0")
     return _ok({"no_level_gate": manager.no_level_gate})
 
 
@@ -1241,11 +1242,16 @@ def serve(
 
     init_db()
 
+    # CLI --no-level-gate only takes effect as override; otherwise read from DB
+    if no_level_gate:
+        set_setting("no_level_gate", "1")
+    effective_no_level_gate = get_setting("no_level_gate", "0") == "1"
+
     manager = ChallengeManager(
         benchmark_folders=benchmark_folder,
         benchmark_ids=benchmark_ids,
         public_accessible_host=public_accessible_host,
-        no_level_gate=no_level_gate,
+        no_level_gate=effective_no_level_gate,
         runtime_dir=Path(get_setting("runtime_dir", "./runtime")),
     )
     manager.start()
