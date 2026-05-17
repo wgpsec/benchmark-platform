@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import threading
@@ -470,47 +469,6 @@ class ChallengeManager:
                 shutil.rmtree(path)
             raise
 
-    def _reconcile_or_create(self, benchmark_folder: Path, benchmark_id: str) -> Challenge:
-        """Check DB for existing instance, reconcile with Docker, or create new."""
-        record = get_instance_by_benchmark_id(benchmark_id)
-
-        if record and record["status"] == "running":
-            runtime_path = Path(record["runtime_path"])
-            if runtime_path.exists() and self._is_docker_running(runtime_path):
-                challenge = self._restore_challenge(benchmark_id, record)
-                self._instance_status[challenge.challenge_code] = "running"
-                timeout_config = get_instance_timeout_config()
-                level = self.get_level_for_challenge(challenge)
-                timeout_secs = timeout_config.get(level, 7200)
-                now = datetime.now(timezone.utc)
-                expires_at = (now + timedelta(seconds=timeout_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
-                update_instance_status(benchmark_id, "running",
-                                       started_at=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                       expires_at=expires_at)
-                logger.info("recovered running instance",
-                            benchmark_id=benchmark_id,
-                            challenge_code=record["challenge_code"])
-                return challenge
-            else:
-                self._cleanup_stale_record(record)
-
-        if record and record["status"] in ("stopped", "expired"):
-            runtime_path = Path(record["runtime_path"])
-            if runtime_path.exists():
-                shutil.rmtree(runtime_path, ignore_errors=True)
-
-        challenge = self._create_challenge(benchmark_folder, benchmark_id)
-        self._instance_status[challenge.challenge_code] = "stopped"
-        upsert_instance(
-            instance_id=str(uuid.uuid4()),
-            benchmark_id=benchmark_id,
-            challenge_code=challenge.challenge_code,
-            runtime_path=str(Challenge.get_base_path(benchmark_id, challenge.challenge_code, self.runtime_dir)),
-            ports=challenge.target_info.port,
-            status="stopped",
-        )
-        return challenge
-
     def _is_docker_running(self, runtime_path: Path) -> bool:
         """Check if docker compose services are running in the given path."""
         compose_file = runtime_path / 'docker-compose.yml'
@@ -531,73 +489,6 @@ class ChallengeManager:
             return False
         except Exception:
             return False
-
-    def _restore_challenge(self, benchmark_id: str, record: dict) -> Challenge:
-        """Rebuild a Challenge object from a DB record and its runtime directory."""
-        runtime_path = Path(record["runtime_path"])
-        challenge_code = record["challenge_code"]
-        ports = json.loads(record["ports"])
-
-        meta = json.loads((runtime_path / 'benchmark.json').read_text())
-        meta['id'] = benchmark_id
-        bm = Benchmark.model_validate(meta)
-
-        flag_states = []
-        bm_yaml_path = runtime_path / 'benchmark.yaml'
-        if bm_yaml_path.exists():
-            bm_yaml = yaml.safe_load(bm_yaml_path.read_text(encoding='utf-8'))
-            for flag_def in bm_yaml.get('flags', []):
-                flag_states.append(FlagState(
-                    id=flag_def['id'],
-                    route=flag_def.get('route', '/'),
-                    description=flag_def.get('description', ''),
-                ))
-
-        _level_map = {1: Difficulty.EASY, 2: Difficulty.MEDIUM, 3: Difficulty.HARD}
-        import platform as _platform
-        host_is_arm = _platform.machine() in ('arm64', 'aarch64')
-
-        compose_path = runtime_path / 'docker-compose.yml'
-        with open(compose_path) as f:
-            data = yaml.safe_load(f)
-        is_emulated = host_is_arm and any(
-            svc.get('platform', '').endswith('amd64')
-            for svc in data.get('services', {}).values()
-        )
-
-        is_unsupported = False
-        unsupported_reason = ""
-        if bm.requires:
-            if bm.requires.arch == "x86_64" and host_is_arm:
-                is_unsupported = True
-                unsupported_reason = "需要 x86_64 架构"
-            elif bm.requires.arch == "aarch64" and not host_is_arm:
-                is_unsupported = True
-                unsupported_reason = "需要 ARM64 架构"
-            if bm.requires.kvm and not Path('/dev/kvm').exists():
-                is_unsupported = True
-                unsupported_reason = "需要 KVM 虚拟化支持 (/dev/kvm)"
-            if bm.requires.arch == "x86_64" and host_is_arm and bm.requires.kvm:
-                unsupported_reason = "需要 x86_64 架构 + KVM 虚拟化"
-
-        requires_win_iso = self._detect_requires_windows_iso(data)
-
-        challenge = Challenge(
-            challenge_code=challenge_code,
-            difficulty=_level_map[bm.level],
-            points=bm.points,
-            hint_viewed=False,
-            solved=False,
-            target_info=TargetInfo(ip=self.public_accessible_host, port=ports),
-            flag_states=flag_states,
-            emulated=is_emulated,
-            unsupported=is_unsupported,
-            unsupported_reason=unsupported_reason,
-            requires_windows_iso=requires_win_iso,
-        )
-        challenge.set_benchmark_id(benchmark_id)
-        challenge.set_runtime_dir(self.runtime_dir)
-        return challenge
 
     def _cleanup_stale_record(self, record: dict) -> None:
         """Docker is dead but DB says running -- clean up."""
@@ -898,19 +789,6 @@ class ChallengeManager:
         self._finalize_team_start(challenge, benchmark_id, instance_code, None, allocated_ports)
         return [f"{self.public_accessible_host}:{p}" for p in allocated_ports]
 
-    def _async_compose_start(self, challenge: Challenge, benchmark_id: str, challenge_code: str) -> None:
-        """Background thread for legacy compose up (kept for backward compat)."""
-        try:
-            self._compose(benchmark_id, challenge_code, 'up', '-d',
-                          timeout=self._COMPOSE_TIMEOUT_WINDOWS)
-            self._instance_status[challenge_code] = "running"
-            self._finalize_start(challenge, benchmark_id, challenge_code)
-        except Exception as e:
-            logger.error("async compose start failed",
-                         benchmark_id=benchmark_id, error=str(e))
-            self._instance_logs.setdefault(benchmark_id, []).append(f"ERROR: {e}")
-            self._instance_status[challenge_code] = "stopped"
-
     def _async_team_compose_start(self, challenge: Challenge, benchmark_id: str,
                                    instance_code: str, team_id: str | None,
                                    ports: list[int]) -> None:
@@ -926,26 +804,6 @@ class ChallengeManager:
             self._instance_logs.setdefault(benchmark_id, []).append(f"ERROR: {e}")
             self._instance_status[instance_code] = "stopped"
             update_instance_status_by_team(benchmark_id, team_id, "stopped")
-
-    def _finalize_start(self, challenge: Challenge, benchmark_id: str, challenge_code: str) -> None:
-        """Record instance as running in DB after successful compose up (legacy)."""
-        timeout_config = get_instance_timeout_config()
-        level = self.get_level_for_challenge(challenge)
-        timeout_secs = timeout_config.get(level, 7200)
-        now = datetime.now(timezone.utc)
-        started_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        expires_at = (now + timedelta(seconds=timeout_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        upsert_instance(
-            instance_id=str(uuid.uuid4()),
-            benchmark_id=benchmark_id,
-            challenge_code=challenge_code,
-            runtime_path=str(Challenge.get_base_path(benchmark_id, challenge_code, self.runtime_dir)),
-            ports=challenge.target_info.port,
-            status="running",
-            started_at=started_at,
-            expires_at=expires_at,
-        )
 
     def _finalize_team_start(self, challenge: Challenge, benchmark_id: str,
                               instance_code: str, team_id: str | None,
@@ -1218,27 +1076,6 @@ class ChallengeManager:
             return record["started_at"], record["expires_at"]
         return None, None
 
-    def _check_container_health(self, challenge: Challenge) -> str:
-        path = Challenge.get_base_path(challenge.get_benchmark_id(), challenge.challenge_code, self.runtime_dir)
-        if not (path / 'docker-compose.yml').exists():
-            return "running"
-        try:
-            res = subprocess.run(
-                ['docker', 'compose', 'ps', '--format', 'json'],
-                cwd=path, capture_output=True, text=True, timeout=5,
-            )
-            if res.returncode != 0:
-                return "running"
-            import json as _json
-            for line in res.stdout.strip().splitlines():
-                info = _json.loads(line)
-                health = info.get("Health", "")
-                if health == "unhealthy":
-                    return "unhealthy"
-        except Exception:
-            pass
-        return "running"
-
     def _find_source_folder(self, benchmark_id: str) -> Path:
         """Find the source folder for a benchmark_id from benchmark_folders."""
         for folder in self.benchmark_folders:
@@ -1258,22 +1095,6 @@ class ChallengeManager:
             if c.get_benchmark_id() == challenge_code:
                 return c
         raise KeyError(f"Challenge {challenge_code!r} not found")
-
-    def _cleanup(self, challenges: list[Challenge]) -> None:
-        if not challenges:
-            return
-        logger.info('cleaning up challenges', count=len(challenges))
-        with ThreadPoolExecutor() as executor:
-            list(executor.map(
-                lambda c: self._compose(c.get_benchmark_id(), c.challenge_code, 'down', '-v', '--remove-orphans'),
-                challenges,
-            ))
-            def remove_dir(c):
-                shutil.rmtree(
-                    Challenge.get_base_path(c.get_benchmark_id(), c.challenge_code, self.runtime_dir),
-                    ignore_errors=True,
-                )
-            list(executor.map(remove_dir, challenges))
 
     _FLAG_RE = re.compile(r'^(FLAG(?:_\w+|[0-9]*))\s*=\s*["\']?([^"\'\n]+)["\']?', re.MULTILINE)
     _TEXT_EXTENSIONS = {
@@ -1414,74 +1235,6 @@ class ChallengeManager:
 
     _COMPOSE_TIMEOUT = 300  # 5 minutes
     _COMPOSE_TIMEOUT_WINDOWS = 1800  # 30 minutes for Windows ISO challenges
-
-    def _compose(self, benchmark_id: str, code: str, *args, timeout: int | None = None) -> None:
-        path = Challenge.get_base_path(benchmark_id, code, self.runtime_dir)
-        if not (path / 'docker-compose.yml').exists():
-            return
-        compose_timeout = timeout or self._COMPOSE_TIMEOUT
-        cmd = ['docker', 'compose'] + list(args)
-        logger.info("docker compose", action="compose", cmd=" ".join(cmd), cwd=str(path))
-
-        self._instance_logs[benchmark_id] = []
-        logs = self._instance_logs[benchmark_id]
-
-        start_time = time.monotonic()
-
-        proc = subprocess.Popen(
-            cmd, cwd=path,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
-        try:
-            while True:
-                line = proc.stdout.readline()
-                if not line and proc.poll() is not None:
-                    break
-                if line:
-                    logs.append(line.rstrip('\n'))
-                    if len(logs) > 500:
-                        del logs[:len(logs) - 500]
-                if time.monotonic() - start_time > compose_timeout:
-                    proc.terminate()
-                    proc.wait(timeout=10)
-                    logger.error("docker compose timed out", action="compose",
-                                 cmd=" ".join(cmd), timeout=compose_timeout)
-                    raise RuntimeError(f"Docker compose timed out after {compose_timeout}s")
-        except RuntimeError:
-            raise
-        except Exception:
-            proc.kill()
-            raise
-
-        if proc.returncode != 0:
-            output = '\n'.join(logs[-20:])
-            if 'could not find an available, non-overlapping IPv4 address pool' in output:
-                logger.warning("address pool exhausted, pruning networks and retrying", benchmark_id=benchmark_id)
-                self._prune_orphan_networks()
-                self._instance_logs[benchmark_id] = []
-                logs = self._instance_logs[benchmark_id]
-                start_time = time.monotonic()
-                proc = subprocess.Popen(
-                    cmd, cwd=path,
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                )
-                while True:
-                    line = proc.stdout.readline()
-                    if not line and proc.poll() is not None:
-                        break
-                    if line:
-                        logs.append(line.rstrip('\n'))
-                        if len(logs) > 500:
-                            del logs[:len(logs) - 500]
-                    if time.monotonic() - start_time > compose_timeout:
-                        proc.terminate()
-                        proc.wait(timeout=10)
-                        raise RuntimeError(f"Docker compose timed out after {compose_timeout}s (retry)")
-                if proc.returncode == 0:
-                    return
-            logger.error("docker compose failed", action="compose",
-                         cmd=" ".join(cmd), stderr=output[:500])
-            raise RuntimeError(f"Docker compose failed: {output[:500]}")
 
     def get_instance_logs(self, benchmark_id: str, offset: int = 0) -> tuple[list[str], int]:
         """Return (log_lines_from_offset, total_line_count) for a benchmark."""
