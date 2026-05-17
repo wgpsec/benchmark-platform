@@ -17,14 +17,22 @@ def _get_team_progress_for_view(team_id: Optional[str]) -> dict:
 
 def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[str] = None, team_progress: Optional[dict] = None) -> dict:
     bm = challenge.get_benchmark()
-    status = manager.get_instance_status(challenge.challenge_code)
-    entrypoint = None
-    if status == "running":
-        entrypoint = [
-            f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port
-        ]
-
     bm_id = challenge.get_benchmark_id()
+
+    if team_id:
+        status = manager.get_team_instance_status(bm_id, team_id)
+        entrypoint = None
+        if status in ("running", "unhealthy"):
+            ports = manager.get_team_instance_ports(bm_id, team_id)
+            entrypoint = [f"{manager.public_accessible_host}:{p}" for p in ports]
+    else:
+        status = manager.get_instance_status(challenge.challenge_code)
+        entrypoint = None
+        if status == "running":
+            entrypoint = [
+                f"{manager.public_accessible_host}:{p}" for p in challenge.target_info.port
+            ]
+
     from benchmark_platform.db import is_challenge_enabled
     enabled = is_challenge_enabled(bm_id)
 
@@ -50,8 +58,11 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         ]
 
     started_at, expires_at = None, None
-    if manager.get_instance_status(challenge.challenge_code) in ("running", "unhealthy"):
-        started_at, expires_at = manager.get_instance_timestamps(challenge.challenge_code)
+    if status in ("running", "unhealthy"):
+        if team_id:
+            started_at, expires_at = manager.get_team_instance_timestamps(bm_id, team_id)
+        else:
+            started_at, expires_at = manager.get_instance_timestamps(challenge.challenge_code)
 
     return {
         "challenge_code": challenge.challenge_code,

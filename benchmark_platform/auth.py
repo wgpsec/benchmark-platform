@@ -41,6 +41,14 @@ async def get_current_team(request: Request, agent_token: Optional[str] = Header
 
     team = _team_from_cookie(request)
     if team:
+        # Admin viewing as another team: use selected_team_id for operations
+        default_team = get_or_create_default_team()
+        if team["id"] == default_team["id"]:
+            selected_id = request.cookies.get("selected_team_id")
+            if selected_id and selected_id != default_team["id"]:
+                selected_team = get_team_by_token_or_id(selected_id)
+                if selected_team:
+                    return selected_team
         return team
 
     raise HTTPException(

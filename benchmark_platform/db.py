@@ -67,16 +67,17 @@ def init_db() -> None:
         );
         CREATE TABLE IF NOT EXISTS instance_lifecycle (
             id             TEXT PRIMARY KEY,
-            benchmark_id   TEXT NOT NULL UNIQUE,
-            challenge_code TEXT NOT NULL UNIQUE,
+            benchmark_id   TEXT NOT NULL,
             team_id        TEXT,
+            challenge_code TEXT NOT NULL UNIQUE,
             runtime_path   TEXT NOT NULL,
             ports          TEXT NOT NULL,
             status         TEXT NOT NULL DEFAULT 'stopped',
             started_at     TEXT,
             expires_at     TEXT,
             created_at     TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(benchmark_id, team_id)
         );
     """)
     # Migrate old schema: rename challenge_code → benchmark_id if needed
@@ -92,6 +93,39 @@ def init_db() -> None:
     except Exception:
         pass
     conn.commit()
+
+    # Migrate instance_lifecycle: ensure correct schema with team_id + compound UNIQUE
+    try:
+        cols_il = [r[1] for r in conn.execute("PRAGMA table_info(instance_lifecycle)").fetchall()]
+        needs_recreate = "team_id" not in cols_il
+        if not needs_recreate:
+            # Check if old UNIQUE(benchmark_id) constraint exists (needs compound UNIQUE instead)
+            schema = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE name='instance_lifecycle'"
+            ).fetchone()[0]
+            if "benchmark_id   TEXT NOT NULL UNIQUE" in schema or "UNIQUE(benchmark_id, team_id)" not in schema:
+                needs_recreate = True
+        if needs_recreate:
+            conn.execute("DROP TABLE instance_lifecycle")
+            conn.execute("""
+                CREATE TABLE instance_lifecycle (
+                    id             TEXT PRIMARY KEY,
+                    benchmark_id   TEXT NOT NULL,
+                    team_id        TEXT,
+                    challenge_code TEXT NOT NULL UNIQUE,
+                    runtime_path   TEXT NOT NULL,
+                    ports          TEXT NOT NULL,
+                    status         TEXT NOT NULL DEFAULT 'stopped',
+                    started_at     TEXT,
+                    expires_at     TEXT,
+                    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(benchmark_id, team_id)
+                )
+            """)
+            conn.commit()
+    except Exception:
+        pass
 
 
 def create_team(name: str) -> dict:
@@ -131,7 +165,7 @@ def get_team_by_token(token: str):
     return dict(row) if row else None
 
 
-def get_or_create_default_team(token: str | None = None) -> dict:
+def get_or_create_default_team(token: Optional[str] = None) -> dict:
     conn = _get_conn()
     row = conn.execute(
         "SELECT id, name, token, created_at FROM teams WHERE name = 'default'"
@@ -252,7 +286,7 @@ def set_challenge_enabled(benchmark_id: str, enabled: bool) -> None:
     conn.commit()
 
 
-def set_challenges_enabled_bulk(benchmark_ids: list[str], enabled: bool) -> int:
+def set_challenges_enabled_bulk(benchmark_ids: List[str], enabled: bool) -> int:
     if not benchmark_ids:
         return 0
     conn = _get_conn()
@@ -292,11 +326,12 @@ def upsert_instance(
     ports_json = json.dumps(ports)
     conn.execute(
         """INSERT INTO instance_lifecycle
-           (id, benchmark_id, challenge_code, team_id, runtime_path, ports, status, started_at, expires_at, updated_at)
+           (id, benchmark_id, team_id, challenge_code, runtime_path, ports, status, started_at, expires_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(benchmark_id) DO UPDATE SET
-             challenge_code = excluded.challenge_code,
+           ON CONFLICT(id) DO UPDATE SET
+             benchmark_id = excluded.benchmark_id,
              team_id = excluded.team_id,
+             challenge_code = excluded.challenge_code,
              runtime_path = excluded.runtime_path,
              ports = excluded.ports,
              status = excluded.status,
@@ -304,9 +339,15 @@ def upsert_instance(
              expires_at = excluded.expires_at,
              updated_at = excluded.updated_at
         """,
-        (instance_id, benchmark_id, challenge_code, team_id, runtime_path,
+        (instance_id, benchmark_id, team_id, challenge_code, runtime_path,
          ports_json, status, started_at, expires_at, now),
     )
+    conn.commit()
+
+
+def delete_instance(instance_id: str) -> None:
+    conn = _get_conn()
+    conn.execute("DELETE FROM instance_lifecycle WHERE id = ?", (instance_id,))
     conn.commit()
 
 
@@ -351,19 +392,65 @@ def update_instance_status(benchmark_id: str, status: str,
     conn.commit()
 
 
-def delete_instance(benchmark_id: str) -> None:
+def get_instance_by_benchmark_and_team(benchmark_id: str, team_id: Optional[str]) -> Optional[dict]:
     conn = _get_conn()
-    conn.execute(
-        "DELETE FROM instance_lifecycle WHERE benchmark_id = ?",
-        (benchmark_id,),
-    )
+    if team_id is None:
+        row = conn.execute(
+            "SELECT * FROM instance_lifecycle WHERE benchmark_id = ? AND team_id IS NULL",
+            (benchmark_id,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT * FROM instance_lifecycle WHERE benchmark_id = ? AND team_id = ?",
+            (benchmark_id, team_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_team_running_count(team_id: str) -> int:
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) as cnt FROM instance_lifecycle WHERE team_id = ? AND status = 'running'",
+        (team_id,),
+    ).fetchone()
+    return row["cnt"]
+
+
+def get_all_instances() -> List[dict]:
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT * FROM instance_lifecycle ORDER BY benchmark_id, team_id"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_instance_status_by_team(
+    benchmark_id: str, team_id: Optional[str], status: str,
+    started_at: Optional[str] = None, expires_at: Optional[str] = None,
+) -> None:
+    conn = _get_conn()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if team_id is None:
+        conn.execute(
+            """UPDATE instance_lifecycle
+               SET status = ?, started_at = ?, expires_at = ?, updated_at = ?
+               WHERE benchmark_id = ? AND team_id IS NULL""",
+            (status, started_at, expires_at, now, benchmark_id),
+        )
+    else:
+        conn.execute(
+            """UPDATE instance_lifecycle
+               SET status = ?, started_at = ?, expires_at = ?, updated_at = ?
+               WHERE benchmark_id = ? AND team_id = ?""",
+            (status, started_at, expires_at, now, benchmark_id, team_id),
+        )
     conn.commit()
 
 
 _DEFAULT_INSTANCE_TIMEOUTS = {1: 3600, 2: 7200, 3: 14400}
 
 
-def get_instance_timeout_config() -> dict[int, int]:
+def get_instance_timeout_config() -> Dict[int, int]:
     result = {}
     for level in (1, 2, 3):
         val = get_setting(f"instance_timeout_level_{level}", None)
@@ -374,7 +461,7 @@ def get_instance_timeout_config() -> dict[int, int]:
     return result
 
 
-def set_instance_timeout_config(config: dict[int, int]) -> None:
+def set_instance_timeout_config(config: Dict[int, int]) -> None:
     for level in (1, 2, 3):
         if level in config:
             set_setting(f"instance_timeout_level_{level}", str(config[level]))

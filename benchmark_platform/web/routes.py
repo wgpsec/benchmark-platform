@@ -1,4 +1,5 @@
 """Web UI page routes and HTMX partial routes."""
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,7 @@ from benchmark_platform.web.context import (
     history_context,
     status_context,
 )
-from benchmark_platform.db import get_team_by_token, get_or_create_default_team
+from benchmark_platform.db import get_team_by_token, get_or_create_default_team, get_setting
 
 _templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=_templates_dir)
@@ -61,6 +62,71 @@ def _render(request: Request, template: str, ctx: dict):
     ctx.setdefault("teams", team_selector["teams"])
     ctx.setdefault("selected_team_id", team_selector["selected_team_id"])
     return templates.TemplateResponse(request, template, context=ctx)
+
+
+def _status_context_with_teams(manager) -> dict:
+    """Build status context using DB instances with team information."""
+    from benchmark_platform.db import get_all_instances, list_teams
+
+    all_instances = get_all_instances()
+    teams = {t["id"]: t["name"] for t in list_teams()}
+
+    running = []
+    stopped_challenges = []
+
+    for record in all_instances:
+        bm_id = record["benchmark_id"]
+        team_name = teams.get(record["team_id"], "shared") if record["team_id"] else " (共享)"
+        challenge = None
+        for c in manager.challenges:
+            if c.get_benchmark_id() == bm_id:
+                challenge = c
+                break
+        if not challenge:
+            continue
+
+        bm = challenge.get_benchmark()
+        ports = json.loads(record["ports"]) if record["ports"] else []
+        entrypoint = [f"{manager.public_accessible_host}:{p}" for p in ports]
+
+        card = {
+            "name": bm.name,
+            "benchmark_id": bm_id,
+            "challenge_code": record["challenge_code"],
+            "team_name": team_name,
+            "team_id": record["team_id"],
+            "entrypoint": entrypoint,
+            "status": record["status"],
+        }
+
+        if record["status"] in ("running", "starting"):
+            running.append(card)
+        else:
+            stopped_challenges.append(card)
+
+    # Add challenges with no instances at all
+    instanced_bids = {r["benchmark_id"] for r in all_instances}
+    for c in manager.challenges:
+        bm_id = c.get_benchmark_id()
+        if bm_id not in instanced_bids:
+            bm = c.get_benchmark()
+            stopped_challenges.append({
+                "name": bm.name,
+                "benchmark_id": bm_id,
+                "challenge_code": bm_id,
+                "team_name": "—",
+                "team_id": None,
+                "entrypoint": [],
+                "status": "stopped",
+            })
+
+    return {
+        "running": running,
+        "stopped": stopped_challenges,
+        "running_count": len(running),
+        "stopped_count": len(stopped_challenges),
+        "total": len(running) + len(stopped_challenges),
+    }
 
 
 # -- Auth routes ---------------------------------------------------------------
@@ -168,7 +234,7 @@ async def page_history(request: Request):
 async def page_status(request: Request):
     manager = _get_manager(request)
     if manager:
-        ctx = status_context(manager)
+        ctx = _status_context_with_teams(manager)
     else:
         ctx = {"running": [], "stopped": [], "running_count": 0, "stopped_count": 0, "total": 0}
     return _render(request, "pages/status.html", {"page": "status", **ctx})
@@ -257,7 +323,7 @@ async def partial_history_rows(request: Request):
 async def partial_status_table(request: Request):
     manager = _get_manager(request)
     if manager:
-        ctx = status_context(manager)
+        ctx = _status_context_with_teams(manager)
     else:
         ctx = {"running": [], "stopped": [], "running_count": 0, "stopped_count": 0, "total": 0}
     return _render(request, "partials/status_table.html", ctx)
@@ -302,7 +368,10 @@ async def page_teams(request: Request):
 
 @web_router.get("/settings")
 async def page_settings(request: Request):
-    return _render(request, "pages/settings.html", {"page": "settings"})
+    return _render(request, "pages/settings.html", {
+        "page": "settings",
+        "max_instances_per_team": int(get_setting("max_instances_per_team", "3")),
+    })
 
 
 @web_router.post("/api/teams/create")

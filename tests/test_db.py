@@ -9,6 +9,9 @@ from benchmark_platform.db import (
     upsert_instance, get_instance_by_benchmark_id, get_running_instances,
     get_expired_instances, delete_instance,
     get_instance_timeout_config, set_instance_timeout_config,
+    get_instance_by_benchmark_and_team,
+    get_team_running_count, get_all_instances,
+    update_instance_status_by_team,
 )
 
 
@@ -168,7 +171,7 @@ def test_get_expired_instances():
 
 def test_delete_instance():
     upsert_instance("id-1", "XBEN-001-24", "c1", "p1", [80], "stopped")
-    delete_instance("XBEN-001-24")
+    delete_instance("id-1")
     assert get_instance_by_benchmark_id("XBEN-001-24") is None
 
 
@@ -181,3 +184,92 @@ def test_set_instance_timeout_config():
     set_instance_timeout_config({1: 1800, 2: 3600, 3: 7200})
     config = get_instance_timeout_config()
     assert config == {1: 1800, 2: 3600, 3: 7200}
+
+
+def test_upsert_instance_with_team_id():
+    upsert_instance(
+        instance_id="inst-1",
+        benchmark_id="XBEN-001",
+        challenge_code="code-1",
+        runtime_path="/tmp/rt/XBEN-001/team-a/code-1",
+        ports=[8080],
+        status="running",
+        team_id="team-a",
+        started_at="2026-01-01T00:00:00Z",
+        expires_at="2026-01-01T01:00:00Z",
+    )
+    row = get_instance_by_benchmark_and_team("XBEN-001", "team-a")
+    assert row is not None
+    assert row["team_id"] == "team-a"
+    assert row["status"] == "running"
+
+
+def test_upsert_instance_shared_no_team():
+    upsert_instance(
+        instance_id="inst-shared",
+        benchmark_id="AD-001",
+        challenge_code="code-shared",
+        runtime_path="/tmp/rt/AD-001/shared/code-shared",
+        ports=[9090],
+        status="running",
+        team_id=None,
+    )
+    row = get_instance_by_benchmark_and_team("AD-001", None)
+    assert row is not None
+    assert row["team_id"] is None
+
+
+def test_same_benchmark_different_teams():
+    upsert_instance(
+        instance_id="inst-1", benchmark_id="XBEN-001",
+        challenge_code="code-1", runtime_path="/tmp/1",
+        ports=[8001], status="running", team_id="team-a",
+    )
+    upsert_instance(
+        instance_id="inst-2", benchmark_id="XBEN-001",
+        challenge_code="code-2", runtime_path="/tmp/2",
+        ports=[8002], status="running", team_id="team-b",
+    )
+    a = get_instance_by_benchmark_and_team("XBEN-001", "team-a")
+    b = get_instance_by_benchmark_and_team("XBEN-001", "team-b")
+    assert a["challenge_code"] == "code-1"
+    assert b["challenge_code"] == "code-2"
+
+
+def test_get_team_running_count():
+    upsert_instance(
+        instance_id="i1", benchmark_id="X1", challenge_code="c1",
+        runtime_path="/tmp/1", ports=[8001], status="running", team_id="team-a",
+    )
+    upsert_instance(
+        instance_id="i2", benchmark_id="X2", challenge_code="c2",
+        runtime_path="/tmp/2", ports=[8002], status="running", team_id="team-a",
+    )
+    upsert_instance(
+        instance_id="i3", benchmark_id="X3", challenge_code="c3",
+        runtime_path="/tmp/3", ports=[8003], status="stopped", team_id="team-a",
+    )
+    assert get_team_running_count("team-a") == 2
+
+
+def test_get_all_instances():
+    upsert_instance(
+        instance_id="i1", benchmark_id="X1", challenge_code="c1",
+        runtime_path="/tmp/1", ports=[8001], status="running", team_id="team-a",
+    )
+    upsert_instance(
+        instance_id="i2", benchmark_id="X1", challenge_code="c2",
+        runtime_path="/tmp/2", ports=[8002], status="running", team_id="team-b",
+    )
+    all_inst = get_all_instances()
+    assert len(all_inst) == 2
+
+
+def test_update_instance_status_by_team():
+    upsert_instance(
+        instance_id="i1", benchmark_id="X1", challenge_code="c1",
+        runtime_path="/tmp/1", ports=[8001], status="running", team_id="team-a",
+    )
+    update_instance_status_by_team("X1", "team-a", "stopped")
+    row = get_instance_by_benchmark_and_team("X1", "team-a")
+    assert row["status"] == "stopped"

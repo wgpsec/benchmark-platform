@@ -35,7 +35,14 @@ def _build_auth() -> str:
     return base64.b64encode(f"{_VNC_USER}:{_get_vnc_password()}".encode()).decode()
 
 
-_VNC_AUTH = _build_auth()
+_VNC_AUTH: str | None = None
+
+
+def _get_auth() -> str:
+    global _VNC_AUTH
+    if _VNC_AUTH is None:
+        _VNC_AUTH = _build_auth()
+    return _VNC_AUTH
 
 
 def reload_auth():
@@ -124,7 +131,7 @@ async def vnc_http_proxy(request: Request, benchmark_id: str, service: str, path
         body = await request.body()
         headers = dict(request.headers)
         headers.pop("host", None)
-        headers["authorization"] = f"Basic {_VNC_AUTH}"
+        headers["authorization"] = f"Basic {_get_auth()}"
 
         try:
             resp = await client.request(
@@ -166,7 +173,7 @@ async def vnc_ws_proxy(websocket: WebSocket, benchmark_id: str, service: str, pa
     import websockets
 
     try:
-        extra_headers = {"Authorization": f"Basic {_VNC_AUTH}"}
+        extra_headers = {"Authorization": f"Basic {_get_auth()}"}
         async with websockets.connect(ws_url, additional_headers=extra_headers) as upstream:
             async def client_to_upstream():
                 try:
