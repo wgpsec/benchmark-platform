@@ -1,0 +1,9 @@
+flags:
+  - id: "hop_root"
+    route: "ssh://<entrypoint>/"
+    description: "Root-level access on the SOCKS proxy hop"
+    hint: "The restricted user can execute an unusual SUID binary. GTFOBins is useful here."
+  - id: "victim_ssh"
+    route: "ssh://victim/"
+    description: "Credential reuse into the victim host"
+    hint: "Once you are root on the proxy hop, capture the HTTP traffic crossing the SOCKS proxy and decode the credentials."

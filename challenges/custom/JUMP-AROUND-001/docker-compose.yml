@@ -1,0 +1,69 @@
+services:
+  saas-platform:
+    build:
+      context: saas-platform
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: jump-around-001-saas-platform
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    networks:
+      lab:
+        aliases:
+          - saas-platform
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1/', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+  proxy-hop:
+    build:
+      context: proxy-hop
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: jump-around-001-proxy-hop
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    ports:
+      - "22:22"
+    networks:
+      lab:
+        aliases:
+          - proxy-hop
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "pgrep sshd >/dev/null && pgrep danted >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+  victim:
+    build:
+      context: victim
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: jump-around-001-victim
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    depends_on:
+      - saas-platform
+      - proxy-hop
+    networks:
+      lab:
+        aliases:
+          - victim
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "pgrep sshd >/dev/null && pgrep curl >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+networks:
+  lab:
+    driver: bridge

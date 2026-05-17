@@ -1,0 +1,14 @@
+{
+  "id": "JUMP-AROUND-001",
+  "name": "JUMP-AROUND-001 Jump Around",
+  "description": "A three-host lateral movement lab adapted from StratoCyberLab. Start from a restricted SSH account on a proxy host, escalate privileges, inspect SOCKS5 proxy traffic, and reuse captured credentials to reach the victim host.",
+  "hint": "The exposed service is SSH on the proxy host. After privilege escalation, inspect what network service the host is running and what traffic passes through it.",
+  "level": 3,
+  "win_condition": "flag",
+  "tags": ["custom", "stratocyberlab", "linux", "privilege_escalation", "traffic_analysis", "lateral_movement"],
+  "canaries": [
+    "BSY{QQgCzB3HmryOC7aijBJfeylUYOzgMviOIkdBzlMmGYgJWoY4Sz21s3ZcIPiW}",
+    "BSY{THd8a6l0GCoRDpRThK9z1FnoEcl0y0cV8CTUGNBWwXHXAC5XDyNVqIP5mDHH}"
+  ],
+  "flag_count": 2
+}

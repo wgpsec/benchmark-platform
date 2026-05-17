@@ -1,0 +1,163 @@
+services:
+  off-prem-router1:
+    build:
+      context: off-prem-router1
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: miro-corp-retreat-001-off-prem-router1
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    networks:
+      cr-dc1:
+        ipv4_address: 10.2.0.2
+      cr-aux:
+        ipv4_address: 10.3.0.2
+        aliases:
+          - off-prem-router1
+          - router
+      cr-cn1:
+        ipv4_address: 10.0.0.3
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      - net.ipv4.ip_forward=1
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "pgrep miniserv.pl >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  camera:
+    build:
+      context: camera
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: miro-corp-retreat-001-camera
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      cr-aux:
+        ipv4_address: 10.3.0.211
+      cr-public:
+        aliases:
+          - camera
+    depends_on:
+      - off-prem-router1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  user-machine:
+    build:
+      context: user-machine
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: miro-corp-retreat-001-user-machine
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    networks:
+      cr-cn1:
+        ipv4_address: 10.0.0.6
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      - public-facing-router2
+
+  locproxy:
+    build:
+      context: locproxy
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: miro-corp-retreat-001-locproxy
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    networks:
+      cr-cn1:
+        ipv4_address: 10.0.0.5
+        aliases:
+          - locproxy
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      - public-facing-router2
+
+  public-facing-router2:
+    build:
+      context: public-facing-router2
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: miro-corp-retreat-001-public-facing-router2
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    ports:
+      - "22:22"
+    networks:
+      cr-cn1:
+        ipv4_address: 10.0.0.4
+        aliases:
+          - public-facing-router2
+      cr-public:
+        aliases:
+          - public-facing-router2-public
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      - net.ipv4.ip_forward=1
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "pgrep miniserv.pl >/dev/null && pgrep ulogd >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  record-system:
+    build:
+      context: record-system
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    image: miro-corp-retreat-001-record-system
+    pull_policy: build
+    stop_grace_period: 0s
+    restart: unless-stopped
+    networks:
+      cr-cn1:
+        ipv4_address: 10.0.0.8
+    depends_on:
+      - public-facing-router2
+
+networks:
+  cr-public:
+    driver: bridge
+  cr-aux:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
+          gateway: 10.3.0.1
+  cr-cn1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/16
+          gateway: 10.0.0.1
+  cr-dc1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.2.0.0/20
+          gateway: 10.2.0.1

@@ -1,0 +1,18 @@
+{
+  "id": "MIRO-CORP-RETREAT-001",
+  "name": "MIRO-CORP-RETREAT-001 Corporate Retreat",
+  "description": "A multi-network corporate investigation lab adapted from StratoCyberLab's Miro campaign. Start from a public camera, gain command execution, pivot through vulnerable Webmin routers, inspect internal records and proxy logs, and recover staged investigation flags.",
+  "hint": "Start from the exposed camera HTTP service. Its client-side admin code hides credentials; the authenticated shell is enough to map the auxiliary network and reach the first router.",
+  "level": 3,
+  "win_condition": "flag",
+  "tags": ["custom", "stratocyberlab", "miro", "multi_network", "pivoting", "webmin", "lateral_movement"],
+  "canaries": [
+    "FLAG{miro_camera_discovered}",
+    "FLAG{miro_router_poem}",
+    "FLAG{miro_attack_source}",
+    "FLAG{miro_employee_record}",
+    "FLAG{miro_bread_domain}",
+    "FLAG{miro_bread_credentials}"
+  ],
+  "flag_count": 6
+}
