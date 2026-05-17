@@ -58,7 +58,7 @@ services:
         aliases:
           - victim
     healthcheck:
-      test: ["CMD", "bash", "-lc", "pgrep sshd >/dev/null && pgrep curl >/dev/null"]
+      test: ["CMD", "bash", "-lc", "pgrep sshd >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 6
