@@ -151,9 +151,10 @@ class ChallengeManager:
         if self._reaper_thread is not None:
             self._reaper_thread.join(timeout=5)
             self._reaper_thread = None
-        self._cleanup(self.challenges)
+        self.stop_all_instances()
         self.challenges.clear()
         self._instance_status.clear()
+        self._team_instances.clear()
         self._prune_orphan_volumes()
 
     def _start_reaper(self) -> None:
@@ -174,19 +175,20 @@ class ChallengeManager:
                 for record in expired:
                     benchmark_id = record["benchmark_id"]
                     challenge_code = record["challenge_code"]
+                    team_id = record["team_id"]
                     runtime_path = Path(record["runtime_path"])
                     logger.info("reaping expired instance",
                                 benchmark_id=benchmark_id,
+                                team_id=team_id,
                                 challenge_code=challenge_code)
                     try:
                         if runtime_path.exists():
-                            subprocess.run(
-                                ['docker', 'compose', 'down', '-v', '--remove-orphans'],
-                                cwd=runtime_path,
-                                capture_output=True, text=True, timeout=60,
-                            )
-                        update_instance_status(benchmark_id, "expired")
+                            self._compose_at_path(runtime_path, 'down', '-v', '--remove-orphans')
+                        from benchmark_platform.db import update_instance_status_by_team
+                        update_instance_status_by_team(benchmark_id, team_id, "expired")
                         self._instance_status[challenge_code] = "stopped"
+                        key = (benchmark_id, team_id if team_id else "__shared__")
+                        self._team_instances.pop(key, None)
                     except Exception as e:
                         logger.error("reaper failed for instance",
                                      benchmark_id=benchmark_id, error=str(e))
@@ -626,15 +628,19 @@ class ChallengeManager:
             if entry.name.startswith('.'):
                 continue
             logger.info("cleaning orphan runtime directory", path=str(entry))
-            compose_dirs = [d for d in entry.iterdir() if d.is_dir()]
-            for d in compose_dirs:
-                try:
-                    subprocess.run(
-                        ['docker', 'compose', 'down', '-v', '--remove-orphans'],
-                        cwd=d, capture_output=True, text=True, timeout=30,
-                    )
-                except Exception:
-                    pass
+            for team_dir in entry.iterdir():
+                if not team_dir.is_dir():
+                    continue
+                for instance_dir in team_dir.iterdir():
+                    if not instance_dir.is_dir():
+                        continue
+                    try:
+                        subprocess.run(
+                            ['docker', 'compose', 'down', '-v', '--remove-orphans'],
+                            cwd=instance_dir, capture_output=True, text=True, timeout=30,
+                        )
+                    except Exception:
+                        pass
             shutil.rmtree(entry, ignore_errors=True)
         self._prune_orphan_networks()
 
