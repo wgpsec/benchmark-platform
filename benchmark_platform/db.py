@@ -392,15 +392,6 @@ def update_instance_status(benchmark_id: str, status: str,
     conn.commit()
 
 
-def delete_instance(instance_id: str) -> None:
-    conn = _get_conn()
-    conn.execute(
-        "DELETE FROM instance_lifecycle WHERE id = ?",
-        (instance_id,),
-    )
-    conn.commit()
-
-
 def get_instance_by_benchmark_and_team(benchmark_id: str, team_id: Optional[str]) -> Optional[dict]:
     conn = _get_conn()
     if team_id is None:

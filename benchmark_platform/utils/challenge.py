@@ -23,7 +23,7 @@ from benchmark_platform.models.benchmark import Benchmark
 from benchmark_platform.utils.logger import get_logger
 from benchmark_platform.db import (
     get_level_gate_config, get_team_progress,
-    get_instance_by_benchmark_id, upsert_instance, update_instance_status,
+    get_instance_by_benchmark_id, upsert_instance,
     get_instance_timeout_config,
 )
 
@@ -511,9 +511,11 @@ class ChallengeManager:
             except Exception:
                 pass
             shutil.rmtree(runtime_path, ignore_errors=True)
-        update_instance_status(record["benchmark_id"], "stopped")
+        from benchmark_platform.db import update_instance_status_by_team
+        update_instance_status_by_team(record["benchmark_id"], record.get("team_id"), "stopped")
         logger.info("cleaned stale instance",
                     benchmark_id=record["benchmark_id"],
+                    team_id=record.get("team_id"),
                     challenge_code=record["challenge_code"])
 
     def _cleanup_orphan_runtimes(self, known_benchmark_ids: set[str]) -> None:

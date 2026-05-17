@@ -547,17 +547,23 @@ async def tch_stop_all(_=Depends(require_admin)):
 
 
 async def _stop_instance_if_running(challenge_code: str) -> bool:
+    """Admin disable: stop ALL team instances for this challenge."""
     if manager is None:
         return False
-    status = manager.get_instance_status(challenge_code)
-    if status not in ("running", "unhealthy"):
-        return False
-    try:
-        await asyncio.to_thread(manager.stop_challenge_instance, challenge_code)
-        return True
-    except Exception as e:
-        logger.error("auto-stop on disable failed", challenge_code=challenge_code, error=str(e))
-        return False
+    stopped_any = False
+    bm_id = challenge_code  # challenge_code == benchmark_id in new model
+    for (bid, tid), code in list(manager._team_instances.items()):
+        if bid != bm_id:
+            continue
+        if manager._instance_status.get(code) not in ("running", "unhealthy"):
+            continue
+        try:
+            real_team = tid if tid != "__shared__" else None
+            await asyncio.to_thread(manager.stop_challenge_instance, code, real_team)
+            stopped_any = True
+        except Exception as e:
+            logger.error("auto-stop on disable failed", challenge_code=code, error=str(e))
+    return stopped_any
 
 
 class ChallengeVisibilityRequest(PydanticBaseModel):
