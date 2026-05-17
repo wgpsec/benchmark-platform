@@ -2,6 +2,7 @@ FROM golang:1.23.4-alpine3.20 AS go-build
 
 COPY fastcgi-responder/ /root/
 WORKDIR /root
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go build
 
 FROM rtsp/lighttpd:1.4.76
