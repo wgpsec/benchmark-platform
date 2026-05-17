@@ -187,6 +187,35 @@
       </div>
     </div>
   </div>
+
+  <!-- Per-Team Instance Limit -->
+  <div class="bg-white rounded-lg border border-gray-200 p-5" x-data="{
+    maxInstances: {{ max_instances_per_team | default(3) }},
+    saving: false,
+    async save() {
+      this.saving = true;
+      const res = await fetch('/api/settings/max_instances', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({max_instances_per_team: this.maxInstances})
+      });
+      const data = await res.json();
+      this.saving = false;
+      $dispatch('toast', {type: res.ok ? 'success' : 'error', message: data.message || data.detail});
+    }
+  }">
+    <h3 class="text-sm font-medium text-gray-900 mb-3">每队最大并发实例数</h3>
+    <p class="text-xs text-gray-500 mb-3">限制每个队伍同时运行的赛题实例数量</p>
+    <div class="flex items-center gap-3">
+      <input type="number" x-model.number="maxInstances" min="1" max="20"
+             class="w-20 px-3 py-1.5 text-sm border border-gray-300 rounded-md">
+      <button @click="save()" :disabled="saving"
+              class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+        <span x-show="!saving">保存</span>
+        <span x-show="saving" x-cloak>保存中...</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <script>

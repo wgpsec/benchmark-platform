@@ -1,4 +1,5 @@
 """Web UI page routes and HTMX partial routes."""
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,7 @@ from benchmark_platform.web.context import (
     history_context,
     status_context,
 )
-from benchmark_platform.db import get_team_by_token, get_or_create_default_team
+from benchmark_platform.db import get_team_by_token, get_or_create_default_team, get_setting
 
 _templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=_templates_dir)
@@ -302,7 +303,10 @@ async def page_teams(request: Request):
 
 @web_router.get("/settings")
 async def page_settings(request: Request):
-    return _render(request, "pages/settings.html", {"page": "settings"})
+    return _render(request, "pages/settings.html", {
+        "page": "settings",
+        "max_instances_per_team": int(get_setting("max_instances_per_team", "3")),
+    })
 
 
 @web_router.post("/api/teams/create")
