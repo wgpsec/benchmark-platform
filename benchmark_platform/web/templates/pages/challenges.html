@@ -68,7 +68,7 @@
           .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visEnabling = false; });
         " class="h-7 px-2.5 text-[11px] font-medium text-emerald-700 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!visEnabling">全部开启</span>
-          <span x-show="visEnabling">开启中...</span>
+          <span x-show="visEnabling" x-cloak>开启中...</span>
         </button>
         <button :disabled="visEnabling || visDisabling" @click="
           if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 关闭吗?\n如有运行中实例将一并停止。')) return;
@@ -87,7 +87,7 @@
           .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visDisabling = false; });
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!visDisabling">全部关闭</span>
-          <span x-show="visDisabling">关闭中...</span>
+          <span x-show="visDisabling" x-cloak>关闭中...</span>
         </button>
       </div>
       {% if lg.unlocked %}
@@ -123,7 +123,7 @@
           setTimeout(() => { if(startLoading) { startLoading = false; clearInterval(pollTimer); pollTimer = null; location.reload(); } }, 120000);
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!startLoading">全部启动</span>
-          <span x-show="startLoading">启动中...</span>
+          <span x-show="startLoading" x-cloak>启动中...</span>
         </button>
         <button :disabled="startLoading || stopLoading" @click="
           stopLoading = true;
@@ -134,7 +134,7 @@
           .finally(() => { stopLoading = false; setTimeout(() => location.reload(), 1000); });
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!stopLoading">全部停止</span>
-          <span x-show="stopLoading">停止中...</span>
+          <span x-show="stopLoading" x-cloak>停止中...</span>
         </button>
       </div>
       {% endif %}
