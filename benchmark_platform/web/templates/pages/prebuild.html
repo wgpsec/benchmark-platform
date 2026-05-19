@@ -70,6 +70,24 @@
     </div>
   </div>
 
+  <!-- Tag filter bar -->
+  <template x-if="allTags.length > 0">
+    <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+      <template x-for="tag in allTags" :key="tag">
+        <button @click="toggleTag(tag)"
+                :class="selectedTags.includes(tag) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
+                class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors"
+                x-text="tag">
+        </button>
+      </template>
+      <button x-show="selectedTags.length > 0" x-cloak
+              @click="selectedTags = []"
+              class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
+        清除筛选
+      </button>
+    </div>
+  </template>
+
   <!-- Table -->
   <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
     <table class="w-full">
@@ -86,7 +104,7 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
-        <template x-for="item in challenges" :key="item.code">
+        <template x-for="item in filteredChallenges" :key="item.code">
           <tr>
             <td colspan="5" class="p-0">
               <div>
@@ -141,18 +159,41 @@ function prebuildPage() {
     totalCount: {{ total_count }},
     expanded: {},
     selected: {},
+    selectedTags: [],
+
+    get allTags() {
+      const counts = {};
+      this.challenges.forEach(c => {
+        (c.tags || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+      });
+      return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    },
+
+    get filteredChallenges() {
+      if (this.selectedTags.length === 0) return this.challenges;
+      return this.challenges.filter(c => {
+        const tags = c.tags || [];
+        return this.selectedTags.every(t => tags.includes(t));
+      });
+    },
+
+    toggleTag(tag) {
+      const idx = this.selectedTags.indexOf(tag);
+      if (idx >= 0) this.selectedTags.splice(idx, 1);
+      else this.selectedTags.push(tag);
+    },
 
     get selectedCount() {
       return Object.values(this.selected).filter(Boolean).length;
     },
 
     get allSelected() {
-      const pending = this.challenges.filter(c => c.status !== 'cached' && c.status !== 'unsupported');
+      const pending = this.filteredChallenges.filter(c => c.status !== 'cached' && c.status !== 'unsupported');
       return pending.length > 0 && pending.every(c => this.selected[c.code]);
     },
 
     toggleSelectAll() {
-      const pending = this.challenges.filter(c => c.status !== 'cached' && c.status !== 'unsupported');
+      const pending = this.filteredChallenges.filter(c => c.status !== 'cached' && c.status !== 'unsupported');
       const allSel = this.allSelected;
       pending.forEach(c => { this.selected[c.code] = !allSel; });
     },

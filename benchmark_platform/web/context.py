@@ -86,6 +86,7 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "enabled": enabled,
         "started_at": started_at,
         "expires_at": expires_at,
+        "tags": bm.tags,
     }
 
 

@@ -1,40 +1,60 @@
 {% extends "base.html" %}
 {% block title %}题目列表 — Benchmark Platform{% endblock %}
 {% block content %}
+<div x-data="{filter: 'all', search: '', selectedTags: []}" x-effect="applyFilter(filter, search, selectedTags)">
+
 <!-- Filter bar -->
-<div class="flex items-center justify-between mb-6" x-data="{filter: 'all', search: ''}">
+<div class="flex items-center justify-between mb-4">
   <div class="text-[13px] text-gray-500">
     共 {{ total_challenges }} 题 · {{ total_flags }} flags
   </div>
   <div class="flex items-center gap-3">
-    <select x-model="filter" @change="$dispatch('filter-change', {filter, search})"
+    <select x-model="filter"
             class="h-9 px-3 text-[12px] bg-gray-50 border-0 rounded-lg text-gray-900 focus:ring-2 focus:ring-gray-900 cursor-pointer">
       <option value="all">全部</option>
       <option value="unsolved">未解决</option>
       <option value="solved">已解决</option>
       <option value="running">运行中</option>
     </select>
-    <input type="text" x-model="search" @input.debounce.300ms="$dispatch('filter-change', {filter, search})"
+    <input type="text" x-model="search" @input.debounce.300ms=""
            placeholder="搜索题目..."
            class="h-9 w-48 px-3 text-[12px] bg-gray-50 border-0 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-gray-900 transition-shadow">
   </div>
 </div>
 
+<!-- Tag filter bar -->
+{% set ns = namespace(tag_counts={}) %}
+{% for lg in level_groups %}
+  {% for card in lg.challenges %}
+    {% for tag in card.tags %}
+      {% if tag in ns.tag_counts %}
+        {% set _ = ns.tag_counts.update({tag: ns.tag_counts[tag] + 1}) %}
+      {% else %}
+        {% set _ = ns.tag_counts.update({tag: 1}) %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
+{% set all_tags = ns.tag_counts.items() | sort(attribute='1', reverse=true) %}
+{% if all_tags %}
+<div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+  {% for tag, count in all_tags %}
+  <button @click="selectedTags.includes('{{ tag }}') ? selectedTags = selectedTags.filter(t => t !== '{{ tag }}') : selectedTags.push('{{ tag }}')"
+          :class="selectedTags.includes('{{ tag }}') ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
+          class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors">
+    {{ tag }}
+  </button>
+  {% endfor %}
+  <button x-show="selectedTags.length > 0" x-cloak
+          @click="selectedTags = []"
+          class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
+    清除筛选
+  </button>
+</div>
+{% endif %}
+
 <!-- Level groups -->
-<div class="space-y-8" x-data
-     @filter-change.window="
-       const f = $event.detail.filter;
-       const s = $event.detail.search.toLowerCase();
-       document.querySelectorAll('[data-challenge-card]').forEach(el => {
-         const d = el.dataset;
-         let show = true;
-         if(f === 'solved' && d.solved !== 'true') show = false;
-         if(f === 'unsolved' && d.solved === 'true') show = false;
-         if(f === 'running' && d.status !== 'running') show = false;
-         if(s && !d.name.toLowerCase().includes(s) && !d.benchmarkId.toLowerCase().includes(s)) show = false;
-         el.style.display = show ? '' : 'none';
-       });
-     ">
+<div class="space-y-8">
   {% for lg in level_groups %}
   <div>
     <div class="flex items-center gap-3 mb-4">
@@ -147,7 +167,8 @@
            data-status="{{ card.instance_status }}"
            data-name="{{ card.name }}"
            data-benchmark-id="{{ card.benchmark_id }}"
-           data-enabled="{{ 'true' if card.enabled else 'false' }}">
+           data-enabled="{{ 'true' if card.enabled else 'false' }}"
+           data-tags="{{ card.tags | tojson }}">
         {% include "components/challenge_card.html" %}
       </div>
       {% endfor %}
@@ -159,6 +180,27 @@
   <div class="px-5 py-8 text-center text-[13px] text-gray-400">暂无赛题数据，请检查服务器启动参数</div>
   {% endif %}
 </div>
+
+</div>
+
+<script>
+function applyFilter(filter, search, selectedTags) {
+  const s = search.toLowerCase();
+  document.querySelectorAll('[data-challenge-card]').forEach(el => {
+    const d = el.dataset;
+    let show = true;
+    if(filter === 'solved' && d.solved !== 'true') show = false;
+    if(filter === 'unsolved' && d.solved === 'true') show = false;
+    if(filter === 'running' && d.status !== 'running') show = false;
+    if(s && !d.name.toLowerCase().includes(s) && !d.benchmarkId.toLowerCase().includes(s)) show = false;
+    if(selectedTags.length > 0) {
+      const cardTags = JSON.parse(d.tags || '[]');
+      if(!selectedTags.every(t => cardTags.includes(t))) show = false;
+    }
+    el.style.display = show ? '' : 'none';
+  });
+}
+</script>
 
 {% include "components/modal_submit.html" %}
 {% endblock %}

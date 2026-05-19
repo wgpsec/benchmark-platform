@@ -55,6 +55,24 @@
   <!-- Error -->
   <div x-show="error" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-[12px] text-red-700" x-text="error"></div>
 
+  <!-- Tag filter bar -->
+  <template x-if="allTags.length > 0">
+    <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+      <template x-for="tag in allTags" :key="tag">
+        <button @click="toggleTag(tag)"
+                :class="selectedTags.includes(tag) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
+                class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors"
+                x-text="tag">
+        </button>
+      </template>
+      <button x-show="selectedTags.length > 0" x-cloak
+              @click="selectedTags = []"
+              class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
+        清除筛选
+      </button>
+    </div>
+  </template>
+
   <!-- Loading -->
   <div x-show="loading && !challenges.length" class="text-center py-12 text-[12px] text-gray-500">
     正在获取靶场列表...
@@ -254,17 +272,40 @@ function storePage() {
     importDragover: false,
     importResults: [],
     importing: false,
+    selectedTags: [],
+
+    get allTags() {
+      const counts = {};
+      this.challenges.forEach(c => {
+        (c.tags || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+      });
+      return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    },
+
+    get filteredChallenges() {
+      if (this.selectedTags.length === 0) return this.challenges;
+      return this.challenges.filter(c => {
+        const tags = c.tags || [];
+        return this.selectedTags.every(t => tags.includes(t));
+      });
+    },
+
+    toggleTag(tag) {
+      const idx = this.selectedTags.indexOf(tag);
+      if (idx >= 0) this.selectedTags.splice(idx, 1);
+      else this.selectedTags.push(tag);
+    },
     get categories() {
-      return [...new Set(this.challenges.map(c => c.category))].sort();
+      return [...new Set(this.filteredChallenges.map(c => c.category))].sort();
     },
     get downloadedCount() {
-      return this.challenges.filter(c => c.downloaded).length;
+      return this.filteredChallenges.filter(c => c.downloaded).length;
     },
     get updateCount() {
-      return this.challenges.filter(c => c.has_update).length;
+      return this.filteredChallenges.filter(c => c.has_update).length;
     },
     challengesByCategory(cat) {
-      return this.challenges.filter(c => c.category === cat);
+      return this.filteredChallenges.filter(c => c.category === cat);
     },
     difficultyClass(d) {
       const map = {
