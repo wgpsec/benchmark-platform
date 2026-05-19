@@ -51,6 +51,15 @@
   <!-- Description -->
   <p class="text-[12px] text-gray-500 line-clamp-2">{{ card.description }}</p>
 
+  <!-- Tags -->
+  {% if card.tags %}
+  <div class="flex flex-wrap gap-1">
+    {% for tag in card.tags %}
+    <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{{ tag }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if card.requires_windows_iso and not card.unsupported %}
   <p class="text-[11px] text-amber-600">⏱ 首次启动需安装 Windows，预计 15-30 分钟</p>
   {% endif %}
