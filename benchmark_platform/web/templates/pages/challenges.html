@@ -1,42 +1,134 @@
 {% extends "base.html" %}
 {% block title %}题目列表 — Benchmark Platform{% endblock %}
 {% block content %}
+<div x-data="{filter: 'all', search: '', selectedTags: []}" x-effect="applyFilter(filter, search, selectedTags)">
+
 <!-- Filter bar -->
-<div class="flex items-center justify-between mb-6" x-data="{filter: 'all', search: ''}">
+<div class="flex items-center justify-between mb-4">
   <div class="text-[13px] text-gray-500">
     共 {{ total_challenges }} 题 · {{ total_flags }} flags
   </div>
   <div class="flex items-center gap-3">
-    <select x-model="filter" @change="$dispatch('filter-change', {filter, search})"
+    <select x-model="filter"
             class="h-9 px-3 text-[12px] bg-gray-50 border-0 rounded-lg text-gray-900 focus:ring-2 focus:ring-gray-900 cursor-pointer">
       <option value="all">全部</option>
       <option value="unsolved">未解决</option>
       <option value="solved">已解决</option>
       <option value="running">运行中</option>
     </select>
-    <input type="text" x-model="search" @input.debounce.300ms="$dispatch('filter-change', {filter, search})"
+    <input type="text" x-model="search" @input.debounce.300ms=""
            placeholder="搜索题目..."
            class="h-9 w-48 px-3 text-[12px] bg-gray-50 border-0 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-gray-900 transition-shadow">
   </div>
 </div>
 
+<!-- Tag filter bar -->
+{% set ns = namespace(tag_counts={}) %}
+{% for lg in level_groups %}
+  {% for card in lg.challenges %}
+    {% for tag in card.tags %}
+      {% if tag in ns.tag_counts %}
+        {% set _ = ns.tag_counts.update({tag: ns.tag_counts[tag] + 1}) %}
+      {% else %}
+        {% set _ = ns.tag_counts.update({tag: 1}) %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
+{% set all_tags = ns.tag_counts.items() | sort(attribute='1', reverse=true) %}
+{% if all_tags %}
+<div class="mb-4" x-data="{tagSearch: '', showAll: false}">
+  <div class="flex items-center gap-2 mb-2">
+    <input type="text" x-model="tagSearch" placeholder="搜索标签..."
+           class="h-7 w-36 px-2.5 text-[11px] bg-gray-50 border border-gray-200 rounded-full text-gray-700 placeholder-gray-400 focus:ring-1 focus:ring-gray-300 focus:outline-none">
+    <button x-show="selectedTags.length > 0" x-cloak
+            @click="selectedTags = []"
+            class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
+      清除筛选
+    </button>
+  </div>
+  <div class="flex flex-wrap items-center gap-1.5">
+    {% for tag, count in all_tags %}
+    <button {% if loop.index0 >= 10 %}x-cloak{% endif %}
+            x-show="(tagSearch === '' ? (showAll || {{ loop.index0 }} < 10) : '{{ tag }}'.includes(tagSearch.toLowerCase()))"
+            @click="selectedTags.includes('{{ tag }}') ? selectedTags = selectedTags.filter(t => t !== '{{ tag }}') : selectedTags.push('{{ tag }}')"
+            :class="selectedTags.includes('{{ tag }}') ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
+            class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors">
+      {{ tag }}
+    </button>
+    {% endfor %}
+    {% if all_tags | length > 10 %}
+    <button x-show="!showAll && tagSearch === ''" x-cloak
+            @click="showAll = true"
+            class="text-[11px] px-2.5 py-1 rounded-full text-blue-600 hover:bg-blue-50 border border-blue-200 whitespace-nowrap cursor-pointer transition-colors">
+      更多 ({{ all_tags | length - 10 }})
+    </button>
+    <button x-show="showAll && tagSearch === ''" x-cloak
+            @click="showAll = false"
+            class="text-[11px] px-2.5 py-1 rounded-full text-gray-500 hover:bg-gray-100 whitespace-nowrap cursor-pointer transition-colors">
+      收起
+    </button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Category management bar -->
+{% set ns2 = namespace(cat_stats={}) %}
+{% for lg in level_groups %}
+  {% for card in lg.challenges %}
+    {% if card.category %}
+      {% if card.category not in ns2.cat_stats %}
+        {% set _ = ns2.cat_stats.update({card.category: {'total': 0, 'enabled': 0}}) %}
+      {% endif %}
+      {% set _ = ns2.cat_stats[card.category].update({'total': ns2.cat_stats[card.category].total + 1}) %}
+      {% if card.enabled %}
+        {% set _ = ns2.cat_stats[card.category].update({'enabled': ns2.cat_stats[card.category].enabled + 1}) %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+{% if ns2.cat_stats %}
+<div class="flex flex-wrap items-center gap-2 mb-4" x-data="{catLoading: ''}">
+  <span class="text-[11px] text-gray-400 font-medium mr-1">分类:</span>
+  {% for cat, stats in ns2.cat_stats.items() | sort %}
+  <div class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-white">
+    <span class="font-medium text-gray-700">{{ cat }}</span>
+    <span class="text-gray-400">{{ stats.enabled }}/{{ stats.total }}</span>
+    <button :disabled="catLoading !== ''"
+            @click="
+              $dispatch('open-confirm-modal', {message: '确定开启分类 {{ cat }} 的全部 {{ stats.total }} 道题？', onConfirm: () => {
+                catLoading = '{{ cat }}';
+                fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:true})})
+                .then(r=>r.json()).then(data=>{
+                  $dispatch('toast',{type:'success',message:data.message});
+                  setTimeout(()=>location.reload(),600);
+                }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+              }});
+            "
+            class="ml-1 text-emerald-600 hover:text-emerald-800 cursor-pointer disabled:opacity-50 disabled:cursor-wait font-medium">开</button>
+    <span class="text-gray-300">|</span>
+    <button :disabled="catLoading !== ''"
+            @click="
+              $dispatch('open-confirm-modal', {message: '确定关闭分类 {{ cat }} 的全部 {{ stats.total }} 道题？运行中实例将一并停止。', onConfirm: () => {
+                catLoading = '{{ cat }}';
+                fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:false})})
+                .then(r=>r.json()).then(data=>{
+                  $dispatch('toast',{type:'success',message:data.message});
+                  setTimeout(()=>location.reload(),600);
+                }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+              }});
+            "
+            class="text-red-500 hover:text-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-wait font-medium">关</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- Level groups -->
-<div class="space-y-8" x-data
-     @filter-change.window="
-       const f = $event.detail.filter;
-       const s = $event.detail.search.toLowerCase();
-       document.querySelectorAll('[data-challenge-card]').forEach(el => {
-         const d = el.dataset;
-         let show = true;
-         if(f === 'solved' && d.solved !== 'true') show = false;
-         if(f === 'unsolved' && d.solved === 'true') show = false;
-         if(f === 'running' && d.status !== 'running') show = false;
-         if(s && !d.name.toLowerCase().includes(s) && !d.benchmarkId.toLowerCase().includes(s)) show = false;
-         el.style.display = show ? '' : 'none';
-       });
-     ">
+<div class="space-y-8">
   {% for lg in level_groups %}
-  <div>
+  <div data-level="{{ lg.level }}">
     <div class="flex items-center gap-3 mb-4">
       <h2 class="text-[15px] font-semibold text-gray-900">Level {{ lg.level }}</h2>
       <span class="text-[12px] text-gray-500">{{ lg.solved }}/{{ lg.total }}</span>
@@ -52,39 +144,51 @@
       <div class="ml-auto flex items-center gap-2"
            x-data="{visEnabling: false, visDisabling: false}">
         <button :disabled="visEnabling || visDisabling" @click="
-          if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 开放吗?')) return;
-          visEnabling = true;
-          fetch('/api/level_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}, enabled: true})})
-          .then(r => r.json())
-          .then(data => {
-            if (data.code === 0) {
-              $dispatch('toast', {type:'success', message: data.message});
-              setTimeout(() => location.reload(), 600);
-            } else {
-              $dispatch('toast', {type:'error', message: data.message || '操作失败'});
-              visEnabling = false;
-            }
-          })
-          .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visEnabling = false; });
+          const codes = getVisibleCodes({{ lg.level }});
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 开放吗？';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            visEnabling = true;
+            const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
+            const body = selectedTags.length > 0 ? {codes, enabled: true} : {level: {{ lg.level }}, enabled: true};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => {
+              if (data.code === 0) {
+                $dispatch('toast', {type:'success', message: data.message});
+                setTimeout(() => location.reload(), 600);
+              } else {
+                $dispatch('toast', {type:'error', message: data.message || '操作失败'});
+                visEnabling = false;
+              }
+            })
+            .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visEnabling = false; });
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-emerald-700 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!visEnabling">全部开启</span>
           <span x-show="visEnabling" x-cloak>开启中...</span>
         </button>
         <button :disabled="visEnabling || visDisabling" @click="
-          if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 关闭吗?\n如有运行中实例将一并停止。')) return;
-          visDisabling = true;
-          fetch('/api/level_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}, enabled: false})})
-          .then(r => r.json())
-          .then(data => {
-            if (data.code === 0) {
-              $dispatch('toast', {type:'success', message: data.message});
-              setTimeout(() => location.reload(), 600);
-            } else {
-              $dispatch('toast', {type:'error', message: data.message || '操作失败'});
-              visDisabling = false;
-            }
-          })
-          .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visDisabling = false; });
+          const codes = getVisibleCodes({{ lg.level }});
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 关闭吗？运行中实例将一并停止。';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            visDisabling = true;
+            const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
+            const body = selectedTags.length > 0 ? {codes, enabled: false} : {level: {{ lg.level }}, enabled: false};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => {
+              if (data.code === 0) {
+                $dispatch('toast', {type:'success', message: data.message});
+                setTimeout(() => location.reload(), 600);
+              } else {
+                $dispatch('toast', {type:'error', message: data.message || '操作失败'});
+                visDisabling = false;
+              }
+            })
+            .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visDisabling = false; });
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!visDisabling">全部关闭</span>
           <span x-show="visDisabling" x-cloak>关闭中...</span>
@@ -94,44 +198,58 @@
       <div class="flex items-center gap-2" x-data="{startLoading: false, stopLoading: false, pollTimer: null}"
            x-effect="if(!startLoading && !stopLoading && pollTimer) { clearInterval(pollTimer); pollTimer = null; }">
         <button :disabled="startLoading || stopLoading" @click="
-          startLoading = true;
-          fetch('/api/start_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
-          .then(r => r.json())
-          .then(data => { $dispatch('toast', {type:'info', message: data.message}); })
-          .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}));
-          pollTimer = setInterval(() => {
-            fetch('/api/instance_statuses').then(r => r.json()).then(data => {
-              if(!data.data) return;
-              const statuses = data.data.statuses;
-              const batchRunning = data.data.batch_starting;
-              Object.entries(statuses).forEach(([code, info]) => {
-                if(info.level !== {{ lg.level }}) return;
-                if(info.solved) return;
-                if(info.status === 'running' || info.status === 'unhealthy') {
-                  fetch('/web/partials/challenge_card?code=' + code).then(r=>r.text()).then(html => {
-                    const el = document.getElementById('card-' + code);
-                    if(el) el.outerHTML = html;
-                  });
+          const codes = getVisibleCodes({{ lg.level }});
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要批量启动' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的 {{ lg.total }}') + ' 道题的实例吗？';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            startLoading = true;
+            const url = selectedTags.length > 0 ? '/api/batch_start' : '/api/start_level';
+            const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => { $dispatch('toast', {type:'info', message: data.message}); })
+            .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}));
+            pollTimer = setInterval(() => {
+              fetch('/api/instance_statuses').then(r => r.json()).then(data => {
+                if(!data.data) return;
+                const statuses = data.data.statuses;
+                const batchRunning = data.data.batch_starting;
+                Object.entries(statuses).forEach(([code, info]) => {
+                  if(info.level !== {{ lg.level }}) return;
+                  if(info.solved) return;
+                  if(info.status === 'running' || info.status === 'unhealthy') {
+                    fetch('/web/partials/challenge_card?code=' + code).then(r=>r.text()).then(html => {
+                      const el = document.getElementById('card-' + code);
+                      if(el) el.outerHTML = html;
+                    });
+                  }
+                });
+                if(!batchRunning) {
+                  startLoading = false;
+                  $dispatch('toast', {type:'success', message:'批量启动完成'});
                 }
               });
-              if(!batchRunning) {
-                startLoading = false;
-                $dispatch('toast', {type:'success', message:'批量启动完成'});
-              }
-            });
-          }, 2000);
-          setTimeout(() => { if(startLoading) { startLoading = false; clearInterval(pollTimer); pollTimer = null; location.reload(); } }, 120000);
+            }, 2000);
+            setTimeout(() => { if(startLoading) { startLoading = false; clearInterval(pollTimer); pollTimer = null; location.reload(); } }, 120000);
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!startLoading">全部启动</span>
           <span x-show="startLoading" x-cloak>启动中...</span>
         </button>
         <button :disabled="startLoading || stopLoading" @click="
-          stopLoading = true;
-          fetch('/api/stop_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
-          .then(r => r.json())
-          .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
-          .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
-          .finally(() => { stopLoading = false; setTimeout(() => location.reload(), 1000); });
+          const codes = getVisibleCodes({{ lg.level }});
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要批量停止' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的 {{ lg.total }}') + ' 道题的实例吗？';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            stopLoading = true;
+            const url = selectedTags.length > 0 ? '/api/batch_stop' : '/api/stop_level';
+            const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
+            .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
+            .finally(() => { stopLoading = false; setTimeout(() => location.reload(), 1000); });
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!stopLoading">全部停止</span>
           <span x-show="stopLoading" x-cloak>停止中...</span>
@@ -147,7 +265,8 @@
            data-status="{{ card.instance_status }}"
            data-name="{{ card.name }}"
            data-benchmark-id="{{ card.benchmark_id }}"
-           data-enabled="{{ 'true' if card.enabled else 'false' }}">
+           data-enabled="{{ 'true' if card.enabled else 'false' }}"
+           data-tags='{{ card.tags | tojson }}'>
         {% include "components/challenge_card.html" %}
       </div>
       {% endfor %}
@@ -160,5 +279,38 @@
   {% endif %}
 </div>
 
+</div>
+
+<script>
+function getVisibleCodes(level) {
+  const cards = document.querySelectorAll('[data-challenge-card]');
+  const codes = [];
+  cards.forEach(el => {
+    if (el.style.display === 'none') return;
+    if (el.closest('[data-level]')?.dataset.level != level) return;
+    codes.push(el.dataset.benchmarkId);
+  });
+  return codes;
+}
+
+function applyFilter(filter, search, selectedTags) {
+  const s = search.toLowerCase();
+  document.querySelectorAll('[data-challenge-card]').forEach(el => {
+    const d = el.dataset;
+    let show = true;
+    if(filter === 'solved' && d.solved !== 'true') show = false;
+    if(filter === 'unsolved' && d.solved === 'true') show = false;
+    if(filter === 'running' && d.status !== 'running') show = false;
+    if(s && !d.name.toLowerCase().includes(s) && !d.benchmarkId.toLowerCase().includes(s)) show = false;
+    if(selectedTags.length > 0) {
+      const cardTags = JSON.parse(d.tags || '[]');
+      if(!selectedTags.some(t => cardTags.includes(t))) show = false;
+    }
+    el.style.display = show ? '' : 'none';
+  });
+}
+</script>
+
 {% include "components/modal_submit.html" %}
+{% include "components/modal_confirm.html" %}
 {% endblock %}

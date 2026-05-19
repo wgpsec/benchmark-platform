@@ -636,6 +636,51 @@ async def tch_set_level_visibility(payload: LevelVisibilityRequest, _=Depends(re
     }, f"Level {payload.level} 已{action} {len(bm_ids)} 道题{extra}")
 
 
+class CategoryVisibilityRequest(PydanticBaseModel):
+    category: str
+    enabled: bool
+
+
+@app.post("/api/category_visibility")
+async def tch_set_category_visibility(payload: CategoryVisibilityRequest, _=Depends(require_admin)):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    bm_ids: list[str] = []
+    affected_codes: list[str] = []
+    for c in manager.challenges:
+        src = getattr(c, '_source_dir', None)
+        if not src:
+            continue
+        parent = src.parent
+        cat = parent.name if parent not in manager.benchmark_folders else ""
+        if cat != payload.category:
+            continue
+        bm_ids.append(c.get_benchmark_id())
+        affected_codes.append(c.challenge_code)
+
+    if not bm_ids:
+        return _ok({"affected": 0, "stopped": 0}, "该分类没有题目")
+
+    set_challenges_enabled_bulk(bm_ids, payload.enabled)
+
+    stopped_count = 0
+    if not payload.enabled:
+        for code in affected_codes:
+            if await _stop_instance_if_running(code):
+                stopped_count += 1
+
+    action = "开启" if payload.enabled else "关闭"
+    extra = f"，并停止 {stopped_count} 个运行中实例" if stopped_count else ""
+    return _ok({
+        "category": payload.category,
+        "enabled": payload.enabled,
+        "affected": len(bm_ids),
+        "stopped": stopped_count,
+    }, f"分类 {payload.category} 已{action} {len(bm_ids)} 道题{extra}")
+
+
 @app.get("/api/challenges/visibility")
 async def tch_get_challenge_visibility(_=Depends(require_admin)):
     """Web UI 用,返回所有 benchmark_id 的当前开关状态。"""
@@ -877,6 +922,103 @@ async def tch_stop_level(payload: BatchLevelRequest, _=Depends(require_admin)):
                 try:
                     real_team = tid if tid != "__shared__" else None
                     await asyncio.to_thread(manager.stop_challenge_instance, code, real_team)
+                    stopped += 1
+                except Exception:
+                    pass
+
+    return _ok({"stopped": stopped}, f"已停止 {stopped} 个实例" if stopped else "没有运行中的实例")
+
+
+class BatchCodesVisibilityRequest(PydanticBaseModel):
+    codes: list[str]
+    enabled: bool
+
+
+@app.post("/api/batch_visibility")
+async def tch_batch_visibility(payload: BatchCodesVisibilityRequest, _=Depends(require_admin)):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    bm_ids = [code for code in payload.codes if any(c.get_benchmark_id() == code for c in manager.challenges)]
+    if not bm_ids:
+        return _ok({"affected": 0, "stopped": 0}, "没有匹配的题目")
+
+    set_challenges_enabled_bulk(bm_ids, payload.enabled)
+
+    stopped_count = 0
+    if not payload.enabled:
+        for code in bm_ids:
+            if await _stop_instance_if_running(code):
+                stopped_count += 1
+
+    action = "开启" if payload.enabled else "关闭"
+    extra = f"，并停止 {stopped_count} 个运行中实例" if stopped_count else ""
+    return _ok({
+        "enabled": payload.enabled,
+        "affected": len(bm_ids),
+        "stopped": stopped_count,
+    }, f"已{action} {len(bm_ids)} 道题{extra}")
+
+
+class BatchCodesRequest(PydanticBaseModel):
+    codes: list[str]
+
+
+@app.post("/api/batch_start")
+async def tch_batch_start(payload: BatchCodesRequest, admin: dict = Depends(require_admin)):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    to_start = []
+    for code in payload.codes:
+        try:
+            c = manager._find_by_code(code)
+        except KeyError:
+            continue
+        if not is_challenge_enabled(c.get_benchmark_id()):
+            continue
+        if c.unsupported:
+            continue
+        bm_id = c.get_benchmark_id()
+        status = manager.get_team_instance_status(bm_id, admin["id"])
+        if status in ("running", "unhealthy"):
+            continue
+        to_start.append(bm_id)
+
+    if not to_start:
+        return _ok({"started": 0, "total": 0}, "没有需要启动的实例")
+
+    def _start_in_background(codes: list[str], team_id: str) -> None:
+        for code in codes:
+            try:
+                manager.start_challenge_instance(code, team_id)
+            except Exception as e:
+                logger.error("batch start failed", benchmark_id=code, error=str(e))
+        app.state.batch_starting = False
+
+    app.state.batch_starting = True
+    threading.Thread(target=_start_in_background, args=(to_start, admin["id"]), daemon=True).start()
+    return _ok({"started": 0, "total": len(to_start)}, f"正在启动 {len(to_start)} 个实例...")
+
+
+@app.post("/api/batch_stop")
+async def tch_batch_stop(payload: BatchCodesRequest, _=Depends(require_admin)):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    stopped = 0
+    for code in payload.codes:
+        bm_id = code
+        for (bid, tid), inst_code in list(manager._team_instances.items()):
+            if bid != bm_id:
+                continue
+            if manager._instance_status.get(inst_code) in ("running", "unhealthy"):
+                try:
+                    real_team = tid if tid != "__shared__" else None
+                    await asyncio.to_thread(manager.stop_challenge_instance, inst_code, real_team)
                     stopped += 1
                 except Exception:
                     pass
@@ -1309,8 +1451,6 @@ def serve(
     app.state.manager = manager
     app.state.submission_store = submission_store
     app.state.challenges_dir = challenges_dir
-
-    manager.print_summary_table()
 
     from rich.console import Console
     console = Console()

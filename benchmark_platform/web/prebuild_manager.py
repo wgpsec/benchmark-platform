@@ -21,6 +21,7 @@ class ChallengeStatus:
     status: str = "pending"  # pending | building | cached | failed | unsupported
     log_lines: list[str] = field(default_factory=list)
     unsupported_reason: str = ""
+    tags: list[str] = field(default_factory=list)
 
 
 class PrebuildManager:
@@ -73,6 +74,7 @@ class PrebuildManager:
                 source_path=source_path,
                 status=status,
                 unsupported_reason=c.unsupported_reason if c.unsupported else "",
+                tags=bm.tags,
             )
 
     # ── Public API ──────────────────────────────────────────────────────
@@ -149,6 +151,7 @@ class PrebuildManager:
                 "status": cs.status,
                 "log_lines": cs.log_lines[-200:],
                 "unsupported_reason": cs.unsupported_reason,
+                "tags": cs.tags,
             })
         return result
 

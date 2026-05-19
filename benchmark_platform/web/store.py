@@ -53,6 +53,7 @@ class ChallengeStore:
                     "downloaded": True,
                     "has_update": False,
                     "source": "local",
+                    "tags": [],
                 }
                 benchmark_json = challenge_dir / "benchmark.json"
                 if benchmark_json.exists():
@@ -61,6 +62,7 @@ class ChallengeStore:
                         ch["description"] = meta.get("description", "")
                         ch["difficulty"] = meta.get("difficulty", "")
                         ch["flag_count"] = meta.get("flag_count", 1)
+                        ch["tags"] = meta.get("tags", [])
                         level = meta.get("level", 0)
                         if not ch["difficulty"] and level:
                             ch["difficulty"] = {1: "easy", 2: "medium", 3: "hard"}.get(level, "")

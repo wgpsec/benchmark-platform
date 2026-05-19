@@ -15,6 +15,17 @@ def _get_team_progress_for_view(team_id: Optional[str]) -> dict:
     return get_team_progress(team_id)
 
 
+def _get_challenge_category(manager: ChallengeManager, challenge) -> str:
+    """Derive category from challenge source directory structure."""
+    src = getattr(challenge, '_source_dir', None)
+    if src and src.parent:
+        parent = src.parent
+        if parent in manager.benchmark_folders:
+            return ""
+        return parent.name
+    return ""
+
+
 def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[str] = None, team_progress: Optional[dict] = None) -> dict:
     bm = challenge.get_benchmark()
     bm_id = challenge.get_benchmark_id()
@@ -68,6 +79,7 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "challenge_code": challenge.challenge_code,
         "benchmark_id": bm_id,
         "name": bm.name,
+        "category": _get_challenge_category(manager, challenge),
         "description": bm.description,
         "level": bm.level,
         "difficulty": challenge.difficulty.value,
@@ -86,6 +98,7 @@ def _challenge_to_card(manager: ChallengeManager, challenge, team_id: Optional[s
         "enabled": enabled,
         "started_at": started_at,
         "expires_at": expires_at,
+        "tags": bm.tags,
     }
 
 
