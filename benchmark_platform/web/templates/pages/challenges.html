@@ -126,7 +126,7 @@
 <!-- Level groups -->
 <div class="space-y-8">
   {% for lg in level_groups %}
-  <div>
+  <div data-level="{{ lg.level }}">
     <div class="flex items-center gap-3 mb-4">
       <h2 class="text-[15px] font-semibold text-gray-900">Level {{ lg.level }}</h2>
       <span class="text-[12px] text-gray-500">{{ lg.solved }}/{{ lg.total }}</span>
@@ -142,9 +142,13 @@
       <div class="ml-auto flex items-center gap-2"
            x-data="{visEnabling: false, visDisabling: false}">
         <button :disabled="visEnabling || visDisabling" @click="
-          if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 开放吗?')) return;
+          const codes = getVisibleCodes({{ lg.level }});
+          const count = codes.length;
+          if(!confirm('确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 开放吗?')) return;
           visEnabling = true;
-          fetch('/api/level_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}, enabled: true})})
+          const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
+          const body = selectedTags.length > 0 ? {codes, enabled: true} : {level: {{ lg.level }}, enabled: true};
+          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
           .then(r => r.json())
           .then(data => {
             if (data.code === 0) {
@@ -161,9 +165,13 @@
           <span x-show="visEnabling" x-cloak>开启中...</span>
         </button>
         <button :disabled="visEnabling || visDisabling" @click="
-          if(!confirm('确定要把 Level {{ lg.level }} 的全部 {{ lg.total }} 道题对 Agent 关闭吗?\n如有运行中实例将一并停止。')) return;
+          const codes = getVisibleCodes({{ lg.level }});
+          const count = codes.length;
+          if(!confirm('确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 关闭吗?\n如有运行中实例将一并停止。')) return;
           visDisabling = true;
-          fetch('/api/level_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}, enabled: false})})
+          const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
+          const body = selectedTags.length > 0 ? {codes, enabled: false} : {level: {{ lg.level }}, enabled: false};
+          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
           .then(r => r.json())
           .then(data => {
             if (data.code === 0) {
@@ -185,7 +193,10 @@
            x-effect="if(!startLoading && !stopLoading && pollTimer) { clearInterval(pollTimer); pollTimer = null; }">
         <button :disabled="startLoading || stopLoading" @click="
           startLoading = true;
-          fetch('/api/start_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
+          const codes = getVisibleCodes({{ lg.level }});
+          const url = selectedTags.length > 0 ? '/api/batch_start' : '/api/start_level';
+          const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
+          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
           .then(r => r.json())
           .then(data => { $dispatch('toast', {type:'info', message: data.message}); })
           .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}));
@@ -217,7 +228,10 @@
         </button>
         <button :disabled="startLoading || stopLoading" @click="
           stopLoading = true;
-          fetch('/api/stop_level', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level: {{ lg.level }}})})
+          const codes = getVisibleCodes({{ lg.level }});
+          const url = selectedTags.length > 0 ? '/api/batch_stop' : '/api/stop_level';
+          const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
+          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
           .then(r => r.json())
           .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
           .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
@@ -254,6 +268,17 @@
 </div>
 
 <script>
+function getVisibleCodes(level) {
+  const cards = document.querySelectorAll('[data-challenge-card]');
+  const codes = [];
+  cards.forEach(el => {
+    if (el.style.display === 'none') return;
+    if (el.closest('[data-level]')?.dataset.level != level) return;
+    codes.push(el.dataset.benchmarkId);
+  });
+  return codes;
+}
+
 function applyFilter(filter, search, selectedTags) {
   const s = search.toLowerCase();
   document.querySelectorAll('[data-challenge-card]').forEach(el => {
