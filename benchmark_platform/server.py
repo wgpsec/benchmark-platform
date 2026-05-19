@@ -1452,8 +1452,6 @@ def serve(
     app.state.submission_store = submission_store
     app.state.challenges_dir = challenges_dir
 
-    manager.print_summary_table()
-
     from rich.console import Console
     console = Console()
     console.print(f"\n  [bold green]Admin Token:[/bold green] {default_team['token']}\n")
