@@ -37,19 +37,38 @@
 {% endfor %}
 {% set all_tags = ns.tag_counts.items() | sort(attribute='1', reverse=true) %}
 {% if all_tags %}
-<div class="flex flex-wrap items-center gap-2 mb-4">
-  {% for tag, count in all_tags %}
-  <button @click="selectedTags.includes('{{ tag }}') ? selectedTags = selectedTags.filter(t => t !== '{{ tag }}') : selectedTags.push('{{ tag }}')"
-          :class="selectedTags.includes('{{ tag }}') ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
-          class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors">
-    {{ tag }}
-  </button>
-  {% endfor %}
-  <button x-show="selectedTags.length > 0" x-cloak
-          @click="selectedTags = []"
-          class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
-    清除筛选
-  </button>
+<div class="mb-4" x-data="{tagSearch: '', showAll: false}">
+  <div class="flex items-center gap-2 mb-2">
+    <input type="text" x-model="tagSearch" placeholder="搜索标签..."
+           class="h-7 w-36 px-2.5 text-[11px] bg-gray-50 border border-gray-200 rounded-full text-gray-700 placeholder-gray-400 focus:ring-1 focus:ring-gray-300 focus:outline-none">
+    <button x-show="selectedTags.length > 0" x-cloak
+            @click="selectedTags = []"
+            class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
+      清除筛选
+    </button>
+  </div>
+  <div class="flex flex-wrap items-center gap-1.5">
+    {% for tag, count in all_tags %}
+    <button x-show="(tagSearch === '' ? (showAll || {{ loop.index0 }} < 10) : '{{ tag }}'.includes(tagSearch.toLowerCase()))"
+            @click="selectedTags.includes('{{ tag }}') ? selectedTags = selectedTags.filter(t => t !== '{{ tag }}') : selectedTags.push('{{ tag }}')"
+            :class="selectedTags.includes('{{ tag }}') ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
+            class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors">
+      {{ tag }}
+    </button>
+    {% endfor %}
+    {% if all_tags | length > 10 %}
+    <button x-show="!showAll && tagSearch === ''" x-cloak
+            @click="showAll = true"
+            class="text-[11px] px-2.5 py-1 rounded-full text-blue-600 hover:bg-blue-50 border border-blue-200 whitespace-nowrap cursor-pointer transition-colors">
+      更多 ({{ all_tags | length - 10 }})
+    </button>
+    <button x-show="showAll && tagSearch === ''" x-cloak
+            @click="showAll = false"
+            class="text-[11px] px-2.5 py-1 rounded-full text-gray-500 hover:bg-gray-100 whitespace-nowrap cursor-pointer transition-colors">
+      收起
+    </button>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 

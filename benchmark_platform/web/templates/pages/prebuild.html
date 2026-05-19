@@ -72,19 +72,35 @@
 
   <!-- Tag filter bar -->
   <template x-if="allTags.length > 0">
-    <div class="flex flex-wrap items-center gap-2 mb-4">
-      <template x-for="tag in allTags" :key="tag">
-        <button @click="toggleTag(tag)"
-                :class="selectedTags.includes(tag) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
-                class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors"
-                x-text="tag">
+    <div class="mb-4">
+      <div class="flex items-center gap-2 mb-2">
+        <input type="text" x-model="tagSearch" placeholder="搜索标签..."
+               class="h-7 w-36 px-2.5 text-[11px] bg-gray-50 border border-gray-200 rounded-full text-gray-700 placeholder-gray-400 focus:ring-1 focus:ring-gray-300 focus:outline-none">
+        <button x-show="selectedTags.length > 0" x-cloak
+                @click="selectedTags = []"
+                class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
+          清除筛选
         </button>
-      </template>
-      <button x-show="selectedTags.length > 0" x-cloak
-              @click="selectedTags = []"
-              class="text-[11px] px-2.5 py-1 rounded-full text-red-500 hover:bg-red-50 whitespace-nowrap cursor-pointer transition-colors">
-        清除筛选
-      </button>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <template x-for="tag in visibleTags" :key="tag">
+          <button @click="toggleTag(tag)"
+                  :class="selectedTags.includes(tag) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
+                  class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors"
+                  x-text="tag">
+          </button>
+        </template>
+        <button x-show="!showAllTags && tagSearch === '' && allTags.length > 10" x-cloak
+                @click="showAllTags = true"
+                class="text-[11px] px-2.5 py-1 rounded-full text-blue-600 hover:bg-blue-50 border border-blue-200 whitespace-nowrap cursor-pointer transition-colors"
+                x-text="'更多 (' + (allTags.length - 10) + ')'">
+        </button>
+        <button x-show="showAllTags && tagSearch === '' && allTags.length > 10" x-cloak
+                @click="showAllTags = false"
+                class="text-[11px] px-2.5 py-1 rounded-full text-gray-500 hover:bg-gray-100 whitespace-nowrap cursor-pointer transition-colors">
+          收起
+        </button>
+      </div>
     </div>
   </template>
 
@@ -160,6 +176,8 @@ function prebuildPage() {
     expanded: {},
     selected: {},
     selectedTags: [],
+    tagSearch: '',
+    showAllTags: false,
 
     get allTags() {
       const counts = {};
@@ -167,6 +185,14 @@ function prebuildPage() {
         (c.tags || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
       });
       return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    },
+
+    get visibleTags() {
+      if (this.tagSearch) {
+        const q = this.tagSearch.toLowerCase();
+        return this.allTags.filter(t => t.includes(q));
+      }
+      return this.showAllTags ? this.allTags : this.allTags.slice(0, 10);
     },
 
     get filteredChallenges() {
