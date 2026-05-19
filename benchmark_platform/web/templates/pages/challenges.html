@@ -37,7 +37,7 @@
 {% endfor %}
 {% set all_tags = ns.tag_counts.items() | sort(attribute='1', reverse=true) %}
 {% if all_tags %}
-<div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+<div class="flex flex-wrap items-center gap-2 mb-4">
   {% for tag, count in all_tags %}
   <button @click="selectedTags.includes('{{ tag }}') ? selectedTags = selectedTags.filter(t => t !== '{{ tag }}') : selectedTags.push('{{ tag }}')"
           :class="selectedTags.includes('{{ tag }}') ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
@@ -195,7 +195,7 @@ function applyFilter(filter, search, selectedTags) {
     if(s && !d.name.toLowerCase().includes(s) && !d.benchmarkId.toLowerCase().includes(s)) show = false;
     if(selectedTags.length > 0) {
       const cardTags = JSON.parse(d.tags || '[]');
-      if(!selectedTags.every(t => cardTags.includes(t))) show = false;
+      if(!selectedTags.some(t => cardTags.includes(t))) show = false;
     }
     el.style.display = show ? '' : 'none';
   });

@@ -72,7 +72,7 @@
 
   <!-- Tag filter bar -->
   <template x-if="allTags.length > 0">
-    <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
       <template x-for="tag in allTags" :key="tag">
         <button @click="toggleTag(tag)"
                 :class="selectedTags.includes(tag) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
@@ -173,7 +173,7 @@ function prebuildPage() {
       if (this.selectedTags.length === 0) return this.challenges;
       return this.challenges.filter(c => {
         const tags = c.tags || [];
-        return this.selectedTags.every(t => tags.includes(t));
+        return this.selectedTags.some(t => tags.includes(t));
       });
     },
 
