@@ -49,7 +49,8 @@
   </div>
   <div class="flex flex-wrap items-center gap-1.5">
     {% for tag, count in all_tags %}
-    <button x-show="(tagSearch === '' ? (showAll || {{ loop.index0 }} < 10) : '{{ tag }}'.includes(tagSearch.toLowerCase()))"
+    <button {% if loop.index0 >= 10 %}x-cloak{% endif %}
+            x-show="(tagSearch === '' ? (showAll || {{ loop.index0 }} < 10) : '{{ tag }}'.includes(tagSearch.toLowerCase()))"
             @click="selectedTags.includes('{{ tag }}') ? selectedTags = selectedTags.filter(t => t !== '{{ tag }}') : selectedTags.push('{{ tag }}')"
             :class="selectedTags.includes('{{ tag }}') ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
             class="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-colors">
