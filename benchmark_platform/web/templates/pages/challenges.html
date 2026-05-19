@@ -97,25 +97,27 @@
     <span class="text-gray-400">{{ stats.enabled }}/{{ stats.total }}</span>
     <button :disabled="catLoading !== ''"
             @click="
-              if(!confirm('确定开启分类 {{ cat }} 的全部 {{ stats.total }} 道题?')) return;
-              catLoading = '{{ cat }}';
-              fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:true})})
-              .then(r=>r.json()).then(data=>{
-                $dispatch('toast',{type:'success',message:data.message});
-                setTimeout(()=>location.reload(),600);
-              }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+              $dispatch('open-confirm-modal', {message: '确定开启分类 {{ cat }} 的全部 {{ stats.total }} 道题？', onConfirm: () => {
+                catLoading = '{{ cat }}';
+                fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:true})})
+                .then(r=>r.json()).then(data=>{
+                  $dispatch('toast',{type:'success',message:data.message});
+                  setTimeout(()=>location.reload(),600);
+                }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+              }});
             "
             class="ml-1 text-emerald-600 hover:text-emerald-800 cursor-pointer disabled:opacity-50 disabled:cursor-wait font-medium">开</button>
     <span class="text-gray-300">|</span>
     <button :disabled="catLoading !== ''"
             @click="
-              if(!confirm('确定关闭分类 {{ cat }} 的全部 {{ stats.total }} 道题?\n运行中实例将一并停止。')) return;
-              catLoading = '{{ cat }}';
-              fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:false})})
-              .then(r=>r.json()).then(data=>{
-                $dispatch('toast',{type:'success',message:data.message});
-                setTimeout(()=>location.reload(),600);
-              }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+              $dispatch('open-confirm-modal', {message: '确定关闭分类 {{ cat }} 的全部 {{ stats.total }} 道题？运行中实例将一并停止。', onConfirm: () => {
+                catLoading = '{{ cat }}';
+                fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:false})})
+                .then(r=>r.json()).then(data=>{
+                  $dispatch('toast',{type:'success',message:data.message});
+                  setTimeout(()=>location.reload(),600);
+                }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+              }});
             "
             class="text-red-500 hover:text-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-wait font-medium">关</button>
   </div>
@@ -143,46 +145,50 @@
            x-data="{visEnabling: false, visDisabling: false}">
         <button :disabled="visEnabling || visDisabling" @click="
           const codes = getVisibleCodes({{ lg.level }});
-          const count = codes.length;
-          if(!confirm('确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 开放吗?')) return;
-          visEnabling = true;
-          const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
-          const body = selectedTags.length > 0 ? {codes, enabled: true} : {level: {{ lg.level }}, enabled: true};
-          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
-          .then(r => r.json())
-          .then(data => {
-            if (data.code === 0) {
-              $dispatch('toast', {type:'success', message: data.message});
-              setTimeout(() => location.reload(), 600);
-            } else {
-              $dispatch('toast', {type:'error', message: data.message || '操作失败'});
-              visEnabling = false;
-            }
-          })
-          .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visEnabling = false; });
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 开放吗？';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            visEnabling = true;
+            const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
+            const body = selectedTags.length > 0 ? {codes, enabled: true} : {level: {{ lg.level }}, enabled: true};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => {
+              if (data.code === 0) {
+                $dispatch('toast', {type:'success', message: data.message});
+                setTimeout(() => location.reload(), 600);
+              } else {
+                $dispatch('toast', {type:'error', message: data.message || '操作失败'});
+                visEnabling = false;
+              }
+            })
+            .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visEnabling = false; });
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-emerald-700 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!visEnabling">全部开启</span>
           <span x-show="visEnabling" x-cloak>开启中...</span>
         </button>
         <button :disabled="visEnabling || visDisabling" @click="
           const codes = getVisibleCodes({{ lg.level }});
-          const count = codes.length;
-          if(!confirm('确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 关闭吗?\n如有运行中实例将一并停止。')) return;
-          visDisabling = true;
-          const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
-          const body = selectedTags.length > 0 ? {codes, enabled: false} : {level: {{ lg.level }}, enabled: false};
-          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
-          .then(r => r.json())
-          .then(data => {
-            if (data.code === 0) {
-              $dispatch('toast', {type:'success', message: data.message});
-              setTimeout(() => location.reload(), 600);
-            } else {
-              $dispatch('toast', {type:'error', message: data.message || '操作失败'});
-              visDisabling = false;
-            }
-          })
-          .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visDisabling = false; });
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要把' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的全部 {{ lg.total }}') + ' 道题对 Agent 关闭吗？运行中实例将一并停止。';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            visDisabling = true;
+            const url = selectedTags.length > 0 ? '/api/batch_visibility' : '/api/level_visibility';
+            const body = selectedTags.length > 0 ? {codes, enabled: false} : {level: {{ lg.level }}, enabled: false};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => {
+              if (data.code === 0) {
+                $dispatch('toast', {type:'success', message: data.message});
+                setTimeout(() => location.reload(), 600);
+              } else {
+                $dispatch('toast', {type:'error', message: data.message || '操作失败'});
+                visDisabling = false;
+              }
+            })
+            .catch(() => { $dispatch('toast', {type:'error', message:'操作失败'}); visDisabling = false; });
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!visDisabling">全部关闭</span>
           <span x-show="visDisabling" x-cloak>关闭中...</span>
@@ -192,50 +198,58 @@
       <div class="flex items-center gap-2" x-data="{startLoading: false, stopLoading: false, pollTimer: null}"
            x-effect="if(!startLoading && !stopLoading && pollTimer) { clearInterval(pollTimer); pollTimer = null; }">
         <button :disabled="startLoading || stopLoading" @click="
-          startLoading = true;
           const codes = getVisibleCodes({{ lg.level }});
-          const url = selectedTags.length > 0 ? '/api/batch_start' : '/api/start_level';
-          const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
-          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
-          .then(r => r.json())
-          .then(data => { $dispatch('toast', {type:'info', message: data.message}); })
-          .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}));
-          pollTimer = setInterval(() => {
-            fetch('/api/instance_statuses').then(r => r.json()).then(data => {
-              if(!data.data) return;
-              const statuses = data.data.statuses;
-              const batchRunning = data.data.batch_starting;
-              Object.entries(statuses).forEach(([code, info]) => {
-                if(info.level !== {{ lg.level }}) return;
-                if(info.solved) return;
-                if(info.status === 'running' || info.status === 'unhealthy') {
-                  fetch('/web/partials/challenge_card?code=' + code).then(r=>r.text()).then(html => {
-                    const el = document.getElementById('card-' + code);
-                    if(el) el.outerHTML = html;
-                  });
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要批量启动' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的 {{ lg.total }}') + ' 道题的实例吗？';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            startLoading = true;
+            const url = selectedTags.length > 0 ? '/api/batch_start' : '/api/start_level';
+            const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => { $dispatch('toast', {type:'info', message: data.message}); })
+            .catch(() => $dispatch('toast', {type:'error', message:'批量启动失败'}));
+            pollTimer = setInterval(() => {
+              fetch('/api/instance_statuses').then(r => r.json()).then(data => {
+                if(!data.data) return;
+                const statuses = data.data.statuses;
+                const batchRunning = data.data.batch_starting;
+                Object.entries(statuses).forEach(([code, info]) => {
+                  if(info.level !== {{ lg.level }}) return;
+                  if(info.solved) return;
+                  if(info.status === 'running' || info.status === 'unhealthy') {
+                    fetch('/web/partials/challenge_card?code=' + code).then(r=>r.text()).then(html => {
+                      const el = document.getElementById('card-' + code);
+                      if(el) el.outerHTML = html;
+                    });
+                  }
+                });
+                if(!batchRunning) {
+                  startLoading = false;
+                  $dispatch('toast', {type:'success', message:'批量启动完成'});
                 }
               });
-              if(!batchRunning) {
-                startLoading = false;
-                $dispatch('toast', {type:'success', message:'批量启动完成'});
-              }
-            });
-          }, 2000);
-          setTimeout(() => { if(startLoading) { startLoading = false; clearInterval(pollTimer); pollTimer = null; location.reload(); } }, 120000);
+            }, 2000);
+            setTimeout(() => { if(startLoading) { startLoading = false; clearInterval(pollTimer); pollTimer = null; location.reload(); } }, 120000);
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!startLoading">全部启动</span>
           <span x-show="startLoading" x-cloak>启动中...</span>
         </button>
         <button :disabled="startLoading || stopLoading" @click="
-          stopLoading = true;
           const codes = getVisibleCodes({{ lg.level }});
-          const url = selectedTags.length > 0 ? '/api/batch_stop' : '/api/stop_level';
-          const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
-          fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
-          .then(r => r.json())
-          .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
-          .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
-          .finally(() => { stopLoading = false; setTimeout(() => location.reload(), 1000); });
+          const count = selectedTags.length > 0 ? codes.length : {{ lg.total }};
+          const msg = '确定要批量停止' + (selectedTags.length > 0 ? '当前筛选的 ' + count : ' Level {{ lg.level }} 的 {{ lg.total }}') + ' 道题的实例吗？';
+          $dispatch('open-confirm-modal', {message: msg, onConfirm: () => {
+            stopLoading = true;
+            const url = selectedTags.length > 0 ? '/api/batch_stop' : '/api/stop_level';
+            const body = selectedTags.length > 0 ? {codes} : {level: {{ lg.level }}};
+            fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(r => r.json())
+            .then(data => { $dispatch('toast', {type:'success', message: data.message}); })
+            .catch(() => $dispatch('toast', {type:'error', message:'批量停止失败'}))
+            .finally(() => { stopLoading = false; setTimeout(() => location.reload(), 1000); });
+          }});
         " class="h-7 px-2.5 text-[11px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait">
           <span x-show="!stopLoading">全部停止</span>
           <span x-show="stopLoading" x-cloak>停止中...</span>
@@ -298,4 +312,5 @@ function applyFilter(filter, search, selectedTags) {
 </script>
 
 {% include "components/modal_submit.html" %}
+{% include "components/modal_confirm.html" %}
 {% endblock %}
