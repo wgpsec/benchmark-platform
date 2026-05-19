@@ -51,5 +51,5 @@ class Benchmark(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def points(self) -> int:
-        points_map = {1: 200, 2: 300, 3: 500}
+        points_map = {1: 200, 2: 300, 3: 500, 4: 1000}
         return points_map.get(self.level, 0)
