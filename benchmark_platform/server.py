@@ -636,6 +636,51 @@ async def tch_set_level_visibility(payload: LevelVisibilityRequest, _=Depends(re
     }, f"Level {payload.level} 已{action} {len(bm_ids)} 道题{extra}")
 
 
+class CategoryVisibilityRequest(PydanticBaseModel):
+    category: str
+    enabled: bool
+
+
+@app.post("/api/category_visibility")
+async def tch_set_category_visibility(payload: CategoryVisibilityRequest, _=Depends(require_admin)):
+    if manager is None:
+        _err("Server not initialized", 503)
+        return
+
+    bm_ids: list[str] = []
+    affected_codes: list[str] = []
+    for c in manager.challenges:
+        src = getattr(c, '_source_dir', None)
+        if not src:
+            continue
+        parent = src.parent
+        cat = parent.name if parent not in manager.benchmark_folders else ""
+        if cat != payload.category:
+            continue
+        bm_ids.append(c.get_benchmark_id())
+        affected_codes.append(c.challenge_code)
+
+    if not bm_ids:
+        return _ok({"affected": 0, "stopped": 0}, "该分类没有题目")
+
+    set_challenges_enabled_bulk(bm_ids, payload.enabled)
+
+    stopped_count = 0
+    if not payload.enabled:
+        for code in affected_codes:
+            if await _stop_instance_if_running(code):
+                stopped_count += 1
+
+    action = "开启" if payload.enabled else "关闭"
+    extra = f"，并停止 {stopped_count} 个运行中实例" if stopped_count else ""
+    return _ok({
+        "category": payload.category,
+        "enabled": payload.enabled,
+        "affected": len(bm_ids),
+        "stopped": stopped_count,
+    }, f"分类 {payload.category} 已{action} {len(bm_ids)} 道题{extra}")
+
+
 @app.get("/api/challenges/visibility")
 async def tch_get_challenge_visibility(_=Depends(require_admin)):
     """Web UI 用,返回所有 benchmark_id 的当前开关状态。"""

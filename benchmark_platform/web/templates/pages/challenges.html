@@ -72,6 +72,56 @@
 </div>
 {% endif %}
 
+<!-- Category management bar -->
+{% set ns2 = namespace(cat_stats={}) %}
+{% for lg in level_groups %}
+  {% for card in lg.challenges %}
+    {% if card.category %}
+      {% if card.category not in ns2.cat_stats %}
+        {% set _ = ns2.cat_stats.update({card.category: {'total': 0, 'enabled': 0}}) %}
+      {% endif %}
+      {% set _ = ns2.cat_stats[card.category].update({'total': ns2.cat_stats[card.category].total + 1}) %}
+      {% if card.enabled %}
+        {% set _ = ns2.cat_stats[card.category].update({'enabled': ns2.cat_stats[card.category].enabled + 1}) %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+{% if ns2.cat_stats %}
+<div class="flex flex-wrap items-center gap-2 mb-4" x-data="{catLoading: ''}">
+  <span class="text-[11px] text-gray-400 font-medium mr-1">分类:</span>
+  {% for cat, stats in ns2.cat_stats.items() | sort %}
+  <div class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-white">
+    <span class="font-medium text-gray-700">{{ cat }}</span>
+    <span class="text-gray-400">{{ stats.enabled }}/{{ stats.total }}</span>
+    <button :disabled="catLoading !== ''"
+            @click="
+              if(!confirm('确定开启分类 {{ cat }} 的全部 {{ stats.total }} 道题?')) return;
+              catLoading = '{{ cat }}';
+              fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:true})})
+              .then(r=>r.json()).then(data=>{
+                $dispatch('toast',{type:'success',message:data.message});
+                setTimeout(()=>location.reload(),600);
+              }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+            "
+            class="ml-1 text-emerald-600 hover:text-emerald-800 cursor-pointer disabled:opacity-50 disabled:cursor-wait font-medium">开</button>
+    <span class="text-gray-300">|</span>
+    <button :disabled="catLoading !== ''"
+            @click="
+              if(!confirm('确定关闭分类 {{ cat }} 的全部 {{ stats.total }} 道题?\n运行中实例将一并停止。')) return;
+              catLoading = '{{ cat }}';
+              fetch('/api/category_visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:'{{ cat }}', enabled:false})})
+              .then(r=>r.json()).then(data=>{
+                $dispatch('toast',{type:'success',message:data.message});
+                setTimeout(()=>location.reload(),600);
+              }).catch(()=>{$dispatch('toast',{type:'error',message:'操作失败'}); catLoading='';});
+            "
+            class="text-red-500 hover:text-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-wait font-medium">关</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- Level groups -->
 <div class="space-y-8">
   {% for lg in level_groups %}
