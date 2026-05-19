@@ -238,7 +238,7 @@
            data-name="{{ card.name }}"
            data-benchmark-id="{{ card.benchmark_id }}"
            data-enabled="{{ 'true' if card.enabled else 'false' }}"
-           data-tags="{{ card.tags | tojson }}">
+           data-tags='{{ card.tags | tojson }}'>
         {% include "components/challenge_card.html" %}
       </div>
       {% endfor %}
