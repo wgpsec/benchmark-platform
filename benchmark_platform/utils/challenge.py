@@ -1110,10 +1110,11 @@ class ChallengeManager:
         '.sql', '.html', '.htm', '.xml', '.json', '.yaml', '.yml', '.toml',
         '.env', '.txt', '.md', '.cfg', '.ini', '.conf', '.tpl', '.tmpl',
         '.jsx', '.tsx', '.vue', '.css', '.csv',
+        '.ldif',
     }
     _TEXT_FILENAMES = {
         'Dockerfile', 'Makefile', 'Procfile', 'Gemfile', 'Rakefile',
-        'Vagrantfile', 'Brewfile',
+        'Vagrantfile', 'Brewfile', 'flag',
     }
 
     def _is_text_file(self, fpath: Path) -> bool:
