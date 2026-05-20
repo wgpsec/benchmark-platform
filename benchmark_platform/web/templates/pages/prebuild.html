@@ -299,65 +299,68 @@ function prebuildPage() {
       }
     },
 
-    async removeOne(code) {
-      if (!confirm('确认删除该题目的镜像？')) return;
-      try {
-        const res = await fetch('/api/prebuild/remove', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({code}),
-        });
-        const data = await res.json();
-        if (data.code === 0) {
-          this.$dispatch('toast', {type:'success', message: data.message});
-          this.fetchStatus();
-        } else {
-          this.$dispatch('toast', {type:'error', message: data.detail?.message || '删除失败'});
+    removeOne(code) {
+      this.$dispatch('open-confirm-modal', {message: '确认删除该题目的镜像？', onConfirm: async () => {
+        try {
+          const res = await fetch('/api/prebuild/remove', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code}),
+          });
+          const data = await res.json();
+          if (data.code === 0) {
+            this.$dispatch('toast', {type:'success', message: data.message});
+            this.fetchStatus();
+          } else {
+            this.$dispatch('toast', {type:'error', message: data.detail?.message || '删除失败'});
+          }
+        } catch (e) {
+          this.$dispatch('toast', {type:'error', message:'删除失败'});
         }
-      } catch (e) {
-        this.$dispatch('toast', {type:'error', message:'删除失败'});
-      }
+      }});
     },
 
-    async removeAll() {
-      if (!confirm('确认清理所有已缓存的镜像？')) return;
-      try {
-        const res = await fetch('/api/prebuild/remove_all', {method: 'POST'});
-        const data = await res.json();
-        if (data.code === 0) {
-          this.$dispatch('toast', {type:'success', message: data.message});
-          this.fetchStatus();
-        } else {
-          this.$dispatch('toast', {type:'error', message: '清理失败'});
+    removeAll() {
+      this.$dispatch('open-confirm-modal', {message: '确认清理所有已缓存的镜像？', onConfirm: async () => {
+        try {
+          const res = await fetch('/api/prebuild/remove_all', {method: 'POST'});
+          const data = await res.json();
+          if (data.code === 0) {
+            this.$dispatch('toast', {type:'success', message: data.message});
+            this.fetchStatus();
+          } else {
+            this.$dispatch('toast', {type:'error', message: '清理失败'});
+          }
+        } catch (e) {
+          this.$dispatch('toast', {type:'error', message:'清理失败'});
         }
-      } catch (e) {
-        this.$dispatch('toast', {type:'error', message:'清理失败'});
-      }
+      }});
     },
 
-    async removeSelected() {
+    removeSelected() {
       const codes = this.challenges
         .filter(c => this.selected[c.code] && c.status === 'cached')
         .map(c => c.code);
       if (!codes.length) return;
-      if (!confirm(`确认删除选中的 ${codes.length} 个题目的镜像？`)) return;
-      try {
-        const res = await fetch('/api/prebuild/remove_batch', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({codes}),
-        });
-        const data = await res.json();
-        if (data.code === 0) {
-          this.$dispatch('toast', {type:'success', message: data.message});
-          this.selected = {};
-          this.fetchStatus();
-        } else {
-          this.$dispatch('toast', {type:'error', message: '删除失败'});
+      this.$dispatch('open-confirm-modal', {message: `确认删除选中的 ${codes.length} 个题目的镜像？`, onConfirm: async () => {
+        try {
+          const res = await fetch('/api/prebuild/remove_batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({codes}),
+          });
+          const data = await res.json();
+          if (data.code === 0) {
+            this.$dispatch('toast', {type:'success', message: data.message});
+            this.selected = {};
+            this.fetchStatus();
+          } else {
+            this.$dispatch('toast', {type:'error', message: '删除失败'});
+          }
+        } catch (e) {
+          this.$dispatch('toast', {type:'error', message:'删除失败'});
         }
-      } catch (e) {
-        this.$dispatch('toast', {type:'error', message:'删除失败'});
-      }
+      }});
     },
 
     toggle(code) {
@@ -393,4 +396,6 @@ function prebuildPage() {
   };
 }
 </script>
+
+{% include "components/modal_confirm.html" %}
 {% endblock %}
