@@ -117,3 +117,40 @@ def test_dynamic_flag_replacement_scans_c_sources(tmp_path):
 
     assert "FLAG{from_c_source}" not in rewritten
     assert answers["default"] in rewritten
+
+
+def test_dynamic_flag_replacement_scans_log_files(tmp_path):
+    challenge_dir = tmp_path / "challenges" / "custom" / "LOG-001"
+    challenge_dir.mkdir(parents=True)
+    (challenge_dir / "benchmark.json").write_text(json.dumps({
+        "id": "LOG-001",
+        "name": "Log challenge",
+        "description": "test",
+        "hint": "test",
+        "level": 1,
+        "win_condition": "flag",
+        "tags": ["log"],
+        "canaries": ["FLAG{from_log_file}"],
+    }))
+    (challenge_dir / ".env").write_text('FLAG="FLAG{from_log_file}"\n')
+    (challenge_dir / "docker-compose.yml").write_text("services: {}\n")
+    (challenge_dir / "events.log").write_text(
+        "INVESTIGATION_MARKER=FLAG{from_log_file} SRC=10.0.1.233\n",
+    )
+
+    runtime_dir = tmp_path / "runtime"
+    manager = ChallengeManager(
+        benchmark_folders=[tmp_path / "challenges" / "custom"],
+        benchmark_ids=["LOG-001"],
+        public_accessible_host="127.0.0.1",
+        no_level_gate=True,
+        runtime_dir=runtime_dir,
+    ).start()
+
+    challenge = manager.challenges[0]
+    runtime_challenge = runtime_dir / "LOG-001" / challenge.challenge_code
+    rewritten = (runtime_challenge / "events.log").read_text()
+    answers = challenge.get_expected_answers()
+
+    assert "FLAG{from_log_file}" not in rewritten
+    assert answers["default"] in rewritten

@@ -310,7 +310,7 @@ class ChallengeManager:
         '.cpp', '.h', '.hpp', '.sh', '.bash',
         '.sql', '.html', '.htm', '.xml', '.json', '.yaml', '.yml', '.toml',
         '.env', '.txt', '.md', '.cfg', '.ini', '.conf', '.tpl', '.tmpl',
-        '.jsx', '.tsx', '.vue', '.css', '.csv',
+        '.jsx', '.tsx', '.vue', '.css', '.csv', '.log',
     }
     _TEXT_FILENAMES = {
         'Dockerfile', 'Makefile', 'Procfile', 'Gemfile', 'Rakefile',
