@@ -433,28 +433,8 @@ function storePage() {
         ch._downloading = false;
       }
     },
-    async deleteOne(ch) {
-      if (!confirm(`确定删除 ${ch.name}？`)) return;
-      try {
-        const resp = await fetch('/api/store/delete', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({category: ch.category, name: ch.name})
-        });
-        const data = await resp.json();
-        if (data.code !== 0) throw new Error(data.detail || 'Delete failed');
-        ch.downloaded = false;
-        ch.has_update = false;
-        this.$dispatch('toast', {type: 'info', message: ch.name + ' 已删除'});
-      } catch (e) {
-        this.$dispatch('toast', {type: 'error', message: ch.name + ' 删除失败: ' + e.message});
-      }
-    },
-    async deleteAllDownloaded() {
-      const downloaded = this.challenges.filter(c => c.downloaded);
-      if (!confirm(`确定删除全部 ${downloaded.length} 个已下载靶场？`)) return;
-      let done = 0;
-      for (const ch of downloaded) {
+    deleteOne(ch) {
+      this.$dispatch('open-confirm-modal', {message: `确定删除 ${ch.name}？`, onConfirm: async () => {
         try {
           const resp = await fetch('/api/store/delete', {
             method: 'POST',
@@ -462,14 +442,36 @@ function storePage() {
             body: JSON.stringify({category: ch.category, name: ch.name})
           });
           const data = await resp.json();
-          if (data.code === 0) {
-            ch.downloaded = false;
-            ch.has_update = false;
-            done++;
-          }
-        } catch (e) {}
-      }
-      this.$dispatch('toast', {type: 'info', message: `已删除 ${done} 个靶场`});
+          if (data.code !== 0) throw new Error(data.detail || 'Delete failed');
+          ch.downloaded = false;
+          ch.has_update = false;
+          this.$dispatch('toast', {type: 'info', message: ch.name + ' 已删除'});
+        } catch (e) {
+          this.$dispatch('toast', {type: 'error', message: ch.name + ' 删除失败: ' + e.message});
+        }
+      }});
+    },
+    deleteAllDownloaded() {
+      const downloaded = this.challenges.filter(c => c.downloaded);
+      this.$dispatch('open-confirm-modal', {message: `确定删除全部 ${downloaded.length} 个已下载靶场？`, onConfirm: async () => {
+        let done = 0;
+        for (const ch of downloaded) {
+          try {
+            const resp = await fetch('/api/store/delete', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({category: ch.category, name: ch.name})
+            });
+            const data = await resp.json();
+            if (data.code === 0) {
+              ch.downloaded = false;
+              ch.has_update = false;
+              done++;
+            }
+          } catch (e) {}
+        }
+        this.$dispatch('toast', {type: 'info', message: `已删除 ${done} 个靶场`});
+      }});
     },
     cancelDownload() {
       this.cancelled = true;
@@ -521,27 +523,28 @@ function storePage() {
       if (!pending.length) return;
       await this._batchDownload(pending);
     },
-    async deleteCategory(cat) {
+    deleteCategory(cat) {
       const downloaded = this.challengesByCategory(cat).filter(c => c.downloaded);
       if (!downloaded.length) return;
-      if (!confirm(`确定删除 ${cat} 分类下全部 ${downloaded.length} 个已下载靶场？`)) return;
-      let done = 0;
-      for (const ch of downloaded) {
-        try {
-          const resp = await fetch('/api/store/delete', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({category: ch.category, name: ch.name})
-          });
-          const data = await resp.json();
-          if (data.code === 0) {
-            ch.downloaded = false;
-            ch.has_update = false;
-            done++;
-          }
-        } catch (e) {}
-      }
-      this.$dispatch('toast', {type: 'info', message: `已删除 ${cat} 分类 ${done} 个靶场`});
+      this.$dispatch('open-confirm-modal', {message: `确定删除 ${cat} 分类下全部 ${downloaded.length} 个已下载靶场？`, onConfirm: async () => {
+        let done = 0;
+        for (const ch of downloaded) {
+          try {
+            const resp = await fetch('/api/store/delete', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({category: ch.category, name: ch.name})
+            });
+            const data = await resp.json();
+            if (data.code === 0) {
+              ch.downloaded = false;
+              ch.has_update = false;
+              done++;
+            }
+          } catch (e) {}
+        }
+        this.$dispatch('toast', {type: 'info', message: `已删除 ${cat} 分类 ${done} 个靶场`});
+      }});
     },
     async _batchDownload(pending) {
       this.downloading = true;
@@ -633,4 +636,5 @@ function storePage() {
   };
 }
 </script>
+{% include "components/modal_confirm.html" %}
 {% endblock %}
