@@ -1,0 +1,30 @@
+{
+  "id": "SAMPLE-QUIZ-001",
+  "name": "Sample Security Quiz",
+  "description": "A sample quiz for testing",
+  "level": 1,
+  "win_condition": "mcq",
+  "tags": ["test"],
+  "canaries": [],
+  "category": "security_knowledge",
+  "questions": [
+    {
+      "id": "q1",
+      "text": "What does CVE stand for?",
+      "choices": ["Common Vulnerabilities and Exposures", "Critical Vulnerability Evaluation", "Cyber Vulnerability Entry", "Common Virus Exploits"],
+      "answer": 0
+    },
+    {
+      "id": "q2",
+      "text": "Which port does HTTPS use by default?",
+      "choices": ["80", "443", "8080", "22"],
+      "answer": 1
+    },
+    {
+      "id": "q3",
+      "text": "What type of attack is SQL injection?",
+      "choices": ["DoS", "Injection", "XSS", "CSRF"],
+      "answer": 1
+    }
+  ]
+}
