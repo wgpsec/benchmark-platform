@@ -79,8 +79,8 @@ def test_store_page_shows_open_source_controls_by_default():
     assert "docs/challenge-spec.md" in r.text
 
 
-def test_store_page_hides_customer_controls(monkeypatch):
-    monkeypatch.setenv("BENCHMARK_PLATFORM_UI_PROFILE", "customer")
+def test_store_page_hides_branding_controls(monkeypatch):
+    monkeypatch.setenv("BENCHMARK_PLATFORM_UI_PROFILE", "hide_branding")
     _init_app_state()
     client = _admin_client()
     r = client.get("/web/store")
@@ -90,8 +90,8 @@ def test_store_page_hides_customer_controls(monkeypatch):
     assert "docs/challenge-spec.md" not in r.text
 
 
-def test_dashboard_hides_sidebar_github_link_in_customer_profile(monkeypatch):
-    monkeypatch.setenv("BENCHMARK_PLATFORM_UI_PROFILE", "customer")
+def test_dashboard_hides_sidebar_branding_in_hide_branding_profile(monkeypatch):
+    monkeypatch.setenv("BENCHMARK_PLATFORM_UI_PROFILE", "hide_branding")
     _init_app_state()
     client = _admin_client()
     r = client.get("/web/dashboard")

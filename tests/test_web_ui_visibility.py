@@ -14,11 +14,11 @@ def test_default_profile_is_open_source_when_env_is_unset(monkeypatch):
     }
 
 
-def test_customer_profile_hides_deployment_specific_ui(monkeypatch):
-    monkeypatch.setenv("BENCHMARK_PLATFORM_UI_PROFILE", "customer")
+def test_hide_branding_profile_hides_deployment_specific_ui(monkeypatch):
+    monkeypatch.setenv("BENCHMARK_PLATFORM_UI_PROFILE", "hide_branding")
 
     assert get_ui_visibility() == {
-        "ui_profile": "customer",
+        "ui_profile": "hide_branding",
         "show_public_links": False,
         "show_import_actions": False,
         "show_authoring_docs": False,

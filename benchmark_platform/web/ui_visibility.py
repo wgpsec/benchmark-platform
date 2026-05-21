@@ -5,9 +5,9 @@ import os
 
 def get_ui_visibility() -> dict[str, object]:
     ui_profile = os.getenv("BENCHMARK_PLATFORM_UI_PROFILE", "open_source")
-    if ui_profile == "customer":
+    if ui_profile == "hide_branding":
         return {
-            "ui_profile": "customer",
+            "ui_profile": "hide_branding",
             "show_public_links": False,
             "show_import_actions": False,
             "show_authoring_docs": False,
