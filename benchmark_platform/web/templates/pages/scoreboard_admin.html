@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}排行榜 — Benchmark Platform{% endblock %}
+{% block title %}排行榜{% endblock %}
 {% block content %}
 <div hx-get="/web/scoreboard" hx-trigger="every 5s" hx-select="#scoreboard-table" hx-target="#scoreboard-table" hx-swap="outerHTML">
   {% include "partials/scoreboard_table.html" %}

@@ -39,6 +39,7 @@ def test_dashboard_returns_200():
     r = client.get("/web/dashboard")
     assert r.status_code == 200
     assert "仪表盘" in r.text
+    assert "队伍排行榜" not in r.text
 
 
 def test_about_page_returns_200_for_admin():
@@ -207,3 +208,26 @@ def test_dashboard_sidebar_shows_about_entry_for_admin():
     assert r.status_code == 200
     assert "关于我们" in r.text
     assert "/web/about" in r.text
+
+
+def test_scoreboard_page_title_is_rankings():
+    _init_app_state()
+    client = _admin_client()
+    r = client.get("/web/scoreboard")
+    assert r.status_code == 200
+    assert "<title>排行榜</title>" in r.text
+    assert ">排行榜<" in r.text
+    assert "Benchmark Scoreboard" not in r.text
+    assert "Benchmark Platform" not in r.text
+
+
+def test_observer_logout_redirects_to_login():
+    _init_app_state()
+    client = TestClient(app, follow_redirects=False)
+    client.cookies.set(
+        _COOKIE_NAME,
+        create_session_cookie("team-1", "observer", "Observer Team"),
+    )
+    r = client.get("/web/logout")
+    assert r.status_code == 302
+    assert r.headers["location"] == "/web/login"
