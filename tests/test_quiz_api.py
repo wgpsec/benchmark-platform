@@ -95,3 +95,12 @@ def test_quiz_web_page_returns_200():
     r = client.get("/web/quiz")
     assert r.status_code == 200
     assert "知识评测" in r.text
+
+
+def test_quiz_detail_page_returns_200():
+    _setup_app()
+    client = _auth_client()
+    r = client.get("/web/quiz/SAMPLE-QUIZ-001")
+    assert r.status_code == 200
+    assert "What does CVE stand for?" in r.text
+    assert "SAMPLE-QUIZ-001" in r.text

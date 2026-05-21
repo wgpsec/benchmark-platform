@@ -278,6 +278,32 @@ async def page_quiz(request: Request):
     return _render(request, "pages/quiz_list.html", {"page": "quiz", "benchmarks": benchmarks})
 
 
+@web_router.get("/quiz/{benchmark_id}")
+async def page_quiz_detail(request: Request, benchmark_id: str):
+    quiz_store = getattr(request.app.state, "quiz_store", None)
+    if not quiz_store:
+        return RedirectResponse("/web/quiz", status_code=302)
+    try:
+        questions = quiz_store.get_questions(benchmark_id)
+    except KeyError:
+        return RedirectResponse("/web/quiz", status_code=302)
+    bm_info = next((b for b in quiz_store.list_benchmarks() if b["id"] == benchmark_id), {})
+    team_id = _get_selected_team_id(request)
+    from benchmark_platform.db import get_team_progress
+    progress = get_team_progress(team_id)
+    bm_progress = progress.get(benchmark_id, {})
+    answered_ids = bm_progress  # {flag_id: bool}
+    return _render(request, "pages/quiz_detail.html", {
+        "page": "quiz",
+        "benchmark_id": benchmark_id,
+        "benchmark_name": bm_info.get("name", benchmark_id),
+        "questions": questions,
+        "answered": answered_ids,
+        "total": len(questions),
+        "correct_count": sum(1 for v in answered_ids.values() if v),
+    })
+
+
 @web_router.get("/store")
 async def page_store(request: Request):
     return _render(request, "pages/store.html", {"page": "store"})

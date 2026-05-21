@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ benchmark_name }}{% endblock %}
+{% block content %}
+<div x-data="{current: 0, answers: {}, submitted: {{ answered | tojson }} }">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-[15px] font-semibold text-gray-900">{{ benchmark_name }}</h2>
+      <p class="text-[12px] text-gray-500 mt-0.5">已答 {{ answered | length }}/{{ total }}，正确 {{ correct_count }}</p>
+    </div>
+    <a href="/web/quiz" class="text-[12px] text-gray-500 hover:text-gray-700">返回列表</a>
+  </div>
+
+  {% for q in questions %}
+  <div x-show="current === {{ loop.index0 }}" class="bg-white rounded-xl border border-gray-100 p-6">
+    <div class="text-[11px] text-gray-400 mb-2">第 {{ loop.index }}/{{ total }} 题</div>
+    <div class="text-[14px] text-gray-900 font-medium mb-4">{{ q.text }}</div>
+    <div class="space-y-2">
+      {% for choice in q.choices %}
+      <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
+             :class="{
+               'border-gray-900 bg-gray-50': answers['{{ q.id }}'] === {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
+               'border-emerald-500 bg-emerald-50': submitted['{{ q.id }}'] === true && answers['{{ q.id }}'] === {{ loop.index0 }},
+               'border-red-300 bg-red-50': submitted['{{ q.id }}'] === false && answers['{{ q.id }}'] === {{ loop.index0 }},
+               'border-gray-200 hover:border-gray-300': answers['{{ q.id }}'] !== {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
+               'border-gray-100 opacity-60': submitted.hasOwnProperty('{{ q.id }}') && answers['{{ q.id }}'] !== {{ loop.index0 }},
+             }"
+             @click="if(!submitted.hasOwnProperty('{{ q.id }}')) answers['{{ q.id }}'] = {{ loop.index0 }}">
+        <input type="radio" name="q_{{ q.id }}" :checked="answers['{{ q.id }}'] === {{ loop.index0 }}"
+               :disabled="submitted.hasOwnProperty('{{ q.id }}')" class="sr-only">
+        <span class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+              :class="answers['{{ q.id }}'] === {{ loop.index0 }} ? 'border-gray-900' : 'border-gray-300'">
+          <span x-show="answers['{{ q.id }}'] === {{ loop.index0 }}" class="w-2.5 h-2.5 rounded-full bg-gray-900"></span>
+        </span>
+        <span class="text-[13px] text-gray-700">{{ choice }}</span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="flex items-center justify-between mt-6">
+      <button @click="current = Math.max(0, current - 1)"
+              x-show="current > 0"
+              class="px-4 py-2 text-[12px] text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">上一题</button>
+      <div class="flex-1"></div>
+      <button x-show="answers.hasOwnProperty('{{ q.id }}') && !submitted.hasOwnProperty('{{ q.id }}')"
+              @click="
+                fetch('/api/v1/quiz/{{ benchmark_id }}/submit', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({answers: {'{{ q.id }}': answers['{{ q.id }}']}})
+                })
+                .then(r => r.json())
+                .then(data => {
+                  let detail = data.details.find(d => d.id === '{{ q.id }}');
+                  if(detail) submitted['{{ q.id }}'] = detail.correct;
+                })
+              "
+              class="px-4 py-2 text-[12px] font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800">提交</button>
+      <button @click="current = Math.min({{ total }} - 1, current + 1)"
+              x-show="current < {{ total }} - 1"
+              class="ml-2 px-4 py-2 text-[12px] text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">下一题</button>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Progress bar -->
+  <div class="mt-6 flex gap-1">
+    {% for q in questions %}
+    <button @click="current = {{ loop.index0 }}"
+            class="flex-1 h-2 rounded-full transition-colors"
+            :class="{
+              'bg-emerald-500': submitted['{{ q.id }}'] === true,
+              'bg-red-400': submitted['{{ q.id }}'] === false,
+              'bg-gray-900': current === {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
+              'bg-gray-200': current !== {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
+            }"></button>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
