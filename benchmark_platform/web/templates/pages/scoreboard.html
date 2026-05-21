@@ -18,13 +18,21 @@
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-8"
-        hx-get="/web/scoreboard"
-        hx-trigger="every 5s"
-        hx-select="#scoreboard-table"
-        hx-target="#scoreboard-table"
-        hx-swap="outerHTML">
-    {% include "partials/scoreboard_table.html" %}
+  <main class="max-w-7xl mx-auto px-4 py-8">
+    <div class="mb-4 flex gap-2">
+      <a href="/web/scoreboard?tab=combined"
+         class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all
+                {% if tab == 'combined' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-200{% endif %}">综合</a>
+      <a href="/web/scoreboard?tab=ctf"
+         class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all
+                {% if tab == 'ctf' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-200{% endif %}">CTF</a>
+      <a href="/web/scoreboard?tab=mcq"
+         class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all
+                {% if tab == 'mcq' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-200{% endif %}">MCQ</a>
+    </div>
+    <div hx-get="/web/scoreboard?tab={{ tab }}" hx-trigger="every 5s" hx-select="#scoreboard-table" hx-target="#scoreboard-table" hx-swap="outerHTML">
+      {% include "partials/scoreboard_table.html" %}
+    </div>
   </main>
 </body>
 </html>
