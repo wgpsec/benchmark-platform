@@ -50,6 +50,19 @@ def test_about_page_returns_200_for_admin():
     assert "Benchmark Platform" in r.text
 
 
+def test_about_page_shows_repository_links_and_ecosystem_content():
+    _init_app_state()
+    client = _admin_client()
+    r = client.get("/web/about")
+    assert r.status_code == 200
+    assert "https://github.com/wgpsec/benchmark-platform" in r.text
+    assert "https://github.com/wgpsec/benchmark-challenges" in r.text
+    assert "AboutSecurity" in r.text
+    assert "context1337" in r.text
+    assert "tchkiller" in r.text
+    assert "PoJun" in r.text
+
+
 def test_challenges_returns_200():
     _init_app_state()
     client = _admin_client()

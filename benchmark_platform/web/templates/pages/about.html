@@ -1,8 +1,84 @@
 {% extends "base.html" %}
 {% block title %}关于我们 — Benchmark Platform{% endblock %}
 {% block content %}
-<div class="bg-white border border-gray-200 rounded-xl p-5">
-  <h1 class="text-[16px] font-semibold text-gray-900 mb-3">关于我们</h1>
-  <p class="text-[13px] text-gray-600">Benchmark Platform</p>
+<div class="space-y-6">
+  <section class="bg-white border border-gray-100 rounded-xl p-5">
+    <div class="max-w-3xl">
+      <p class="text-[12px] font-semibold text-rose-600 uppercase tracking-wide mb-2">Benchmark Platform</p>
+      <h1 class="text-[20px] font-semibold text-gray-900 mb-3">关于我们</h1>
+      <p class="text-[13px] leading-6 text-gray-600">
+        Benchmark Platform 是面向 Agentic Security Benchmark 的靶场平台，用于管理挑战、运行实例、追踪团队进度与沉淀评测数据，帮助安全研究者和 AI Agent 生态更高效地构建、验证和复现攻防任务。
+      </p>
+      <div class="mt-4 flex flex-wrap gap-2 text-[12px]">
+        <span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">Dynamic Flag</span>
+        <span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">Multi-team isolation</span>
+        <span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">Web UI / API / MCP</span>
+        <span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">Challenge store</span>
+        <span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">Competition analytics</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-center justify-between mb-3 px-1">
+      <div>
+        <h2 class="text-[15px] font-semibold text-gray-900">开源仓库</h2>
+        <p class="text-[12px] text-gray-500 mt-1">平台代码与公开靶场内容托管在 GitHub。</p>
+      </div>
+    </div>
+    <div class="grid gap-3 md:grid-cols-2">
+      <a href="https://github.com/wgpsec/benchmark-platform" target="_blank" class="block bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 hover:shadow-sm transition-all">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-[14px] font-semibold text-gray-900">benchmark-platform</h3>
+            <p class="text-[12px] leading-5 text-gray-500 mt-1">Agentic Security Benchmark 的 Web 管理平台与评测基础设施。</p>
+          </div>
+          <span class="text-[11px] text-blue-600 whitespace-nowrap">GitHub</span>
+        </div>
+        <p class="text-[11px] text-gray-400 mt-3 break-all">https://github.com/wgpsec/benchmark-platform</p>
+      </a>
+      <a href="https://github.com/wgpsec/benchmark-challenges" target="_blank" class="block bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 hover:shadow-sm transition-all">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-[14px] font-semibold text-gray-900">benchmark-challenges</h3>
+            <p class="text-[12px] leading-5 text-gray-500 mt-1">公开靶场题目、挑战规范与复现实验内容。</p>
+          </div>
+          <span class="text-[11px] text-blue-600 whitespace-nowrap">GitHub</span>
+        </div>
+        <p class="text-[11px] text-gray-400 mt-3 break-all">https://github.com/wgpsec/benchmark-challenges</p>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-center justify-between mb-3 px-1">
+      <div>
+        <h2 class="text-[15px] font-semibold text-gray-900">WgpSec Agentic 生态</h2>
+        <p class="text-[12px] text-gray-500 mt-1">围绕安全研究、Agent 能力建设与公开 Benchmark 协作的项目成员。</p>
+      </div>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="bg-white border border-gray-100 rounded-xl p-4">
+        <h3 class="text-[14px] font-semibold text-gray-900">AboutSecurity</h3>
+        <p class="text-[12px] leading-5 text-gray-500 mt-1">安全研究与 Agentic Benchmark 生态内容。</p>
+      </div>
+      <div class="bg-white border border-gray-100 rounded-xl p-4">
+        <h3 class="text-[14px] font-semibold text-gray-900">context1337</h3>
+        <p class="text-[12px] leading-5 text-gray-500 mt-1">Agentic 安全评测与上下文工程实践。</p>
+      </div>
+      <div class="bg-white border border-gray-100 rounded-xl p-4">
+        <h3 class="text-[14px] font-semibold text-gray-900">tchkiller</h3>
+        <p class="text-[12px] leading-5 text-gray-500 mt-1">攻防研究、靶场构建与自动化验证。</p>
+      </div>
+      <div class="bg-white border border-gray-100 rounded-xl p-4">
+        <h3 class="text-[14px] font-semibold text-gray-900">benchmark-platform</h3>
+        <p class="text-[12px] leading-5 text-gray-500 mt-1">承载挑战运行、排行榜与赛后统计的平台项目。</p>
+      </div>
+      <div class="bg-white border border-gray-100 rounded-xl p-4">
+        <h3 class="text-[14px] font-semibold text-gray-900">PoJun</h3>
+        <p class="text-[12px] leading-5 text-gray-500 mt-1">靶场内容、漏洞场景与 Benchmark 生态协作。</p>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}
