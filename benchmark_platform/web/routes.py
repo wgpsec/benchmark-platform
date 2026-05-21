@@ -186,15 +186,13 @@ async def scoreboard_page(request: Request):
     manager = _get_manager(request)
     total_flags = sum(max(1, len(c.flag_states)) for c in manager.challenges) if manager else 1
     user = getattr(request.state, "user", {})
+    ctx = {"teams": teams_data, "total_flags": total_flags or 1, "page": "scoreboard"}
+    if user.get("role") == "admin":
+        return _render(request, "pages/scoreboard_admin.html", ctx)
     return templates.TemplateResponse(
         request,
         "pages/scoreboard.html",
-        context={
-            "teams": teams_data,
-            "total_flags": total_flags or 1,
-            "user": user,
-            "page": "scoreboard",
-        },
+        context={**ctx, "user": user},
     )
 
 
