@@ -430,19 +430,26 @@ def update_instance_status_by_team(
 ) -> None:
     conn = _get_conn()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sets = ["status = ?", "updated_at = ?"]
+    params: list = [status, now]
+    if started_at is not None:
+        sets.append("started_at = ?")
+        params.append(started_at)
+    if expires_at is not None:
+        sets.append("expires_at = ?")
+        params.append(expires_at)
+    set_sql = ", ".join(sets)
     if team_id is None:
+        params.append(benchmark_id)
         conn.execute(
-            """UPDATE instance_lifecycle
-               SET status = ?, started_at = ?, expires_at = ?, updated_at = ?
-               WHERE benchmark_id = ? AND team_id IS NULL""",
-            (status, started_at, expires_at, now, benchmark_id),
+            f"UPDATE instance_lifecycle SET {set_sql} WHERE benchmark_id = ? AND team_id IS NULL",
+            params,
         )
     else:
+        params.extend([benchmark_id, team_id])
         conn.execute(
-            """UPDATE instance_lifecycle
-               SET status = ?, started_at = ?, expires_at = ?, updated_at = ?
-               WHERE benchmark_id = ? AND team_id = ?""",
-            (status, started_at, expires_at, now, benchmark_id, team_id),
+            f"UPDATE instance_lifecycle SET {set_sql} WHERE benchmark_id = ? AND team_id = ?",
+            params,
         )
     conn.commit()
 

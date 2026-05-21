@@ -265,11 +265,13 @@ def test_get_all_instances():
     assert len(all_inst) == 2
 
 
-def test_update_instance_status_by_team():
+def test_update_instance_status_by_team_preserves_started_at_when_not_provided():
     upsert_instance(
         instance_id="i1", benchmark_id="X1", challenge_code="c1",
         runtime_path="/tmp/1", ports=[8001], status="running", team_id="team-a",
+        started_at="2026-05-21T10:00:00Z",
     )
     update_instance_status_by_team("X1", "team-a", "stopped")
     row = get_instance_by_benchmark_and_team("X1", "team-a")
     assert row["status"] == "stopped"
+    assert row["started_at"] == "2026-05-21T10:00:00Z"
