@@ -9,6 +9,14 @@ from pydantic import Field
 
 class WinCondition(str, Enum):
     FLAG = 'flag'
+    MCQ = 'mcq'
+
+
+class Question(BaseModel):
+    id: str = Field(..., description='Unique question identifier')
+    text: str = Field(..., description='The question text')
+    choices: list[str] = Field(..., description='List of answer choices')
+    answer: int = Field(..., description='0-based index of the correct answer')
 
 
 class FlagDef(BaseModel):
@@ -48,6 +56,11 @@ class Benchmark(BaseModel):
     requires: Requirements | None = Field(
         default=None,
         description='Hardware/environment requirements (null = no special requirements)',
+    )
+    category: str = Field(default="", description='Category for MCQ benchmarks')
+    questions: list[Question] = Field(
+        default_factory=list,
+        description='MCQ questions (empty for CTF benchmarks)',
     )
 
     @computed_field  # type: ignore[prop-decorator]
