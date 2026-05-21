@@ -104,3 +104,21 @@ def test_quiz_detail_page_returns_200():
     assert r.status_code == 200
     assert "What does CVE stand for?" in r.text
     assert "SAMPLE-QUIZ-001" in r.text
+
+
+def test_scoreboard_has_tab_navigation():
+    _setup_app()
+    client = _auth_client()
+    r = client.get("/web/scoreboard")
+    assert r.status_code == 200
+    assert "tab=combined" in r.text
+    assert "tab=ctf" in r.text
+    assert "tab=mcq" in r.text
+
+
+def test_scoreboard_mcq_tab():
+    _setup_app()
+    client = _auth_client()
+    r = client.get("/web/scoreboard?tab=mcq")
+    assert r.status_code == 200
+    assert "MCQ" in r.text

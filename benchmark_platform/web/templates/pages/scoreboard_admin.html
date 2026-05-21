@@ -1,7 +1,18 @@
 {% extends "base.html" %}
 {% block title %}排行榜{% endblock %}
 {% block content %}
-<div hx-get="/web/scoreboard" hx-trigger="every 5s" hx-select="#scoreboard-table" hx-target="#scoreboard-table" hx-swap="outerHTML">
+<div class="mb-4 flex gap-2">
+  <a href="/web/scoreboard?tab=combined"
+     class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all
+            {% if tab == 'combined' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">综合</a>
+  <a href="/web/scoreboard?tab=ctf"
+     class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all
+            {% if tab == 'ctf' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">CTF</a>
+  <a href="/web/scoreboard?tab=mcq"
+     class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all
+            {% if tab == 'mcq' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">MCQ</a>
+</div>
+<div hx-get="/web/scoreboard?tab={{ tab }}" hx-trigger="every 5s" hx-select="#scoreboard-table" hx-target="#scoreboard-table" hx-swap="outerHTML">
   {% include "partials/scoreboard_table.html" %}
 </div>
 {% endblock %}

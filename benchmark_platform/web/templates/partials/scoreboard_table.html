@@ -1,35 +1,38 @@
-<div id="scoreboard-table">
-  <table class="w-full bg-white rounded-lg shadow overflow-hidden">
-    <thead class="bg-gray-50">
+<div id="scoreboard-table" class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+  <table class="w-full">
+    <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
-        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-16">Rank</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
-        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">Solved</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+        <th class="px-4 py-3 text-left text-[11px] font-medium text-gray-500 w-12">#</th>
+        <th class="px-4 py-3 text-left text-[11px] font-medium text-gray-500">队伍</th>
+        {% if tab != 'mcq' %}
+        <th class="px-4 py-3 text-right text-[11px] font-medium text-gray-500">CTF Flags</th>
+        {% endif %}
+        {% if tab != 'ctf' %}
+        <th class="px-4 py-3 text-right text-[11px] font-medium text-gray-500">MCQ 正确</th>
+        {% endif %}
+        {% if tab == 'combined' %}
+        <th class="px-4 py-3 text-right text-[11px] font-medium text-gray-500">综合分</th>
+        {% endif %}
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-200">
+    <tbody class="divide-y divide-gray-50">
       {% for team in teams %}
-      <tr class="{% if loop.index <= 3 %}bg-yellow-50/40{% endif %}">
-        <td class="px-4 py-4 text-center text-sm font-bold text-gray-700">
-          {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
-        </td>
-        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ team.name }}</td>
-        <td class="px-4 py-4 text-center text-sm font-semibold text-gray-700">{{ team.solved_flags }} / {{ total_flags }}</td>
-        <td class="px-6 py-4">
-          <div class="flex items-center gap-2">
-            <div class="flex-1 bg-gray-200 rounded-full h-2">
-              <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: {{ [team.solved_flags / total_flags * 100, 100] | min | round(1) }}%"></div>
-            </div>
-            <span class="text-xs text-gray-500 w-10 text-right">{{ (team.solved_flags / total_flags * 100) | round(1) }}%</span>
-          </div>
-        </td>
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 text-[12px] text-gray-500 font-medium">{{ loop.index }}</td>
+        <td class="px-4 py-3 text-[13px] text-gray-900 font-medium">{{ team.name }}</td>
+        {% if tab != 'mcq' %}
+        <td class="px-4 py-3 text-[12px] text-gray-700 text-right">{{ team.solved_flags }}/{{ total_flags }}</td>
+        {% endif %}
+        {% if tab != 'ctf' %}
+        <td class="px-4 py-3 text-[12px] text-gray-700 text-right">{{ team.quiz_correct | default(0) }}</td>
+        {% endif %}
+        {% if tab == 'combined' %}
+        <td class="px-4 py-3 text-[12px] text-gray-900 font-semibold text-right">{{ team.combined_score | default(0) }}</td>
+        {% endif %}
       </tr>
       {% endfor %}
       {% if not teams %}
-      <tr>
-        <td colspan="4" class="px-6 py-8 text-center text-gray-400">No teams yet</td>
-      </tr>
+      <tr><td colspan="5" class="px-4 py-6 text-center text-[12px] text-gray-400">暂无队伍数据</td></tr>
       {% endif %}
     </tbody>
   </table>

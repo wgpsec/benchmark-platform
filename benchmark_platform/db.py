@@ -493,6 +493,26 @@ def set_level_gate_config(mode: str, threshold: int) -> dict:
     return {"mode": mode, "threshold": threshold}
 
 
+def get_team_quiz_scores() -> list[dict]:
+    """Get MCQ scores per team from team_progress for quiz benchmarks."""
+    conn = _get_conn()
+    rows = conn.execute("""
+        SELECT tp.team_id, t.name as team_name,
+               COUNT(*) as answered,
+               SUM(CASE WHEN tp.solved = 1 THEN 1 ELSE 0 END) as correct
+        FROM team_progress tp
+        JOIN teams t ON t.id = tp.team_id
+        WHERE tp.benchmark_id LIKE 'SAMPLE-QUIZ%'
+           OR tp.benchmark_id LIKE 'CYBERMETRIC%'
+           OR tp.benchmark_id LIKE 'SECBENCH%'
+           OR tp.benchmark_id LIKE 'CTIBENCH%'
+           OR tp.benchmark_id LIKE 'MMLU%'
+           OR tp.benchmark_id LIKE 'CISSP%'
+        GROUP BY tp.team_id
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_solve_time_stats() -> list[dict]:
     conn = _get_conn()
     rows = conn.execute("""

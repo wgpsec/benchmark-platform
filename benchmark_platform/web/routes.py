@@ -180,13 +180,34 @@ async def logout(request: Request):
 
 @web_router.get("/scoreboard")
 async def scoreboard_page(request: Request):
-    from benchmark_platform.db import list_teams
+    from benchmark_platform.db import list_teams, get_team_quiz_scores
+    tab = request.query_params.get("tab", "combined")
     teams_data = list_teams()
     teams_data.sort(key=lambda t: t.get("solved_flags", 0), reverse=True)
     manager = _get_manager(request)
     total_flags = sum(max(1, len(c.flag_states)) for c in manager.challenges) if manager else 1
+
+    quiz_scores = {}
+    try:
+        for qs in get_team_quiz_scores():
+            quiz_scores[qs["team_id"]] = qs
+    except Exception:
+        pass
+
+    for t in teams_data:
+        qs = quiz_scores.get(t["id"], {})
+        t["quiz_score"] = qs.get("correct", 0) * 10
+        t["quiz_answered"] = qs.get("answered", 0)
+        t["quiz_correct"] = qs.get("correct", 0)
+        t["combined_score"] = t.get("solved_flags", 0) * 100 + t["quiz_score"]
+
+    if tab == "mcq":
+        teams_data.sort(key=lambda t: t.get("quiz_score", 0), reverse=True)
+    elif tab == "combined":
+        teams_data.sort(key=lambda t: t.get("combined_score", 0), reverse=True)
+
     user = getattr(request.state, "user", {})
-    ctx = {"teams": teams_data, "total_flags": total_flags or 1, "page": "scoreboard"}
+    ctx = {"teams": teams_data, "total_flags": total_flags or 1, "page": "scoreboard", "tab": tab}
     if user.get("role") == "admin":
         return _render(request, "pages/scoreboard_admin.html", ctx)
     return templates.TemplateResponse(
