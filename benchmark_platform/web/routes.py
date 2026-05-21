@@ -262,6 +262,11 @@ async def page_store(request: Request):
     return _render(request, "pages/store.html", {"page": "store"})
 
 
+@web_router.get("/about")
+async def page_about(request: Request):
+    return _render(request, "pages/about.html", {"page": "about"})
+
+
 @web_router.get("/analytics")
 async def page_analytics(request: Request):
     from benchmark_platform.db import get_solve_time_stats

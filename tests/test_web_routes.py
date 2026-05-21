@@ -41,6 +41,15 @@ def test_dashboard_returns_200():
     assert "仪表盘" in r.text
 
 
+def test_about_page_returns_200_for_admin():
+    _init_app_state()
+    client = _admin_client()
+    r = client.get("/web/about")
+    assert r.status_code == 200
+    assert "关于我们" in r.text
+    assert "Benchmark Platform" in r.text
+
+
 def test_challenges_returns_200():
     _init_app_state()
     client = _admin_client()
@@ -158,3 +167,12 @@ def test_dashboard_sidebar_shows_analytics_entry_for_admin():
     assert r.status_code == 200
     assert "赛事统计" in r.text
     assert '/web/analytics' in r.text
+
+
+def test_dashboard_sidebar_shows_about_entry_for_admin():
+    _init_app_state()
+    client = _admin_client()
+    r = client.get("/web/dashboard")
+    assert r.status_code == 200
+    assert "关于我们" in r.text
+    assert "/web/about" in r.text
