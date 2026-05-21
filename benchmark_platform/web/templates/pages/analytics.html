@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}赛事统计 — Benchmark Platform{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <h1 class="text-[18px] font-semibold text-gray-900">赛事统计</h1>
+    <p class="text-[13px] text-gray-500 mt-1">按题目查看平均解题时长，帮助赛后分析题目难度与耗时分布。</p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50 border-b border-gray-100">
+        <tr>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">题目</th>
+          <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">解出次数</th>
+          <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">平均耗时</th>
+          <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">最快</th>
+          <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">最慢</th>
+          <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">最快队伍</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for item in challenge_stats %}
+        <tr>
+          <td class="px-4 py-3 text-[13px] font-medium text-gray-900">{{ item.benchmark_id }}</td>
+          <td class="px-4 py-3 text-[13px] text-right text-gray-700">{{ item.solve_count }}</td>
+          <td class="px-4 py-3 text-[13px] text-right text-gray-700">{{ item.avg_seconds // 60 }}m {{ item.avg_seconds % 60 }}s</td>
+          <td class="px-4 py-3 text-[13px] text-right text-emerald-600">{{ item.min_seconds // 60 }}m {{ item.min_seconds % 60 }}s</td>
+          <td class="px-4 py-3 text-[13px] text-right text-amber-600">{{ item.max_seconds // 60 }}m {{ item.max_seconds % 60 }}s</td>
+          <td class="px-4 py-3 text-[13px] text-gray-700">{{ item.fastest_team }}</td>
+        </tr>
+        {% endfor %}
+        {% if not challenge_stats %}
+        <tr>
+          <td colspan="6" class="px-6 py-8 text-center text-[13px] text-gray-400">暂无可统计的解题数据</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

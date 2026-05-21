@@ -484,3 +484,22 @@ def set_level_gate_config(mode: str, threshold: int) -> dict:
     set_setting("level_gate_mode", mode)
     set_setting("level_gate_threshold", str(threshold))
     return {"mode": mode, "threshold": threshold}
+
+
+def get_solve_time_stats() -> list[dict]:
+    conn = _get_conn()
+    rows = conn.execute("""
+        SELECT
+            p.benchmark_id,
+            p.team_id,
+            t.name as team_name,
+            p.solved_at,
+            il.started_at,
+            CAST((julianday(p.solved_at) - julianday(il.started_at)) * 86400 AS INTEGER) as solve_seconds
+        FROM team_progress p
+        JOIN instance_lifecycle il ON il.benchmark_id = p.benchmark_id AND il.team_id = p.team_id
+        JOIN teams t ON t.id = p.team_id
+        WHERE p.solved = 1 AND p.solved_at IS NOT NULL AND il.started_at IS NOT NULL
+        ORDER BY p.benchmark_id, solve_seconds
+    """).fetchall()
+    return [dict(r) for r in rows]

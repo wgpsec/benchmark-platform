@@ -1,10 +1,11 @@
 """Tests that web page routes return 200."""
 import re
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
 
-from benchmark_platform.db import _set_db_path, init_db
+from benchmark_platform.db import _get_conn, _set_db_path, create_team, init_db, upsert_instance
 from benchmark_platform.server import app
 from benchmark_platform.web.auth_middleware import _COOKIE_NAME, create_session_cookie
 from benchmark_platform.web.submission_store import SubmissionStore
@@ -98,3 +99,62 @@ def test_dashboard_hides_sidebar_branding_in_hide_branding_profile(monkeypatch):
     assert r.status_code == 200
     assert "https://github.com/wgpsec/benchmark-platform" not in r.text
     assert "powered by wgpsec" not in r.text
+
+
+def _seed_analytics_data():
+    team_fast = create_team("fast-team")
+    team_slow = create_team("slow-team")
+    started_fast = datetime(2026, 5, 21, 10, 0, 0, tzinfo=timezone.utc)
+    started_slow = started_fast + timedelta(minutes=5)
+    solved_fast = started_fast + timedelta(minutes=10)
+    solved_slow = started_slow + timedelta(minutes=20)
+    upsert_instance(
+        instance_id="inst-fast",
+        benchmark_id="XBEN-001-24",
+        challenge_code="xbow/XBEN-001-24",
+        runtime_path="/tmp/fast",
+        ports=[],
+        status="running",
+        team_id=team_fast["id"],
+        started_at=started_fast.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    upsert_instance(
+        instance_id="inst-slow",
+        benchmark_id="XBEN-001-24",
+        challenge_code="xbow/XBEN-001-24-2",
+        runtime_path="/tmp/slow",
+        ports=[],
+        status="running",
+        team_id=team_slow["id"],
+        started_at=started_slow.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO team_progress (team_id, benchmark_id, flag_id, solved, solved_at) VALUES (?, ?, ?, 1, ?)",
+        (team_fast["id"], "XBEN-001-24", "flag1", solved_fast.strftime("%Y-%m-%dT%H:%M:%SZ")),
+    )
+    conn.execute(
+        "INSERT INTO team_progress (team_id, benchmark_id, flag_id, solved, solved_at) VALUES (?, ?, ?, 1, ?)",
+        (team_slow["id"], "XBEN-001-24", "flag1", solved_slow.strftime("%Y-%m-%dT%H:%M:%SZ")),
+    )
+    conn.commit()
+
+
+def test_analytics_page_shows_average_solve_time_stats():
+    _init_app_state()
+    _seed_analytics_data()
+    client = _admin_client()
+    r = client.get("/web/analytics")
+    assert r.status_code == 200
+    assert "XBEN-001-24" in r.text
+    assert "15m 0s" in r.text
+    assert "fast-team" in r.text
+
+
+def test_dashboard_sidebar_shows_analytics_entry_for_admin():
+    _init_app_state()
+    client = _admin_client()
+    r = client.get("/web/dashboard")
+    assert r.status_code == 200
+    assert "赛事统计" in r.text
+    assert '/web/analytics' in r.text

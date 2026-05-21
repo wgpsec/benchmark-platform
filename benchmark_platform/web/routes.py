@@ -262,6 +262,31 @@ async def page_store(request: Request):
     return _render(request, "pages/store.html", {"page": "store"})
 
 
+@web_router.get("/analytics")
+async def page_analytics(request: Request):
+    from benchmark_platform.db import get_solve_time_stats
+    from collections import defaultdict
+    raw = get_solve_time_stats()
+    by_challenge: dict[str, list] = defaultdict(list)
+    for r in raw:
+        by_challenge[r["benchmark_id"]].append(r)
+    challenge_stats = []
+    for bid, records in by_challenge.items():
+        times = [r["solve_seconds"] for r in records if r["solve_seconds"] and r["solve_seconds"] > 0]
+        if not times:
+            continue
+        challenge_stats.append({
+            "benchmark_id": bid,
+            "solve_count": len(times),
+            "avg_seconds": round(sum(times) / len(times)),
+            "min_seconds": min(times),
+            "max_seconds": max(times),
+            "fastest_team": next(r["team_name"] for r in records if r["solve_seconds"] == min(times)),
+        })
+    challenge_stats.sort(key=lambda x: x["avg_seconds"], reverse=True)
+    return _render(request, "pages/analytics.html", {"page": "analytics", "challenge_stats": challenge_stats, "solve_records": raw})
+
+
 @web_router.get("/prebuild")
 async def page_prebuild(request: Request):
     manager = _get_manager(request)
