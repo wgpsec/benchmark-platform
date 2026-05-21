@@ -12,6 +12,7 @@
       </template>
     </div>
     <div class="flex items-center gap-2">
+      {% if show_public_links %}
       <a href="https://github.com/wgpsec/benchmark-challenges" target="_blank"
          class="h-8 px-3 border border-gray-200 text-gray-600 text-[11px] font-medium rounded-lg hover:bg-gray-50 transition-colors inline-flex items-center gap-1">
         <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
@@ -19,6 +20,7 @@
         </svg>
         仓库
       </a>
+      {% endif %}
       <button @click="refreshManifest(true)"
               :disabled="loading"
               class="h-8 px-3 border border-gray-200 text-gray-700 text-[11px] font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50">
@@ -36,6 +38,7 @@
               class="h-8 px-3 border border-red-200 text-red-600 text-[11px] font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50">
         批量删除
       </button>
+      {% if show_import_actions %}
       <button x-show="!downloading"
               @click="showImportModal = true"
               class="h-8 px-3 border border-emerald-200 text-emerald-700 text-[11px] font-medium rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer inline-flex items-center gap-1">
@@ -44,6 +47,7 @@
         </svg>
         导入
       </button>
+      {% endif %}
       <button @click="cancelDownload()"
               x-show="downloading"
               class="h-8 px-3 bg-red-600 text-white text-[11px] font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer">
@@ -168,6 +172,7 @@
       </div>
     </div>
   </template>
+  {% if show_import_actions or show_authoring_docs %}
   <!-- Import Modal -->
   <div x-show="showImportModal" x-cloak
        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -182,6 +187,7 @@
         </button>
       </div>
       <div class="px-5 py-4 space-y-4">
+        {% if show_authoring_docs %}
         <!-- File spec -->
         <div class="bg-gray-50 rounded-lg p-3 text-[11px] text-gray-600 space-y-2">
           <div class="font-semibold text-gray-700 text-[12px]">靶场文件规范</div>
@@ -236,6 +242,7 @@
 
 我想要的靶场是：[在此描述你的漏洞场景、难度、技术栈偏好]</div>
         </div>
+        {% endif %}
         <!-- Upload area -->
         <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center transition-colors"
              :class="{'border-emerald-400 bg-emerald-50': importDragover}"
@@ -273,6 +280,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 
 <script>
