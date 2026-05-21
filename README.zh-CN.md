@@ -91,6 +91,20 @@ python3 -m benchmark_platform.server \
 
 `--admin-token` 也可通过环境变量 `ADMIN_TOKEN` 设置。启动时控制台会打印当前生效的 Admin Token。
 
+如需隐藏 Web UI 中的公开仓库链接、`powered by wgpsec` 标识，以及靶场管理页里的导入/题目录入引导，可在启动时设置：
+
+```bash
+BENCHMARK_PLATFORM_UI_PROFILE=hide_branding python3 -m benchmark_platform.server \
+  --benchmark-folder ./challenges \
+  --port 8088 \
+  --public-accessible-host localhost
+```
+
+可选值：
+
+- `open_source`：默认展示开源链接与导入能力
+- `hide_branding`：隐藏公开品牌信息与导入/录题引导
+
 ### 访问
 
 启动后浏览器打开 `http://localhost:8088`，会跳转到登录页。输入控制台打印的 Admin Token 即可获得完整管理权限。各参赛队伍使用自己的 Agent-Token 登录后只能查看只读积分榜。

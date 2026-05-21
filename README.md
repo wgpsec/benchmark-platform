@@ -88,6 +88,20 @@ Options:
 
 The `--admin-token` can also be set via the `ADMIN_TOKEN` environment variable. On startup the server prints the active admin token to the console.
 
+To hide public repository links, the `powered by wgpsec` footer, and the import/authoring guidance in the Challenge Store, start the server with:
+
+```bash
+BENCHMARK_PLATFORM_UI_PROFILE=hide_branding python3 -m benchmark_platform.server \
+  --benchmark-folder ./challenges \
+  --port 8088 \
+  --public-accessible-host localhost
+```
+
+Available values:
+
+- `open_source`: default UI with public links and import capabilities
+- `hide_branding`: hides public branding and the store import/authoring entry points
+
 ### Access
 
 Open `http://localhost:8088` in your browser. You will be redirected to the login page — enter the admin token printed in the console to get full access. Team observers log in with their own Agent-Token and see a read-only scoreboard.
