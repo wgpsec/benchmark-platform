@@ -97,3 +97,4 @@ def test_dashboard_hides_sidebar_github_link_in_customer_profile(monkeypatch):
     r = client.get("/web/dashboard")
     assert r.status_code == 200
     assert "https://github.com/wgpsec/benchmark-platform" not in r.text
+    assert "powered by wgpsec" not in r.text
