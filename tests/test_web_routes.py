@@ -63,6 +63,16 @@ def test_about_page_shows_repository_links_and_ecosystem_content():
     assert "PoJun" in r.text
 
 
+def test_about_page_shows_contact_section():
+    _init_app_state()
+    client = _admin_client()
+    r = client.get("/web/about")
+    assert r.status_code == 200
+    assert "如需定制化部署、赛事支持或合作交流，可通过以下方式联系。" in r.text
+    assert "mailto:" in r.text
+    assert "/static/images/wgpsec-wechat-qrcode.png" in r.text
+
+
 def test_challenges_returns_200():
     _init_app_state()
     client = _admin_client()
