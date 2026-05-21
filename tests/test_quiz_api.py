@@ -122,3 +122,41 @@ def test_scoreboard_mcq_tab():
     r = client.get("/web/scoreboard?tab=mcq")
     assert r.status_code == 200
     assert "MCQ" in r.text
+
+
+def test_full_quiz_flow():
+    """End-to-end: list -> get questions -> submit -> verify score."""
+    _setup_app()
+    team = get_or_create_default_team()
+    client = _auth_client(team_id=team["id"])
+
+    # List
+    r = client.get("/api/v1/quiz")
+    assert r.status_code == 200
+    benchmarks = r.json()
+    assert len(benchmarks) >= 1
+    bid = benchmarks[0]["id"]
+
+    # Get questions
+    r = client.get(f"/api/v1/quiz/{bid}")
+    assert r.status_code == 200
+    questions = r.json()["questions"]
+    assert len(questions) == 3
+
+    # Submit correct answers
+    r = client.post(f"/api/v1/quiz/{bid}/submit", json={
+        "answers": {"q1": 0, "q2": 1, "q3": 1}
+    })
+    assert r.status_code == 200
+    result = r.json()
+    assert result["correct"] == 3
+    assert result["score"] > 0
+
+    # Re-submit should not change results
+    r = client.post(f"/api/v1/quiz/{bid}/submit", json={
+        "answers": {"q1": 2}
+    })
+    assert r.status_code == 200
+    result2 = r.json()
+    q1 = next(d for d in result2["details"] if d["id"] == "q1")
+    assert q1["correct"] is True  # original correct answer preserved
