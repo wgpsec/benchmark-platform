@@ -87,3 +87,11 @@ def test_quiz_nonexistent_returns_404():
     client = _auth_client()
     r = client.get("/api/v1/quiz/NONEXISTENT")
     assert r.status_code == 404
+
+
+def test_quiz_web_page_returns_200():
+    _setup_app()
+    client = _auth_client()
+    r = client.get("/web/quiz")
+    assert r.status_code == 200
+    assert "知识评测" in r.text

@@ -257,6 +257,27 @@ async def page_status(request: Request):
     return _render(request, "pages/status.html", {"page": "status", **ctx})
 
 
+@web_router.get("/quiz")
+async def page_quiz(request: Request):
+    quiz_store = getattr(request.app.state, "quiz_store", None)
+    team_id = _get_selected_team_id(request)
+    benchmarks = []
+    if quiz_store:
+        from benchmark_platform.db import get_team_progress
+        progress = get_team_progress(team_id)
+        for bm_info in quiz_store.list_benchmarks():
+            bm_progress = progress.get(bm_info["id"], {})
+            answered = len(bm_progress)
+            correct = sum(1 for v in bm_progress.values() if v)
+            benchmarks.append({
+                **bm_info,
+                "answered": answered,
+                "correct": correct,
+                "accuracy": round(correct / answered * 100) if answered > 0 else 0,
+            })
+    return _render(request, "pages/quiz_list.html", {"page": "quiz", "benchmarks": benchmarks})
+
+
 @web_router.get("/store")
 async def page_store(request: Request):
     return _render(request, "pages/store.html", {"page": "store"})
