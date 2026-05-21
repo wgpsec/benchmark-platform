@@ -2,6 +2,11 @@
 {% block title %}实例状态 — Benchmark Platform{% endblock %}
 {% block content %}
 <div x-data>
+  <!-- System Resources -->
+  <div class="mb-6" hx-get="/web/partials/system_resources" hx-trigger="every 5s" hx-swap="innerHTML">
+    {% include "partials/system_resources.html" %}
+  </div>
+
   <div class="flex items-center justify-between mb-6">
     <div class="text-[13px] text-gray-500">
       <span class="text-emerald-600 font-medium">{{ running_count }} 运行中</span> ·

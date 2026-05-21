@@ -1,0 +1,25 @@
+<div class="grid grid-cols-3 gap-4">
+  <div class="bg-white rounded-xl border border-gray-100 p-4">
+    <div class="text-[11px] font-medium text-gray-400 uppercase mb-2">CPU</div>
+    <div class="text-2xl font-bold text-gray-800">{{ cpu_percent }}%</div>
+    <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+      <div class="h-2 rounded-full transition-all {% if cpu_percent > 80 %}bg-red-500{% elif cpu_percent > 60 %}bg-amber-500{% else %}bg-emerald-500{% endif %}" style="width: {{ cpu_percent }}%"></div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 p-4">
+    <div class="text-[11px] font-medium text-gray-400 uppercase mb-2">Memory</div>
+    <div class="text-2xl font-bold text-gray-800">{{ mem_percent }}%</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">{{ mem_used_gb }} / {{ mem_total_gb }} GB</div>
+    <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+      <div class="h-2 rounded-full transition-all {% if mem_percent > 80 %}bg-red-500{% elif mem_percent > 60 %}bg-amber-500{% else %}bg-emerald-500{% endif %}" style="width: {{ mem_percent }}%"></div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 p-4">
+    <div class="text-[11px] font-medium text-gray-400 uppercase mb-2">Disk</div>
+    <div class="text-2xl font-bold text-gray-800">{{ disk_percent }}%</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">{{ disk_used_gb }} / {{ disk_total_gb }} GB</div>
+    <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+      <div class="h-2 rounded-full transition-all {% if disk_percent > 80 %}bg-red-500{% elif disk_percent > 60 %}bg-amber-500{% else %}bg-emerald-500{% endif %}" style="width: {{ disk_percent }}%"></div>
+    </div>
+  </div>
+</div>

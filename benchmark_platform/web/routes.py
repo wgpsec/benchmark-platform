@@ -237,11 +237,23 @@ async def page_history(request: Request):
 
 @web_router.get("/status")
 async def page_status(request: Request):
+    import psutil
     manager = _get_manager(request)
     if manager:
         ctx = _status_context_with_teams(manager)
     else:
         ctx = {"running": [], "stopped": [], "running_count": 0, "stopped_count": 0, "total": 0}
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    ctx.update({
+        "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "mem_percent": mem.percent,
+        "mem_used_gb": round(mem.used / (1024**3), 1),
+        "mem_total_gb": round(mem.total / (1024**3), 1),
+        "disk_percent": disk.percent,
+        "disk_used_gb": round(disk.used / (1024**3), 1),
+        "disk_total_gb": round(disk.total / (1024**3), 1),
+    })
     return _render(request, "pages/status.html", {"page": "status", **ctx})
 
 
@@ -332,6 +344,24 @@ async def partial_status_table(request: Request):
     else:
         ctx = {"running": [], "stopped": [], "running_count": 0, "stopped_count": 0, "total": 0}
     return _render(request, "partials/status_table.html", ctx)
+
+
+@web_router.get("/partials/system_resources")
+async def partial_system_resources(request: Request):
+    import psutil
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    ctx = {
+        "cpu_percent": cpu_percent,
+        "mem_percent": mem.percent,
+        "mem_used_gb": round(mem.used / (1024**3), 1),
+        "mem_total_gb": round(mem.total / (1024**3), 1),
+        "disk_percent": disk.percent,
+        "disk_used_gb": round(disk.used / (1024**3), 1),
+        "disk_total_gb": round(disk.total / (1024**3), 1),
+    }
+    return _render(request, "partials/system_resources.html", ctx)
 
 
 @web_router.get("/partials/sidebar_summary")
