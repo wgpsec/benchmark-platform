@@ -17,6 +17,7 @@ from benchmark_platform.web.context import (
     status_context,
 )
 from benchmark_platform.db import get_team_by_token, get_or_create_default_team, get_setting
+from benchmark_platform.web.ui_visibility import get_ui_visibility
 
 _templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=_templates_dir)
@@ -58,6 +59,8 @@ def _render(request: Request, template: str, ctx: dict):
     ctx.setdefault("no_level_gate", manager.no_level_gate if manager else False)
     ctx.setdefault("version", __version__)
     ctx.setdefault("user", getattr(request.state, "user", {}))
+    for key, value in get_ui_visibility().items():
+        ctx.setdefault(key, value)
     team_selector = _get_teams_for_selector(_get_selected_team_id(request))
     ctx.setdefault("teams", team_selector["teams"])
     ctx.setdefault("selected_team_id", team_selector["selected_team_id"])
