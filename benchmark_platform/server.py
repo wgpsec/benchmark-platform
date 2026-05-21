@@ -31,6 +31,7 @@ from benchmark_platform.web.routes import web_router
 from benchmark_platform.web.auth_middleware import AuthMiddleware
 from benchmark_platform.web.submission_store import SubmissionStore
 from benchmark_platform.auth import get_current_team, require_admin
+from benchmark_platform.quiz import QuizStore
 from benchmark_platform.db import (
     init_db, get_or_create_default_team,
     mark_flag_solved, get_team_solved_count,
@@ -204,6 +205,97 @@ async def submit_answer(payload: SubmitAnswerRequest) -> SubmitAnswerResponse:
         correct=is_correct, earned_points=challenge.points if is_correct else 0,
     )
     return SubmitAnswerResponse(correct=is_correct, earned_points=challenge.points if is_correct else 0, is_solved=is_correct)
+
+
+# ── Quiz API ─────────────────────────────────────────────────────────────────
+
+class QuizSubmitRequest(PydanticBaseModel):
+    answers: dict[str, int]
+
+
+@app.get("/api/v1/quiz")
+async def quiz_list(request: Request):
+    store: QuizStore = request.app.state.quiz_store
+    if store is None:
+        return []
+    return store.list_benchmarks()
+
+
+@app.get("/api/v1/quiz/{benchmark_id}")
+async def quiz_get(benchmark_id: str, request: Request):
+    store: QuizStore = request.app.state.quiz_store
+    if store is None:
+        raise HTTPException(404, "Quiz store not initialized")
+    try:
+        questions = store.get_questions(benchmark_id)
+    except KeyError:
+        raise HTTPException(404, f"Quiz {benchmark_id} not found")
+    bm_info = next((b for b in store.list_benchmarks() if b["id"] == benchmark_id), {})
+    return {"benchmark_id": benchmark_id, **bm_info, "questions": questions}
+
+
+@app.post("/api/v1/quiz/{benchmark_id}/submit")
+async def quiz_submit(benchmark_id: str, payload: QuizSubmitRequest, request: Request, team: dict = Depends(get_current_team)):
+    store: QuizStore = request.app.state.quiz_store
+    if store is None:
+        raise HTTPException(503, "Quiz store not initialized")
+    try:
+        store._get(benchmark_id)
+    except KeyError:
+        raise HTTPException(404, f"Quiz {benchmark_id} not found")
+
+    # Filter out already-answered questions
+    from benchmark_platform.db import _get_conn
+    from datetime import datetime, timezone
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT flag_id, solved FROM team_progress WHERE team_id = ? AND benchmark_id = ?",
+        (team["id"], benchmark_id),
+    ).fetchall()
+    already_answered = {r["flag_id"] for r in rows}
+    new_answers = {qid: ans for qid, ans in payload.answers.items() if qid not in already_answered}
+
+    # Evaluate new answers only
+    if new_answers:
+        result = store.evaluate(benchmark_id, new_answers)
+        for detail in result["details"]:
+            conn.execute(
+                "INSERT OR IGNORE INTO team_progress (team_id, benchmark_id, flag_id, solved, solved_at) VALUES (?, ?, ?, ?, ?)",
+                (team["id"], benchmark_id, detail["id"], 1 if detail["correct"] else 0,
+                 datetime.now(timezone.utc).isoformat()),
+            )
+        conn.commit()
+
+    # Re-read progress to include old + new answers
+    rows = conn.execute(
+        "SELECT flag_id, solved FROM team_progress WHERE team_id = ? AND benchmark_id = ?",
+        (team["id"], benchmark_id),
+    ).fetchall()
+    progress_map = {r["flag_id"]: bool(r["solved"]) for r in rows}
+
+    # Build full result from all answered questions
+    bm = store._get(benchmark_id)
+    details = []
+    correct_count = 0
+    for q in bm.questions:
+        if q.id in progress_map:
+            is_correct = progress_map[q.id]
+            if is_correct:
+                correct_count += 1
+            entry = {"id": q.id, "correct": is_correct}
+            if not is_correct:
+                entry["your_answer"] = payload.answers.get(q.id, -1)
+                entry["correct_answer"] = q.answer
+            details.append(entry)
+
+    per_question_score = bm.points // len(bm.questions) if bm.questions else 0
+    return {
+        "correct": correct_count,
+        "total": len(details),
+        "score": correct_count * per_question_score,
+        "max_score": bm.points,
+        "details": details,
+    }
 
 
 @app.get('/')
@@ -1451,6 +1543,7 @@ def serve(
     app.state.manager = manager
     app.state.submission_store = submission_store
     app.state.challenges_dir = challenges_dir
+    app.state.quiz_store = QuizStore(benchmark_folder)
 
     from rich.console import Console
     console = Console()
