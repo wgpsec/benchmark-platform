@@ -40,7 +40,7 @@
             <td class="px-6 py-4 text-sm text-gray-600">{{ team.solved_flags }}</td>
             <td class="px-6 py-4">
               <div class="w-full bg-gray-200 rounded-full h-2">
-                <div class="bg-blue-600 h-2 rounded-full" style="width: {{ team.solved_flags * 5 }}%"></div>
+                <div class="bg-blue-600 h-2 rounded-full" style="width: {{ [team.solved_flags / total_flags * 100, 100] | min }}%"></div>
               </div>
             </td>
           </tr>

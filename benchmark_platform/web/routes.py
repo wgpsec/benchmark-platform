@@ -182,12 +182,16 @@ async def logout(request: Request):
 async def scoreboard_page(request: Request):
     from benchmark_platform.db import list_teams
     teams_data = list_teams()
+    teams_data.sort(key=lambda t: t.get("solved_flags", 0), reverse=True)
+    manager = _get_manager(request)
+    total_flags = sum(max(1, len(c.flag_states)) for c in manager.challenges) if manager else 1
     user = getattr(request.state, "user", {})
     return templates.TemplateResponse(
         request,
         "pages/scoreboard.html",
         context={
             "teams": teams_data,
+            "total_flags": total_flags or 1,
             "user": user,
             "page": "scoreboard",
         },
