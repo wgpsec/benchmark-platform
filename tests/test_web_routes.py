@@ -55,12 +55,19 @@ def test_about_page_shows_repository_links_and_ecosystem_content():
     client = _admin_client()
     r = client.get("/web/about")
     assert r.status_code == 200
-    assert "https://github.com/wgpsec/benchmark-platform" in r.text
+    assert r.text.count("https://github.com/wgpsec/benchmark-platform") == 4
     assert "https://github.com/wgpsec/benchmark-challenges" in r.text
+    assert "https://github.com/wgpsec/AboutSecurity" in r.text
+    assert "https://github.com/wgpsec/context1337" in r.text
+    assert "https://github.com/wgpsec/tchkiller" in r.text
     assert "AboutSecurity" in r.text
+    assert "结构化渗透知识库（Skills, Dic, Payload, Vuln）" in r.text
     assert "context1337" in r.text
+    assert "MCP Server — 将 AboutSecurity 转化为 AI Agent 可调用的搜索 API" in r.text
     assert "tchkiller" in r.text
+    assert "自主渗透 Agent，支持多轮决策与团队协作" in r.text
     assert "PoJun" in r.text
+    assert "通用 AI 求解引擎（私有）" in r.text
 
 
 def test_about_page_shows_contact_section():
@@ -69,7 +76,8 @@ def test_about_page_shows_contact_section():
     r = client.get("/web/about")
     assert r.status_code == 200
     assert "如需定制化部署、赛事支持或合作交流，可通过以下方式联系。" in r.text
-    assert "mailto:" in r.text
+    assert "https://www.wgpsec.org/" in r.text
+    assert "mailto:D2hwakH7BS5E@protonmail.com" in r.text
     assert "/static/images/wgpsec-wechat-qrcode.png" in r.text
 
 
