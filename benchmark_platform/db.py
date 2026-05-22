@@ -48,6 +48,7 @@ def init_db() -> None:
             flag_id        TEXT NOT NULL,
             solved         INTEGER NOT NULL DEFAULT 0,
             solved_at      TEXT,
+            selected_answer INTEGER,
             PRIMARY KEY (team_id, benchmark_id, flag_id)
         );
         CREATE TABLE IF NOT EXISTS team_hints (
@@ -85,6 +86,10 @@ def init_db() -> None:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(team_progress)").fetchall()]
         if "challenge_code" in cols and "benchmark_id" not in cols:
             conn.execute("ALTER TABLE team_progress RENAME COLUMN challenge_code TO benchmark_id")
+            conn.commit()
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(team_progress)").fetchall()]
+        if "selected_answer" not in cols:
+            conn.execute("ALTER TABLE team_progress ADD COLUMN selected_answer INTEGER")
             conn.commit()
         cols_h = [r[1] for r in conn.execute("PRAGMA table_info(team_hints)").fetchall()]
         if "challenge_code" in cols_h and "benchmark_id" not in cols_h:
@@ -254,6 +259,15 @@ def get_team_quiz_progress(team_id: str) -> dict:
             result[bm_id] = {}
         result[bm_id][r["flag_id"]] = bool(r["solved"])
     return result
+
+
+def get_team_quiz_answers(team_id: str, benchmark_id: str) -> dict:
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT flag_id, selected_answer FROM team_progress WHERE team_id = ? AND benchmark_id = ?",
+        (team_id, benchmark_id),
+    ).fetchall()
+    return {r["flag_id"]: r["selected_answer"] for r in rows if r["selected_answer"] is not None}
 
 
 def reset_team_progress(team_id: str) -> None:

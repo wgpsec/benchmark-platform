@@ -160,3 +160,35 @@ def test_full_quiz_flow():
     result2 = r.json()
     q1 = next(d for d in result2["details"] if d["id"] == "q1")
     assert q1["correct"] is True  # original correct answer preserved
+
+
+def test_quiz_submission_appears_in_history():
+    _setup_app()
+    team = get_or_create_default_team()
+    client = _auth_client(team_id=team["id"], team_name=team["name"])
+
+    r = client.post("/api/v1/quiz/SAMPLE-QUIZ-001/submit", json={"answers": {"q1": 0}})
+    assert r.status_code == 200
+
+    history = client.get("/web/history")
+    assert history.status_code == 200
+    assert "Sample Security Quiz" in history.text
+    assert "SAMPLE-QUIZ-001" in history.text
+    assert "q1" in history.text
+    assert "Common Vulnerabilities and Exposures" in history.text
+
+
+def test_quiz_detail_shows_saved_choice_and_correct_answer():
+    _setup_app()
+    team = get_or_create_default_team()
+    client = _auth_client(team_id=team["id"])
+
+    r = client.post("/api/v1/quiz/SAMPLE-QUIZ-001/submit", json={"answers": {"q3": 0}})
+    assert r.status_code == 200
+
+    detail = client.get("/web/quiz/SAMPLE-QUIZ-001")
+    assert detail.status_code == 200
+    assert "你的选择" in detail.text
+    assert "正确答案" in detail.text
+    assert "DoS" in detail.text
+    assert "Injection" in detail.text

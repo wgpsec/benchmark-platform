@@ -240,7 +240,7 @@ async def quiz_submit(benchmark_id: str, payload: QuizSubmitRequest, request: Re
     if store is None:
         raise HTTPException(503, "Quiz store not initialized")
     try:
-        store._get(benchmark_id)
+        bm = store._get(benchmark_id)
     except KeyError:
         raise HTTPException(404, f"Quiz {benchmark_id} not found")
 
@@ -258,20 +258,38 @@ async def quiz_submit(benchmark_id: str, payload: QuizSubmitRequest, request: Re
     # Evaluate new answers only
     if new_answers:
         result = store.evaluate(benchmark_id, new_answers)
+        question_map = {q.id: q for q in bm.questions}
+        per_question_score = bm.points // len(bm.questions) if bm.questions else 0
         for detail in result["details"]:
+            selected_answer = new_answers[detail["id"]]
             conn.execute(
-                "INSERT OR IGNORE INTO team_progress (team_id, benchmark_id, flag_id, solved, solved_at) VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO team_progress (team_id, benchmark_id, flag_id, solved, solved_at, selected_answer) VALUES (?, ?, ?, ?, ?, ?)",
                 (team["id"], benchmark_id, detail["id"], 1 if detail["correct"] else 0,
-                 datetime.now(timezone.utc).isoformat()),
+                 datetime.now(timezone.utc).isoformat(), selected_answer),
             )
+            if hasattr(request.app.state, "submission_store") and request.app.state.submission_store is not None:
+                from benchmark_platform.web.submission_store import SubmissionRecord
+                q = question_map[detail["id"]]
+                request.app.state.submission_store.add(SubmissionRecord(
+                    timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    challenge_code=benchmark_id,
+                    benchmark_id=benchmark_id,
+                    challenge_name=bm.name,
+                    flag_id=detail["id"],
+                    flag_value=q.choices[selected_answer],
+                    correct=detail["correct"],
+                    points=per_question_score if detail["correct"] else 0,
+                    team_id=team["id"],
+                    team_name=team["name"],
+                ))
         conn.commit()
 
     # Re-read progress to include old + new answers
     rows = conn.execute(
-        "SELECT flag_id, solved FROM team_progress WHERE team_id = ? AND benchmark_id = ?",
+        "SELECT flag_id, solved, selected_answer FROM team_progress WHERE team_id = ? AND benchmark_id = ?",
         (team["id"], benchmark_id),
     ).fetchall()
-    progress_map = {r["flag_id"]: bool(r["solved"]) for r in rows}
+    progress_map = {r["flag_id"]: {"correct": bool(r["solved"]), "selected_answer": r["selected_answer"]} for r in rows}
 
     # Build full result from all answered questions
     bm = store._get(benchmark_id)
@@ -279,12 +297,12 @@ async def quiz_submit(benchmark_id: str, payload: QuizSubmitRequest, request: Re
     correct_count = 0
     for q in bm.questions:
         if q.id in progress_map:
-            is_correct = progress_map[q.id]
+            answer_state = progress_map[q.id]
+            is_correct = answer_state["correct"]
             if is_correct:
                 correct_count += 1
-            entry = {"id": q.id, "correct": is_correct}
+            entry = {"id": q.id, "correct": is_correct, "your_answer": answer_state["selected_answer"]}
             if not is_correct:
-                entry["your_answer"] = payload.answers.get(q.id, -1)
                 entry["correct_answer"] = q.answer
             details.append(entry)
 

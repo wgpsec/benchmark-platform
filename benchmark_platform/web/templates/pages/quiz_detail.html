@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ benchmark_name }}{% endblock %}
 {% block content %}
-<div x-data='{current: 0, answers: {}, submitted: {{ answered | tojson }} }'>
+<div x-data='{current: 0, answers: {{ selected_answers | tojson }}, submitted: {{ answered | tojson }} }'>
   <div class="flex items-center justify-between mb-6">
     <div>
       <h2 class="text-[15px] font-semibold text-gray-900">{{ benchmark_name }}</h2>
@@ -19,7 +19,7 @@
       <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
              :class="{
                'border-gray-900 bg-gray-50': answers['{{ q.id }}'] === {{ loop.index0 }} && !('{{ q.id }}' in submitted),
-               'border-emerald-500 bg-emerald-50': submitted['{{ q.id }}'] === true && answers['{{ q.id }}'] === {{ loop.index0 }},
+               'border-emerald-500 bg-emerald-50': ('{{ q.id }}' in submitted) && {{ 'true' if q.answer is defined and q.answer == loop.index0 else 'false' }},
                'border-red-300 bg-red-50': submitted['{{ q.id }}'] === false && answers['{{ q.id }}'] === {{ loop.index0 }},
                'border-gray-200 hover:border-gray-300': answers['{{ q.id }}'] !== {{ loop.index0 }} && !('{{ q.id }}' in submitted),
                'border-gray-100 opacity-60': ('{{ q.id }}' in submitted) && answers['{{ q.id }}'] !== {{ loop.index0 }},
@@ -31,7 +31,17 @@
               :class="answers['{{ q.id }}'] === {{ loop.index0 }} ? 'border-gray-900' : 'border-gray-300'">
           <span x-show="answers['{{ q.id }}'] === {{ loop.index0 }}" class="w-2.5 h-2.5 rounded-full bg-gray-900"></span>
         </span>
-        <span class="text-[13px] text-gray-700">{{ choice }}</span>
+        <span class="text-[13px] text-gray-700 flex items-center gap-2">
+          {{ choice }}
+          {% if q.id in answered %}
+            {% if selected_answers[q.id] == loop.index0 %}
+            <span class="text-[11px] text-gray-500">你的选择</span>
+            {% endif %}
+            {% if q.answer is defined and q.answer == loop.index0 %}
+            <span class="text-[11px] text-emerald-600">正确答案</span>
+            {% endif %}
+          {% endif %}
+        </span>
       </label>
       {% endfor %}
     </div>
