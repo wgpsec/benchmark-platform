@@ -277,6 +277,32 @@ def reset_team_progress(team_id: str) -> None:
     conn.commit()
 
 
+def reset_team_ctf_progress(team_id: str, quiz_benchmark_ids: list[str]) -> None:
+    conn = _get_conn()
+    if quiz_benchmark_ids:
+        placeholders = ",".join("?" for _ in quiz_benchmark_ids)
+        conn.execute(
+            f"DELETE FROM team_progress WHERE team_id = ? AND benchmark_id NOT IN ({placeholders})",
+            (team_id, *quiz_benchmark_ids),
+        )
+    else:
+        conn.execute("DELETE FROM team_progress WHERE team_id = ?", (team_id,))
+    conn.execute("DELETE FROM team_hints WHERE team_id = ?", (team_id,))
+    conn.commit()
+
+
+def reset_team_quiz_progress(team_id: str, quiz_benchmark_ids: list[str]) -> None:
+    conn = _get_conn()
+    if not quiz_benchmark_ids:
+        return
+    placeholders = ",".join("?" for _ in quiz_benchmark_ids)
+    conn.execute(
+        f"DELETE FROM team_progress WHERE team_id = ? AND benchmark_id IN ({placeholders})",
+        (team_id, *quiz_benchmark_ids),
+    )
+    conn.commit()
+
+
 def get_setting(key: str, default: str = "") -> str:
     conn = _get_conn()
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()

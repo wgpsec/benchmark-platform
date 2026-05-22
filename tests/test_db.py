@@ -5,7 +5,8 @@ from benchmark_platform.db import (
     init_db, create_team, list_teams, get_team_by_token,
     get_or_create_default_team, mark_flag_solved,
     get_team_solved_count, is_hint_viewed, mark_hint_viewed,
-    get_team_progress, reset_team_progress, _set_db_path,
+    get_team_progress, reset_team_progress, reset_team_ctf_progress,
+    reset_team_quiz_progress, _set_db_path,
     upsert_instance, get_instance_by_benchmark_id, get_running_instances,
     get_expired_instances, delete_instance,
     get_instance_timeout_config, set_instance_timeout_config,
@@ -107,6 +108,32 @@ def test_reset_team_progress():
     reset_team_progress(team["id"])
     assert get_team_solved_count(team["id"], "XBEN-001-24") == 0
     assert is_hint_viewed(team["id"], "XBEN-001-24") is False
+
+
+def test_reset_team_ctf_progress_preserves_quiz_progress():
+    team = create_team("Team1")
+    mark_flag_solved(team["id"], "XBEN-001-24", "flag1")
+    mark_flag_solved(team["id"], "SAMPLE-QUIZ-001", "q1")
+    mark_hint_viewed(team["id"], "XBEN-001-24")
+
+    reset_team_ctf_progress(team["id"], ["SAMPLE-QUIZ-001"])
+
+    assert get_team_solved_count(team["id"], "XBEN-001-24") == 0
+    assert get_team_solved_count(team["id"], "SAMPLE-QUIZ-001") == 1
+    assert is_hint_viewed(team["id"], "XBEN-001-24") is False
+
+
+def test_reset_team_quiz_progress_preserves_ctf_progress_and_hints():
+    team = create_team("Team1")
+    mark_flag_solved(team["id"], "XBEN-001-24", "flag1")
+    mark_flag_solved(team["id"], "SAMPLE-QUIZ-001", "q1")
+    mark_hint_viewed(team["id"], "XBEN-001-24")
+
+    reset_team_quiz_progress(team["id"], ["SAMPLE-QUIZ-001"])
+
+    assert get_team_solved_count(team["id"], "XBEN-001-24") == 1
+    assert get_team_solved_count(team["id"], "SAMPLE-QUIZ-001") == 0
+    assert is_hint_viewed(team["id"], "XBEN-001-24") is True
 
 
 def test_upsert_instance_insert():
