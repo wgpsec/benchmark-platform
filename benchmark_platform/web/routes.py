@@ -284,8 +284,8 @@ async def page_quiz(request: Request):
     team_id = _get_selected_team_id(request)
     benchmarks = []
     if quiz_store:
-        from benchmark_platform.db import get_team_progress
-        progress = get_team_progress(team_id)
+        from benchmark_platform.db import get_team_quiz_progress
+        progress = get_team_quiz_progress(team_id)
         for bm_info in quiz_store.list_benchmarks():
             bm_progress = progress.get(bm_info["id"], {})
             answered = len(bm_progress)
@@ -310,8 +310,8 @@ async def page_quiz_detail(request: Request, benchmark_id: str):
         return RedirectResponse("/web/quiz", status_code=302)
     bm_info = next((b for b in quiz_store.list_benchmarks() if b["id"] == benchmark_id), {})
     team_id = _get_selected_team_id(request)
-    from benchmark_platform.db import get_team_progress
-    progress = get_team_progress(team_id)
+    from benchmark_platform.db import get_team_quiz_progress
+    progress = get_team_quiz_progress(team_id)
     bm_progress = progress.get(benchmark_id, {})
     answered_ids = bm_progress  # {flag_id: bool}
     return _render(request, "pages/quiz_detail.html", {

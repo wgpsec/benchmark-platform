@@ -240,6 +240,22 @@ def get_team_progress(team_id: str) -> dict:
     return result
 
 
+def get_team_quiz_progress(team_id: str) -> dict:
+    """Return all quiz attempts (correct and incorrect) for accuracy calculation."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT benchmark_id, flag_id, solved FROM team_progress WHERE team_id = ?",
+        (team_id,),
+    ).fetchall()
+    result: dict = {}
+    for r in rows:
+        bm_id = r["benchmark_id"]
+        if bm_id not in result:
+            result[bm_id] = {}
+        result[bm_id][r["flag_id"]] = bool(r["solved"])
+    return result
+
+
 def reset_team_progress(team_id: str) -> None:
     conn = _get_conn()
     conn.execute("DELETE FROM team_progress WHERE team_id = ?", (team_id,))
