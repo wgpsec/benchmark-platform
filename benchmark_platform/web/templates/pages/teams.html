@@ -44,11 +44,11 @@
             <td class="px-4 py-3 text-[12px] text-gray-700" x-text="team.solved_flags + ' flags'"></td>
             <td class="px-4 py-3 text-[12px] text-gray-500" x-text="team.created_at"></td>
             <td class="px-4 py-3">
-              <div class="flex flex-col gap-1">
+              <div class="flex items-center gap-2 whitespace-nowrap">
                 <button @click="resetCtfProgress(team)"
-                        class="text-[11px] text-red-500 hover:text-red-700 cursor-pointer text-left">重置 CTF 进度</button>
+                        class="h-7 px-2.5 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 cursor-pointer">重置 CTF 进度</button>
                 <button @click="resetQuizProgress(team)"
-                        class="text-[11px] text-amber-600 hover:text-amber-700 cursor-pointer text-left">重置知识评测进度</button>
+                        class="h-7 px-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg hover:bg-amber-100 cursor-pointer">重置知识评测进度</button>
               </div>
             </td>
           </tr>
