@@ -500,6 +500,14 @@ async def partial_sidebar_summary(request: Request):
 
 # -- Team management routes ----------------------------------------------------
 
+
+def _quiz_benchmark_ids(request: Request) -> list[str]:
+    quiz_store = getattr(request.app.state, "quiz_store", None)
+    if not quiz_store:
+        return []
+    return [bm["id"] for bm in quiz_store.list_benchmarks()]
+
+
 @web_router.get("/teams")
 async def page_teams(request: Request):
     from benchmark_platform.db import list_teams
@@ -545,6 +553,28 @@ async def api_reset_team(request: Request):
         return {"code": -1, "message": "缺少 team_id", "data": None}
     reset_team_progress(team_id)
     return {"code": 0, "message": "进度已重置", "data": None}
+
+
+@web_router.post("/api/teams/reset-ctf")
+async def api_reset_team_ctf(request: Request):
+    from benchmark_platform.db import reset_team_ctf_progress
+    body = await request.json()
+    team_id = body.get("team_id", "").strip()
+    if not team_id:
+        return {"code": -1, "message": "缺少 team_id", "data": None}
+    reset_team_ctf_progress(team_id, _quiz_benchmark_ids(request))
+    return {"code": 0, "message": "CTF 进度已重置", "data": None}
+
+
+@web_router.post("/api/teams/reset-quiz")
+async def api_reset_team_quiz(request: Request):
+    from benchmark_platform.db import reset_team_quiz_progress
+    body = await request.json()
+    team_id = body.get("team_id", "").strip()
+    if not team_id:
+        return {"code": -1, "message": "缺少 team_id", "data": None}
+    reset_team_quiz_progress(team_id, _quiz_benchmark_ids(request))
+    return {"code": 0, "message": "知识评测进度已重置", "data": None}
 
 
 @web_router.post("/api/teams/switch")

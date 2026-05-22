@@ -4,7 +4,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from benchmark_platform.db import _set_db_path, init_db, get_or_create_default_team
+from benchmark_platform.db import (
+    _set_db_path,
+    get_or_create_default_team,
+    get_team_solved_count,
+    init_db,
+    mark_flag_solved,
+)
 from benchmark_platform.server import app
 from benchmark_platform.quiz import QuizStore
 from benchmark_platform.web.auth_middleware import _COOKIE_NAME, create_session_cookie
@@ -192,3 +198,44 @@ def test_quiz_detail_shows_saved_choice_and_correct_answer():
     assert "正确答案" in detail.text
     assert "DoS" in detail.text
     assert "Injection" in detail.text
+
+
+def test_team_management_page_has_separate_reset_buttons():
+    _setup_app()
+    client = _auth_client()
+
+    r = client.get("/web/teams")
+
+    assert r.status_code == 200
+    assert "重置 CTF 进度" in r.text
+    assert "重置知识评测进度" in r.text
+
+
+def test_reset_ctf_endpoint_preserves_quiz_progress():
+    _setup_app()
+    team = get_or_create_default_team()
+    client = _auth_client(team_id=team["id"])
+    mark_flag_solved(team["id"], "XBEN-001-24", "flag1")
+    client.post("/api/v1/quiz/SAMPLE-QUIZ-001/submit", json={"answers": {"q1": 0}})
+
+    r = client.post("/web/api/teams/reset-ctf", json={"team_id": team["id"]})
+
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert get_team_solved_count(team["id"], "XBEN-001-24") == 0
+    assert get_team_solved_count(team["id"], "SAMPLE-QUIZ-001") == 1
+
+
+def test_reset_quiz_endpoint_preserves_ctf_progress():
+    _setup_app()
+    team = get_or_create_default_team()
+    client = _auth_client(team_id=team["id"])
+    mark_flag_solved(team["id"], "XBEN-001-24", "flag1")
+    client.post("/api/v1/quiz/SAMPLE-QUIZ-001/submit", json={"answers": {"q1": 0}})
+
+    r = client.post("/web/api/teams/reset-quiz", json={"team_id": team["id"]})
+
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert get_team_solved_count(team["id"], "XBEN-001-24") == 1
+    assert get_team_solved_count(team["id"], "SAMPLE-QUIZ-001") == 0
