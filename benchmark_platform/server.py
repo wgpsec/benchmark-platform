@@ -1543,7 +1543,7 @@ def serve(
     app.state.manager = manager
     app.state.submission_store = submission_store
     app.state.challenges_dir = challenges_dir
-    app.state.quiz_store = QuizStore(benchmark_folder)
+    app.state.quiz_store = QuizStore([Path(f) / "quiz" for f in benchmark_folder])
 
     from rich.console import Console
     console = Console()
