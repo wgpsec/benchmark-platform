@@ -501,10 +501,10 @@ async def partial_sidebar_summary(request: Request):
 # -- Team management routes ----------------------------------------------------
 
 
-def _quiz_benchmark_ids(request: Request) -> list[str]:
+def _quiz_benchmark_ids(request: Request) -> Optional[list[str]]:
     quiz_store = getattr(request.app.state, "quiz_store", None)
-    if not quiz_store:
-        return []
+    if quiz_store is None:
+        return None
     return [bm["id"] for bm in quiz_store.list_benchmarks()]
 
 
@@ -562,7 +562,10 @@ async def api_reset_team_ctf(request: Request):
     team_id = body.get("team_id", "").strip()
     if not team_id:
         return {"code": -1, "message": "缺少 team_id", "data": None}
-    reset_team_ctf_progress(team_id, _quiz_benchmark_ids(request))
+    quiz_benchmark_ids = _quiz_benchmark_ids(request)
+    if quiz_benchmark_ids is None:
+        return {"code": -1, "message": "Quiz store not initialized", "data": None}
+    reset_team_ctf_progress(team_id, quiz_benchmark_ids)
     return {"code": 0, "message": "CTF 进度已重置", "data": None}
 
 
@@ -573,7 +576,10 @@ async def api_reset_team_quiz(request: Request):
     team_id = body.get("team_id", "").strip()
     if not team_id:
         return {"code": -1, "message": "缺少 team_id", "data": None}
-    reset_team_quiz_progress(team_id, _quiz_benchmark_ids(request))
+    quiz_benchmark_ids = _quiz_benchmark_ids(request)
+    if quiz_benchmark_ids is None:
+        return {"code": -1, "message": "Quiz store not initialized", "data": None}
+    reset_team_quiz_progress(team_id, quiz_benchmark_ids)
     return {"code": 0, "message": "知识评测进度已重置", "data": None}
 
 

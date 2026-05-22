@@ -239,3 +239,17 @@ def test_reset_quiz_endpoint_preserves_ctf_progress():
     assert r.json()["code"] == 0
     assert get_team_solved_count(team["id"], "XBEN-001-24") == 1
     assert get_team_solved_count(team["id"], "SAMPLE-QUIZ-001") == 0
+
+
+def test_reset_ctf_endpoint_fails_closed_without_quiz_store():
+    _setup_app()
+    team = get_or_create_default_team()
+    client = _auth_client(team_id=team["id"])
+    client.post("/api/v1/quiz/SAMPLE-QUIZ-001/submit", json={"answers": {"q1": 0}})
+    app.state.quiz_store = None
+
+    r = client.post("/web/api/teams/reset-ctf", json={"team_id": team["id"]})
+
+    assert r.status_code == 200
+    assert r.json()["code"] == -1
+    assert get_team_solved_count(team["id"], "SAMPLE-QUIZ-001") == 1
