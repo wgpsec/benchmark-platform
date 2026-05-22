@@ -10,7 +10,7 @@ from benchmark_platform.quiz import QuizStore
 from benchmark_platform.web.auth_middleware import _COOKIE_NAME, create_session_cookie
 from benchmark_platform.web.submission_store import SubmissionStore
 
-QUIZ_DIR = Path(__file__).parent.parent / "challenges" / "quiz"
+QUIZ_DIR = Path(__file__).parent.parent / "quiz"
 
 
 @pytest.fixture(autouse=True)

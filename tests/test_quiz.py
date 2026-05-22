@@ -17,7 +17,7 @@ def test_question_model_validates():
 
 from pathlib import Path
 
-SAMPLE_QUIZ_DIR = Path(__file__).parent.parent / "challenges" / "quiz" / "sample-quiz"
+SAMPLE_QUIZ_DIR = Path(__file__).parent.parent / "quiz" / "sample-quiz"
 
 
 def test_quiz_store_loads_benchmarks():
