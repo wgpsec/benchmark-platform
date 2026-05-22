@@ -211,6 +211,8 @@ class ChallengeManager:
                 if (entry / "benchmark.json").exists():
                     if self.benchmark_ids and entry.name not in self.benchmark_ids:
                         continue
+                    if self._is_mcq(entry / "benchmark.json"):
+                        continue
                     result.append((folder, entry.name))
                 else:
                     for sub in sorted(entry.iterdir()):
@@ -222,8 +224,19 @@ class ChallengeManager:
                             continue
                         if self.benchmark_ids and sub.name not in self.benchmark_ids:
                             continue
+                        if self._is_mcq(sub / "benchmark.json"):
+                            continue
                         result.append((entry, sub.name))
         return result
+
+    @staticmethod
+    def _is_mcq(meta_path: Path) -> bool:
+        """Return True if the benchmark.json indicates an MCQ quiz (no Docker needed)."""
+        try:
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            return data.get("win_condition") == "mcq"
+        except Exception:
+            return False
 
     @staticmethod
     def _detect_requires_windows_iso(compose_data: dict) -> bool:
