@@ -125,6 +125,12 @@ def _auto_reload_challenges() -> tuple[int, list[str]]:
     return added, errors
 
 
+def _auto_reload_quiz_store() -> None:
+    """Reload QuizStore after quiz download/delete."""
+    from benchmark_platform.quiz import QuizStore
+    app.state.quiz_store = QuizStore([Path("quiz")])
+
+
 @app.post("/api/challenges/reload")
 async def reload_challenges(_=Depends(require_admin)):
     if manager is None:
@@ -1314,18 +1320,18 @@ async def prebuild_remove_all(_=Depends(require_admin)):
 async def store_manifest(source: str = "all", _=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     if not hasattr(app.state, '_challenge_store'):
-        app.state._challenge_store = ChallengeStore(challenges_dir=app.state.challenges_dir)
+        app.state._challenge_store = ChallengeStore(challenges_dir=app.state.challenges_dir, quiz_dir=Path("quiz"))
     store = app.state._challenge_store
 
     if source == "local":
-        challenges = store.get_local_challenges()
+        challenges = store.get_local_challenges() + store.get_local_quizzes()
     elif source == "remote":
         try:
             challenges = store.get_remote_challenges()
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Failed to fetch remote manifest: {e}")
     else:
-        challenges = store.get_local_challenges()
+        challenges = store.get_local_challenges() + store.get_local_quizzes()
         try:
             remote = store.get_remote_challenges()
             challenges = store.merge_challenges(challenges, remote)
@@ -1376,18 +1382,24 @@ def store_download(body: dict, _=Depends(require_admin)):
     name = body.get("name")
     asset = body.get("asset")
     size = body.get("size", 0)
+    win_condition = body.get("win_condition", "")
     if not all([category, name, asset]):
         raise HTTPException(status_code=400, detail="category, name, asset required")
 
     store = ChallengeStore(
         challenges_dir=app.state.challenges_dir,
+        quiz_dir=Path("quiz"),
     )
+    is_quiz = win_condition == "mcq" or category == "quiz"
     try:
-        store.download_challenge(category, name, asset, size=size)
+        store.download_challenge(category, name, asset, size=size, win_condition=win_condition)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Download failed: {e}")
 
-    _auto_reload_challenges()
+    if is_quiz:
+        _auto_reload_quiz_store()
+    else:
+        _auto_reload_challenges()
     return {"code": 0, "message": f"{category}/{name} downloaded"}
 
 
@@ -1396,16 +1408,21 @@ async def store_delete(body: dict, _=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     category = body.get("category")
     name = body.get("name")
+    win_condition = body.get("win_condition", "")
     if not all([category, name]):
         raise HTTPException(status_code=400, detail="category, name required")
 
     store = ChallengeStore(
         challenges_dir=app.state.challenges_dir,
+        quiz_dir=Path("quiz"),
     )
+    is_quiz = win_condition == "mcq" or category == "quiz"
     try:
-        store.delete_challenge(category, name)
+        store.delete_challenge(category, name, win_condition=win_condition)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Delete failed: {e}")
+    if is_quiz:
+        _auto_reload_quiz_store()
     return {"code": 0, "message": f"{category}/{name} deleted"}
 
 

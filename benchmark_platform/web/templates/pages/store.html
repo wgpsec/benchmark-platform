@@ -5,10 +5,10 @@
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <div class="text-[13px] text-gray-500">
-      可用靶场：<span x-text="challenges.length" class="font-medium text-gray-700">0</span> 个
-      · 已下载：<span x-text="downloadedCount" class="font-medium text-emerald-600">0</span> 个
-      <template x-if="updateCount > 0">
-        <span>· 可更新：<span x-text="updateCount" class="font-medium text-amber-600"></span> 个</span>
+      可用：<span x-text="tabChallenges.length" class="font-medium text-gray-700">0</span> 个
+      · 已下载：<span x-text="tabDownloadedCount" class="font-medium text-emerald-600">0</span> 个
+      <template x-if="tabUpdateCount > 0">
+        <span>· 可更新：<span x-text="tabUpdateCount" class="font-medium text-amber-600"></span> 个</span>
       </template>
     </div>
     <div class="flex items-center gap-2">
@@ -34,7 +34,7 @@
       </button>
       <button @click="deleteAllDownloaded()"
               :disabled="loading || downloading"
-              x-show="!downloading && downloadedCount > 0"
+              x-show="!downloading && tabDownloadedCount > 0"
               class="h-8 px-3 border border-red-200 text-red-600 text-[11px] font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50">
         批量删除
       </button>
@@ -54,6 +54,20 @@
         取消 (<span x-text="downloadProgress"></span>)
       </button>
     </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex items-center gap-1 mb-5 border-b border-gray-100">
+    <button @click="activeTab = 'ctf'"
+            :class="activeTab === 'ctf' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'"
+            class="px-4 py-2 text-[12px] font-medium border-b-2 -mb-px transition-colors cursor-pointer">
+      CTF 靶场
+    </button>
+    <button @click="activeTab = 'quiz'"
+            :class="activeTab === 'quiz' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'"
+            class="px-4 py-2 text-[12px] font-medium border-b-2 -mb-px transition-colors cursor-pointer">
+      知识评测
+    </button>
   </div>
 
   <!-- Error -->
@@ -128,7 +142,7 @@
                 <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[130px]">名称</th>
                 <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500">描述</th>
                 <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[60px]">难度</th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[40px]">Flag</th>
+                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[40px]" x-text="activeTab === 'quiz' ? '题数' : 'Flag'"></th>
                 <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[55px]">大小</th>
                 <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[60px]">状态</th>
                 <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[70px]">操作</th>
@@ -299,10 +313,33 @@ function storePage() {
     selectedTags: [],
     tagSearch: '',
     showAllTags: false,
+    activeTab: 'ctf',
+
+    _isQuiz(ch) {
+      return ch.win_condition === 'mcq' || ch.category === 'quiz';
+    },
+
+    get tabChallenges() {
+      if (this.activeTab === 'quiz') {
+        return this.filteredChallenges.filter(c => this._isQuiz(c));
+      }
+      return this.filteredChallenges.filter(c => !this._isQuiz(c));
+    },
+
+    get tabDownloadedCount() {
+      return this.tabChallenges.filter(c => c.downloaded).length;
+    },
+
+    get tabUpdateCount() {
+      return this.tabChallenges.filter(c => c.has_update).length;
+    },
 
     get allTags() {
       const counts = {};
-      this.challenges.forEach(c => {
+      const items = this.activeTab === 'quiz'
+        ? this.challenges.filter(c => this._isQuiz(c))
+        : this.challenges.filter(c => !this._isQuiz(c));
+      items.forEach(c => {
         (c.tags || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
       });
       return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
@@ -330,7 +367,7 @@ function storePage() {
       else this.selectedTags.push(tag);
     },
     get categories() {
-      return [...new Set(this.filteredChallenges.map(c => c.category))].sort();
+      return [...new Set(this.tabChallenges.map(c => c.category))].sort();
     },
     get downloadedCount() {
       return this.filteredChallenges.filter(c => c.downloaded).length;
@@ -339,7 +376,7 @@ function storePage() {
       return this.filteredChallenges.filter(c => c.has_update).length;
     },
     challengesByCategory(cat) {
-      return this.filteredChallenges.filter(c => c.category === cat);
+      return this.tabChallenges.filter(c => c.category === cat);
     },
     difficultyClass(d) {
       const map = {
@@ -428,7 +465,7 @@ function storePage() {
         const resp = await fetch('/api/store/download', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset, size: ch.size || 0})
+          body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset, size: ch.size || 0, win_condition: ch.win_condition || ''})
         });
         const data = await resp.json();
         if (data.code !== 0) throw new Error(data.detail || 'Download failed');
@@ -447,7 +484,7 @@ function storePage() {
           const resp = await fetch('/api/store/delete', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({category: ch.category, name: ch.name})
+            body: JSON.stringify({category: ch.category, name: ch.name, win_condition: ch.win_condition || ''})
           });
           const data = await resp.json();
           if (data.code !== 0) throw new Error(data.detail || 'Delete failed');
@@ -460,15 +497,15 @@ function storePage() {
       }});
     },
     deleteAllDownloaded() {
-      const downloaded = this.challenges.filter(c => c.downloaded);
-      this.$dispatch('open-confirm-modal', {message: `确定删除全部 ${downloaded.length} 个已下载靶场？`, onConfirm: async () => {
+      const downloaded = this.tabChallenges.filter(c => c.downloaded);
+      this.$dispatch('open-confirm-modal', {message: `确定删除全部 ${downloaded.length} 个已下载项目？`, onConfirm: async () => {
         let done = 0;
         for (const ch of downloaded) {
           try {
             const resp = await fetch('/api/store/delete', {
               method: 'POST',
               headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({category: ch.category, name: ch.name})
+              body: JSON.stringify({category: ch.category, name: ch.name, win_condition: ch.win_condition || ''})
             });
             const data = await resp.json();
             if (data.code === 0) {
@@ -498,7 +535,7 @@ function storePage() {
           const resp = await fetch('/api/store/download', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset, size: ch.size || 0}),
+            body: JSON.stringify({category: ch.category, name: ch.name, asset: ch.asset, size: ch.size || 0, win_condition: ch.win_condition || ''}),
             signal: this._abortController.signal
           });
           const data = await resp.json();
@@ -523,7 +560,7 @@ function storePage() {
       this.downloadProgress = `${this._doneCount}/${this._totalCount}`;
     },
     async downloadAll() {
-      const pending = this.challenges.filter(c => !c.downloaded || c.has_update);
+      const pending = this.tabChallenges.filter(c => !c.downloaded || c.has_update);
       await this._batchDownload(pending);
     },
     async downloadCategory(cat) {
@@ -534,14 +571,14 @@ function storePage() {
     deleteCategory(cat) {
       const downloaded = this.challengesByCategory(cat).filter(c => c.downloaded);
       if (!downloaded.length) return;
-      this.$dispatch('open-confirm-modal', {message: `确定删除 ${cat} 分类下全部 ${downloaded.length} 个已下载靶场？`, onConfirm: async () => {
+      this.$dispatch('open-confirm-modal', {message: `确定删除 ${cat} 分类下全部 ${downloaded.length} 个已下载项目？`, onConfirm: async () => {
         let done = 0;
         for (const ch of downloaded) {
           try {
             const resp = await fetch('/api/store/delete', {
               method: 'POST',
               headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({category: ch.category, name: ch.name})
+              body: JSON.stringify({category: ch.category, name: ch.name, win_condition: ch.win_condition || ''})
             });
             const data = await resp.json();
             if (data.code === 0) {

@@ -19,8 +19,9 @@ _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 
 class ChallengeStore:
-    def __init__(self, challenges_dir: Path, repo: str = "wgpsec/benchmark-challenges", tag: str = "latest"):
+    def __init__(self, challenges_dir: Path, repo: str = "wgpsec/benchmark-challenges", tag: str = "latest", quiz_dir: Path | None = None):
         self.challenges_dir = challenges_dir
+        self.quiz_dir = quiz_dir
         self.repo = repo
         self.tag = tag
 
@@ -78,6 +79,47 @@ class ChallengeStore:
                 results.append(ch)
         return results
 
+    def get_local_quizzes(self) -> list[dict]:
+        """Scan local quiz_dir, return all present quiz benchmarks."""
+        results = []
+        if not self.quiz_dir or not self.quiz_dir.is_dir():
+            return results
+        for quiz_subdir in sorted(self.quiz_dir.iterdir()):
+            if not quiz_subdir.is_dir() or quiz_subdir.name.startswith('.'):
+                continue
+            benchmark_json = quiz_subdir / "benchmark.json"
+            if not benchmark_json.exists():
+                continue
+            try:
+                meta = json.loads(benchmark_json.read_text())
+            except (json.JSONDecodeError, OSError):
+                continue
+            if meta.get("win_condition") != "mcq":
+                continue
+            ch = {
+                "category": "quiz",
+                "name": quiz_subdir.name,
+                "description": meta.get("description", ""),
+                "difficulty": meta.get("difficulty", ""),
+                "flag_count": len(meta.get("questions", [])),
+                "size": 0,
+                "asset": "",
+                "downloaded": True,
+                "has_update": False,
+                "source": "local",
+                "tags": meta.get("tags", []),
+                "win_condition": "mcq",
+            }
+            meta_path = quiz_subdir / STORE_META_FILE
+            if meta_path.exists():
+                try:
+                    store_meta = json.loads(meta_path.read_text())
+                    ch["size"] = store_meta.get("size", 0)
+                except (json.JSONDecodeError, OSError):
+                    pass
+            results.append(ch)
+        return results
+
     def get_remote_challenges(self) -> list[dict]:
         """Fetch remote manifest and annotate with local download status."""
         proxy_url = PROXY_MANIFEST_URL.format(repo=self.repo, tag=self.tag)
@@ -86,9 +128,12 @@ class ChallengeStore:
         manifest = json.loads(raw)
         challenges = manifest.get("challenges", [])
         for ch in challenges:
-            ch["downloaded"] = self.is_downloaded(ch["category"], ch["name"])
-            ch["has_update"] = self.has_update(ch["category"], ch["name"], ch.get("size", 0))
+            is_quiz = self._is_quiz(ch)
+            ch["downloaded"] = self._is_quiz_downloaded(ch["name"]) if is_quiz else self.is_downloaded(ch["category"], ch["name"])
+            ch["has_update"] = self._quiz_has_update(ch["name"], ch.get("size", 0)) if is_quiz else self.has_update(ch["category"], ch["name"], ch.get("size", 0))
             ch["source"] = "remote"
+            if is_quiz:
+                ch["win_condition"] = "mcq"
         return challenges
 
     def merge_challenges(self, local: list[dict], remote: list[dict]) -> list[dict]:
@@ -111,10 +156,34 @@ class ChallengeStore:
         except (json.JSONDecodeError, OSError):
             return False
 
-    def download_challenge(self, category: str, name: str, asset: str, size: int = 0) -> Path:
+    def _is_quiz(self, ch: dict) -> bool:
+        return ch.get("win_condition") == "mcq" or ch.get("category") == "quiz"
+
+    def _is_quiz_downloaded(self, name: str) -> bool:
+        if not self.quiz_dir:
+            return False
+        return (self.quiz_dir / name / "benchmark.json").exists()
+
+    def _quiz_has_update(self, name: str, remote_size: int) -> bool:
+        if not self.quiz_dir:
+            return False
+        meta_path = self.quiz_dir / name / STORE_META_FILE
+        if not meta_path.exists():
+            return False
+        try:
+            meta = json.loads(meta_path.read_text())
+            return meta.get("size", 0) != remote_size and remote_size > 0
+        except (json.JSONDecodeError, OSError):
+            return False
+
+    def download_challenge(self, category: str, name: str, asset: str, size: int = 0, win_condition: str = "") -> Path:
         proxy_url = PROXY_RELEASE_URL.format(repo=self.repo, tag=self.tag, asset=asset)
         direct_url = GITHUB_RELEASE_URL.format(repo=self.repo, tag=self.tag, asset=asset)
-        dest = self.challenges_dir / category / name
+        is_quiz = win_condition == "mcq" or category == "quiz"
+        if is_quiz and self.quiz_dir:
+            dest = self.quiz_dir / name
+        else:
+            dest = self.challenges_dir / category / name
 
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             tmp_path = Path(tmp.name)
@@ -130,8 +199,12 @@ class ChallengeStore:
 
         return dest
 
-    def delete_challenge(self, category: str, name: str) -> None:
-        dest = self.challenges_dir / category / name
+    def delete_challenge(self, category: str, name: str, win_condition: str = "") -> None:
+        is_quiz = win_condition == "mcq" or category == "quiz"
+        if is_quiz and self.quiz_dir:
+            dest = self.quiz_dir / name
+        else:
+            dest = self.challenges_dir / category / name
         if dest.exists():
             shutil.rmtree(dest)
 
