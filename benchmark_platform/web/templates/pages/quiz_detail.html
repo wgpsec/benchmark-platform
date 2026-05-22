@@ -18,15 +18,15 @@
       {% for choice in q.choices %}
       <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
              :class="{
-               'border-gray-900 bg-gray-50': answers['{{ q.id }}'] === {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
+               'border-gray-900 bg-gray-50': answers['{{ q.id }}'] === {{ loop.index0 }} && !('{{ q.id }}' in submitted),
                'border-emerald-500 bg-emerald-50': submitted['{{ q.id }}'] === true && answers['{{ q.id }}'] === {{ loop.index0 }},
                'border-red-300 bg-red-50': submitted['{{ q.id }}'] === false && answers['{{ q.id }}'] === {{ loop.index0 }},
-               'border-gray-200 hover:border-gray-300': answers['{{ q.id }}'] !== {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
-               'border-gray-100 opacity-60': submitted.hasOwnProperty('{{ q.id }}') && answers['{{ q.id }}'] !== {{ loop.index0 }},
+               'border-gray-200 hover:border-gray-300': answers['{{ q.id }}'] !== {{ loop.index0 }} && !('{{ q.id }}' in submitted),
+               'border-gray-100 opacity-60': ('{{ q.id }}' in submitted) && answers['{{ q.id }}'] !== {{ loop.index0 }},
              }"
-             @click="if(!submitted.hasOwnProperty('{{ q.id }}')) answers['{{ q.id }}'] = {{ loop.index0 }}">
+             @click="if(!('{{ q.id }}' in submitted)) answers['{{ q.id }}'] = {{ loop.index0 }}">
         <input type="radio" name="q_{{ q.id }}" :checked="answers['{{ q.id }}'] === {{ loop.index0 }}"
-               :disabled="submitted.hasOwnProperty('{{ q.id }}')" class="sr-only">
+               :disabled="'{{ q.id }}' in submitted" class="sr-only">
         <span class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
               :class="answers['{{ q.id }}'] === {{ loop.index0 }} ? 'border-gray-900' : 'border-gray-300'">
           <span x-show="answers['{{ q.id }}'] === {{ loop.index0 }}" class="w-2.5 h-2.5 rounded-full bg-gray-900"></span>
@@ -41,7 +41,7 @@
               x-show="current > 0"
               class="px-4 py-2 text-[12px] text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">上一题</button>
       <div class="flex-1"></div>
-      <button x-show="answers.hasOwnProperty('{{ q.id }}') && !submitted.hasOwnProperty('{{ q.id }}')"
+      <button x-show="'{{ q.id }}' in answers && !('{{ q.id }}' in submitted)"
               @click="
                 fetch('/api/v1/quiz/{{ benchmark_id }}/submit', {
                   method: 'POST',
@@ -70,8 +70,8 @@
             :class="{
               'bg-emerald-500': submitted['{{ q.id }}'] === true,
               'bg-red-400': submitted['{{ q.id }}'] === false,
-              'bg-gray-900': current === {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
-              'bg-gray-200': current !== {{ loop.index0 }} && !submitted.hasOwnProperty('{{ q.id }}'),
+              'bg-gray-900': current === {{ loop.index0 }} && !('{{ q.id }}' in submitted),
+              'bg-gray-200': current !== {{ loop.index0 }} && !('{{ q.id }}' in submitted),
             }"></button>
     {% endfor %}
   </div>
