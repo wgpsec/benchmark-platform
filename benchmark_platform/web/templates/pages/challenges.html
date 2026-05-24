@@ -130,10 +130,17 @@
   {% for lg in level_groups %}
   <div data-level="{{ lg.level }}">
     <div class="flex items-center gap-3 mb-4">
-      <h2 class="text-[15px] font-semibold text-gray-900">Level {{ lg.level }}</h2>
-      <span class="text-[12px] text-gray-500">{{ lg.solved }}/{{ lg.total }}</span>
       {% if lg.all_solved %}
-      <span class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-600">✓ 已通过</span>
+      <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-[13px] font-bold text-emerald-600">{{ lg.level }}</span>
+      {% elif lg.unlocked %}
+      <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-[13px] font-bold text-blue-600">{{ lg.level }}</span>
+      {% else %}
+      <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-[13px] font-bold text-gray-400">{{ lg.level }}</span>
+      {% endif %}
+      <h2 class="text-[15px] font-semibold text-gray-900">Level {{ lg.level }}</h2>
+      <span class="text-[12px] text-gray-500 font-medium">{{ lg.solved }}/{{ lg.total }}</span>
+      {% if lg.all_solved %}
+      <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">已通过</span>
       {% endif %}
       {% if not lg.unlocked %}
       <span class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-100 text-gray-500">
