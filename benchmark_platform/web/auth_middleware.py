@@ -69,7 +69,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return Response(status_code=401, headers={"HX-Redirect": "/web/login"})
             return RedirectResponse("/web/login", status_code=302)
 
-        if user["role"] == "observer" and path not in ("/web/scoreboard", "/web/logout"):
+        if user["role"] == "observer" and path not in ("/web/scoreboard", "/web/api-docs", "/web/logout"):
             return RedirectResponse("/web/scoreboard", status_code=302)
 
         request.state.user = user

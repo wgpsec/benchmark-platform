@@ -345,6 +345,11 @@ async def page_about(request: Request):
 
 @web_router.get("/api-docs")
 async def page_api_docs(request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") == "observer":
+        return templates.TemplateResponse(
+            request, "pages/api_docs_observer.html", context={"user": user}
+        )
     return _render(request, "pages/api_docs.html", {"page": "api-docs"})
 
 

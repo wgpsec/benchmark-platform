@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Benchmark Platform{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white shadow-sm border-b">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <h1 class="text-lg font-bold text-gray-800">{% block header %}{% endblock %}</h1>
+      <div class="flex items-center gap-4">
+        <a href="/web/scoreboard" class="text-sm text-gray-600 hover:text-gray-900">排行榜</a>
+        <a href="/web/api-docs" class="text-sm text-gray-600 hover:text-gray-900">AI 交互文档</a>
+        <a href="/web/logout" class="text-sm text-red-500 hover:text-red-700">Logout</a>
+      </div>
+    </div>
+  </header>
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
