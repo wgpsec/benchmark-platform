@@ -137,15 +137,15 @@
       <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full">
-            <thead class="bg-gray-50 border-b border-gray-100">
+            <thead class="bg-gray-50/80 border-b border-gray-100">
               <tr>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[130px]">名称</th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500">描述</th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[60px]">难度</th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[40px]" x-text="activeTab === 'quiz' ? '题数' : 'Flag'"></th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[55px]">大小</th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[60px]">状态</th>
-                <th class="px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 w-[70px]">操作</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-[130px]">名称</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">描述</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-[60px]">难度</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-[40px]" x-text="activeTab === 'quiz' ? '题数' : 'Flag'"></th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-[55px]">大小</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-[60px]">状态</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-[70px]">操作</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
@@ -154,17 +154,25 @@
                   <td class="px-3 py-2 text-[11px] text-gray-900 font-medium truncate" x-text="ch.name" :title="ch.name"></td>
                   <td class="px-3 py-2 text-[11px] text-gray-500 break-words" x-text="ch.description || '-'"></td>
                   <td class="px-3 py-2">
-                    <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
+                    <span class="text-[10px] px-1.5 py-0.5 whitespace-nowrap"
                           :class="difficultyClass(ch.difficulty)"
                           x-text="ch.difficulty || '-'"></span>
                   </td>
                   <td class="px-3 py-2 text-[11px] text-gray-600" x-text="ch.flag_count || 1"></td>
                   <td class="px-3 py-2 text-[10px] text-gray-400 whitespace-nowrap" x-text="formatSize(ch.size)"></td>
                   <td class="px-3 py-2">
-                    <span x-show="ch.downloaded && !ch.has_update" class="text-[10px] text-emerald-600 font-medium whitespace-nowrap">已下载</span>
-                    <span x-show="ch.downloaded && ch.has_update" class="text-[10px] text-amber-600 font-medium whitespace-nowrap">有更新</span>
-                    <span x-show="!ch.downloaded && !ch._downloading" class="text-[10px] text-gray-400 whitespace-nowrap">未下载</span>
-                    <span x-show="ch._downloading" class="text-[10px] text-blue-500 whitespace-nowrap">下载中</span>
+                    <span x-show="ch.downloaded && !ch.has_update" class="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 已下载
+                    </span>
+                    <span x-show="ch.downloaded && ch.has_update" class="inline-flex items-center gap-1 text-[10px] text-amber-600 font-medium whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> 有更新
+                    </span>
+                    <span x-show="!ch.downloaded && !ch._downloading" class="inline-flex items-center gap-1 text-[10px] text-gray-400 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span> 未下载
+                    </span>
+                    <span x-show="ch._downloading" class="inline-flex items-center gap-1 text-[10px] text-blue-500 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> 下载中
+                    </span>
                   </td>
                   <td class="px-3 py-2 whitespace-nowrap">
                     <button x-show="!ch.downloaded && !ch._downloading"
@@ -380,11 +388,11 @@ function storePage() {
     },
     difficultyClass(d) {
       const map = {
-        easy: 'bg-emerald-50 text-emerald-700',
-        medium: 'bg-amber-50 text-amber-700',
-        hard: 'bg-red-50 text-red-700',
+        easy: 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full',
+        medium: 'bg-amber-50 text-amber-700 border border-amber-100 rounded-full',
+        hard: 'bg-red-50 text-red-700 border border-red-100 rounded-full',
       };
-      return map[d] || 'bg-gray-50 text-gray-600';
+      return map[d] || 'bg-gray-50 text-gray-600 rounded-full';
     },
     formatSize(bytes) {
       if (!bytes) return '-';
