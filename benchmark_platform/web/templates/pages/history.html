@@ -1,26 +1,52 @@
 {% extends "base.html" %}
 {% block title %}提交记录 — Benchmark Platform{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-  <div class="text-[13px] text-gray-500">
-    共 {{ total }} 次提交 · <span class="text-emerald-600">{{ correct_count }} 正确</span> · <span class="text-red-500">{{ incorrect_count }} 错误</span>
+<!-- Stats Cards -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4">
+    <div class="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
+      <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0l-3.75-3.75M17.25 21l3.75-3.75" /></svg>
+    </div>
+    <div>
+      <div class="text-[20px] font-bold text-gray-900">{{ total }}</div>
+      <div class="text-[11px] text-gray-400">总提交</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-emerald-100 p-4 flex items-center gap-4">
+    <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+      <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    </div>
+    <div>
+      <div class="text-[20px] font-bold text-emerald-600">{{ correct_count }}</div>
+      <div class="text-[11px] text-gray-400">正确</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-red-100 p-4 flex items-center gap-4">
+    <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+      <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    </div>
+    <div>
+      <div class="text-[20px] font-bold text-red-500">{{ incorrect_count }}</div>
+      <div class="text-[11px] text-gray-400">错误</div>
+    </div>
   </div>
 </div>
 
 <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
   <table class="w-full">
-    <thead class="bg-gray-50 border-b border-gray-100">
+    <thead class="bg-gray-50/80 border-b border-gray-100">
       <tr>
-        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">时间</th>
-        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">队伍</th>
-        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">题目</th>
-        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">Flag ID</th>
-        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">提交值</th>
-        <th class="px-4 py-3 text-left text-[12px] font-medium text-gray-500">结果</th>
-        <th class="px-4 py-3 text-right text-[12px] font-medium text-gray-500">得分</th>
+        <th class="pl-5 py-3 w-8"></th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">时间</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">队伍</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">题目</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">Flag ID</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">提交值</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">结果</th>
+        <th class="px-5 py-3 text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider">得分</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-100" hx-get="/web/partials/history_rows" hx-trigger="every 3s" hx-swap="innerHTML">
+    <tbody class="divide-y divide-gray-50" hx-get="/web/partials/history_rows" hx-trigger="every 3s" hx-swap="innerHTML">
       {% include "partials/history_rows.html" %}
     </tbody>
   </table>
