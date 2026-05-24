@@ -343,6 +343,11 @@ async def page_about(request: Request):
     return _render(request, "pages/about.html", {"page": "about"})
 
 
+@web_router.get("/api-docs")
+async def page_api_docs(request: Request):
+    return _render(request, "pages/api_docs.html", {"page": "api-docs"})
+
+
 @web_router.get("/analytics")
 async def page_analytics(request: Request):
     from benchmark_platform.db import get_solve_time_stats

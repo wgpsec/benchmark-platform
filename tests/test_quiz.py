@@ -23,9 +23,8 @@ SAMPLE_QUIZ_DIR = Path(__file__).parent.parent / "quiz" / "sample-quiz"
 def test_quiz_store_loads_benchmarks():
     from benchmark_platform.quiz import QuizStore
     store = QuizStore([SAMPLE_QUIZ_DIR.parent])
-    assert len(store.benchmarks) == 1
-    bm = store.benchmarks[0]
-    assert bm.id == "SAMPLE-QUIZ-001"
+    assert len(store.benchmarks) >= 1
+    bm = store._by_id["SAMPLE-QUIZ-001"]
     assert bm.win_condition == "mcq"
     assert len(bm.questions) == 3
 

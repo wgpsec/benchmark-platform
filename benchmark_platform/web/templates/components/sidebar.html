@@ -67,8 +67,14 @@
       </svg>
       知识评测
     </a>
-
-    <!-- 系统 group -->
+    <a href="/web/api-docs"
+       class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap
+              {% if page == 'api-docs' %}bg-gray-900 text-white{% else %}text-gray-600 hover:bg-gray-50 cursor-pointer{% endif %}">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+      </svg>
+      AI 交互文档
+    </a>
     <div class="pt-3">
       <span class="px-2.5 text-[10px] uppercase tracking-wider font-semibold text-gray-400">运维</span>
     </div>

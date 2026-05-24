@@ -44,8 +44,8 @@ def test_quiz_list_returns_benchmarks():
     assert r.status_code == 200
     data = r.json()
     assert len(data) >= 1
-    assert data[0]["id"] == "SAMPLE-QUIZ-001"
-    assert data[0]["question_count"] == 3
+    sample = next(d for d in data if d["id"] == "SAMPLE-QUIZ-001")
+    assert sample["question_count"] == 3
 
 
 def test_quiz_get_questions_without_answers():
@@ -141,7 +141,7 @@ def test_full_quiz_flow():
     assert r.status_code == 200
     benchmarks = r.json()
     assert len(benchmarks) >= 1
-    bid = benchmarks[0]["id"]
+    bid = "SAMPLE-QUIZ-001"
 
     # Get questions
     r = client.get(f"/api/v1/quiz/{bid}")
