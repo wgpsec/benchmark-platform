@@ -30,12 +30,18 @@ def get_team_by_token_or_id(team_id: str) -> Optional[dict]:
 
 
 async def get_current_team(request: Request, agent_token: Optional[str] = Header(None, alias="Agent-Token")) -> dict:
-    if agent_token:
-        team = get_team_by_token(agent_token)
+    token = agent_token
+    if not token:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+
+    if token:
+        team = get_team_by_token(token)
         if team is None:
             raise HTTPException(
                 status_code=401,
-                detail={"code": -1, "message": "Invalid Agent-Token", "data": None},
+                detail={"code": -1, "message": "Invalid token", "data": None},
             )
         return team
 
@@ -58,19 +64,25 @@ async def get_current_team(request: Request, agent_token: Optional[str] = Header
 
 
 async def require_admin(request: Request, agent_token: Optional[str] = Header(None, alias="Agent-Token")) -> dict:
-    if agent_token:
-        team = get_team_by_token(agent_token)
+    token = agent_token
+    if not token:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+
+    if token:
+        team = get_team_by_token(token)
         if team is None:
             raise HTTPException(
                 status_code=401,
-                detail={"code": -1, "message": "Invalid Agent-Token", "data": None},
+                detail={"code": -1, "message": "Invalid token", "data": None},
             )
     else:
         team = _team_from_cookie(request)
         if team is None:
             raise HTTPException(
                 status_code=401,
-                detail={"code": -1, "message": "Missing Agent-Token header", "data": None},
+                detail={"code": -1, "message": "Missing authentication token", "data": None},
             )
 
     default_team = get_or_create_default_team()

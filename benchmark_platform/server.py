@@ -220,7 +220,7 @@ class QuizSubmitRequest(PydanticBaseModel):
 
 
 @app.get("/api/v1/quiz")
-async def quiz_list(request: Request):
+async def quiz_list(request: Request, team: dict = Depends(get_current_team)):
     store: QuizStore = request.app.state.quiz_store
     if store is None:
         return []
@@ -228,7 +228,7 @@ async def quiz_list(request: Request):
 
 
 @app.get("/api/v1/quiz/{benchmark_id}")
-async def quiz_get(benchmark_id: str, request: Request):
+async def quiz_get(benchmark_id: str, request: Request, team: dict = Depends(get_current_team)):
     store: QuizStore = request.app.state.quiz_store
     if store is None:
         raise HTTPException(404, "Quiz store not initialized")

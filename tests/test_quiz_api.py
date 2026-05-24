@@ -26,12 +26,15 @@ def setup_db(tmp_path):
 
 
 def _setup_app():
+    get_or_create_default_team()
     app.state.manager = None
     app.state.submission_store = SubmissionStore()
     app.state.quiz_store = QuizStore([QUIZ_DIR])
 
 
-def _auth_client(team_id="default", role="admin", team_name="Default") -> TestClient:
+def _auth_client(team_id=None, role="admin", team_name="Default") -> TestClient:
+    if team_id is None:
+        team_id = get_or_create_default_team()["id"]
     client = TestClient(app)
     client.cookies.set(_COOKIE_NAME, create_session_cookie(team_id, role, team_name))
     return client
