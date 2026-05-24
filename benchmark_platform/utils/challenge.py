@@ -825,7 +825,11 @@ class ChallengeManager:
         from benchmark_platform.db import update_instance_status_by_team
         runtime_path = self._get_runtime_path_for_instance(benchmark_id, instance_code, team_id or "shared")
         try:
-            self._compose_at_path(runtime_path, 'up', '-d', timeout=self._COMPOSE_TIMEOUT_WINDOWS)
+            self._compose_at_path(
+                runtime_path, 'up', '-d', '--wait',
+                '--wait-timeout', str(self._COMPOSE_TIMEOUT_WINDOWS),
+                timeout=self._COMPOSE_TIMEOUT_WINDOWS + 60,
+            )
             self._instance_status[instance_code] = "running"
             self._finalize_team_start(challenge, benchmark_id, instance_code, team_id, ports)
         except Exception as e:
@@ -1256,7 +1260,7 @@ class ChallengeManager:
                 fpath.write_text(replaced, encoding='utf-8')
 
     _COMPOSE_TIMEOUT = 300  # 5 minutes
-    _COMPOSE_TIMEOUT_WINDOWS = 1800  # 30 minutes for Windows ISO challenges
+    _COMPOSE_TIMEOUT_WINDOWS = 3600  # 60 minutes for Windows ISO challenges (first boot from ISO is slow)
 
     def get_instance_logs(self, benchmark_id: str, offset: int = 0) -> tuple[list[str], int]:
         """Return (log_lines_from_offset, total_line_count) for a benchmark."""
