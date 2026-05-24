@@ -6,10 +6,16 @@
   copySection(id) {
     const el = document.getElementById(id);
     const text = el.innerText;
-    navigator.clipboard.writeText(text).then(() => {
-      this.copied = id;
-      setTimeout(() => this.copied = '', 2000);
-    });
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    this.copied = id;
+    setTimeout(() => this.copied = '', 2000);
   }
 }">
 
