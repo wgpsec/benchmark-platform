@@ -128,7 +128,7 @@ def _auto_reload_challenges() -> tuple[int, list[str]]:
 def _auto_reload_quiz_store() -> None:
     """Reload QuizStore after quiz download/delete."""
     from benchmark_platform.quiz import QuizStore
-    app.state.quiz_store = QuizStore([Path("quiz")])
+    app.state.quiz_store = QuizStore([Path("quiz"), app.state.challenges_dir / "quiz"])
 
 
 @app.post("/api/challenges/reload")
@@ -1431,6 +1431,7 @@ async def store_download_all(_=Depends(require_admin)):
     from benchmark_platform.web.store import ChallengeStore
     store = ChallengeStore(
         challenges_dir=app.state.challenges_dir,
+        quiz_dir=Path("quiz"),
     )
     try:
         manifest = store.fetch_manifest()
@@ -1438,17 +1439,22 @@ async def store_download_all(_=Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"Failed to fetch manifest: {e}")
 
     results = []
+    has_quiz = False
     for ch in manifest.get("challenges", []):
         if store.is_downloaded(ch["category"], ch["name"]):
             results.append({"name": ch["name"], "status": "skipped"})
             continue
         try:
-            store.download_challenge(ch["category"], ch["name"], ch["asset"])
+            store.download_challenge(ch["category"], ch["name"], ch["asset"], win_condition=ch.get("win_condition", ""))
             results.append({"name": ch["name"], "status": "ok"})
+            if ch.get("win_condition") == "mcq" or ch.get("category") == "quiz":
+                has_quiz = True
         except Exception as e:
             results.append({"name": ch["name"], "status": f"error: {e}"})
 
     _auto_reload_challenges()
+    if has_quiz:
+        _auto_reload_quiz_store()
     return {"code": 0, "data": results}
 
 
@@ -1578,7 +1584,7 @@ def serve(
     app.state.manager = manager
     app.state.submission_store = submission_store
     app.state.challenges_dir = challenges_dir
-    app.state.quiz_store = QuizStore([Path("quiz")])
+    app.state.quiz_store = QuizStore([Path("quiz"), challenges_dir / "quiz"])
 
     from rich.console import Console
     console = Console()
