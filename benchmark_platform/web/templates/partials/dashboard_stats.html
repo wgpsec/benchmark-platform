@@ -1,52 +1,96 @@
 <!-- Stats cards -->
 <div class="grid grid-cols-4 gap-4 mb-6">
-  <div class="bg-white rounded-xl border border-gray-100 p-5">
-    <div class="text-[12px] text-gray-500">总题目</div>
-    <div class="text-2xl font-semibold text-gray-900 mt-1">{{ total_challenges }}</div>
-    <div class="text-[11px] text-gray-400 mt-1">{{ total_flags }} flags</div>
+  <div class="bg-white rounded-xl border border-gray-100 p-5 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-gray-50 to-transparent rounded-bl-full"></div>
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
+        <svg class="w-4.5 h-4.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+      </div>
+      <span class="text-[12px] text-gray-500 font-medium">总题目</span>
+    </div>
+    <div class="text-[28px] font-bold text-gray-900">{{ total_challenges }}</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">{{ total_flags }} flags</div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 p-5">
-    <div class="text-[12px] text-gray-500">已解决</div>
-    <div class="text-2xl font-semibold text-emerald-600 mt-1">{{ solved_challenges }}</div>
-    <div class="text-[11px] text-gray-400 mt-1">
-      {% if total_challenges > 0 %}{{ '%.1f' | format(solved_challenges / total_challenges * 100) }}%{% else %}0%{% endif %}
+
+  <div class="bg-white rounded-xl border border-emerald-100/60 p-5 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-emerald-50 to-transparent rounded-bl-full"></div>
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+        <svg class="w-4.5 h-4.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      </div>
+      <span class="text-[12px] text-gray-500 font-medium">已解决</span>
+    </div>
+    <div class="text-[28px] font-bold text-emerald-600">{{ solved_challenges }}</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">{% if total_challenges > 0 %}{{ '%.1f' | format(solved_challenges / total_challenges * 100) }}%{% else %}0%{% endif %}</div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-blue-50 to-transparent rounded-bl-full"></div>
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+        <svg class="w-4.5 h-4.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+      </div>
+      <span class="text-[12px] text-gray-500 font-medium">总得分</span>
+    </div>
+    <div class="text-[28px] font-bold text-gray-900">{{ earned_points }}<span class="text-[16px] text-gray-400 font-normal">/{{ total_points }}</span></div>
+    <div class="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div class="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full" style="width: {% if total_points > 0 %}{{ earned_points / total_points * 100 }}%{% else %}0%{% endif %}"></div>
     </div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 p-5">
-    <div class="text-[12px] text-gray-500">总得分</div>
-    <div class="text-2xl font-semibold text-gray-900 mt-1">{{ earned_points }}<span class="text-[14px] text-gray-400">/{{ total_points }}</span></div>
-    <div class="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-      <div class="h-full bg-emerald-500 rounded-full" style="width: {% if total_points > 0 %}{{ earned_points / total_points * 100 }}%{% else %}0%{% endif %}"></div>
+
+  <div class="bg-white rounded-xl border border-amber-100/60 p-5 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-amber-50 to-transparent rounded-bl-full"></div>
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
+        <svg class="w-4.5 h-4.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" /></svg>
+      </div>
+      <span class="text-[12px] text-gray-500 font-medium">运行中实例</span>
     </div>
-  </div>
-  <div class="bg-white rounded-xl border border-gray-100 p-5">
-    <div class="text-[12px] text-gray-500">运行中实例</div>
-    <div class="text-2xl font-semibold text-amber-600 mt-1">{{ running_count }}</div>
-    <div class="text-[11px] text-gray-400 mt-1">/ {{ total_challenges }}</div>
+    <div class="text-[28px] font-bold text-amber-600">{{ running_count }}</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">/ {{ total_challenges }}</div>
   </div>
 </div>
-
 <div class="grid grid-cols-2 gap-4 mb-6">
   <!-- Level progress -->
   <div class="bg-white rounded-xl border border-gray-100 p-5">
-    <div class="text-[15px] font-medium text-gray-900 mb-4">关卡进度</div>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-[14px] font-semibold text-gray-900">关卡进度</h2>
+      <span class="text-[11px] text-gray-400">{{ level_progress|length }} levels</span>
+    </div>
     <div class="space-y-4">
       {% for lp in level_progress %}
       <div class="{% if not lp.unlocked %}opacity-40{% endif %}">
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="text-[13px] font-medium text-gray-900">
-            Level {{ lp.level }}
-            {% if not lp.unlocked %}
-            <svg class="w-3.5 h-3.5 inline ml-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            {% if lp.unlocked and lp.total > 0 and lp.solved >= lp.total %}
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-emerald-50 text-[11px] font-bold text-emerald-600">{{ lp.level }}</span>
+            {% elif lp.unlocked %}
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-blue-50 text-[11px] font-bold text-blue-600">{{ lp.level }}</span>
+            {% else %}
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-gray-100 text-[11px] font-bold text-gray-400">{{ lp.level }}</span>
             {% endif %}
-          </span>
-          <span class="text-[12px] text-gray-500">{{ lp.solved }}/{{ lp.total }}</span>
+            <span class="text-[13px] font-medium text-gray-900">Level {{ lp.level }}</span>
+            {% if lp.unlocked and lp.total > 0 and lp.solved >= lp.total %}
+            <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">已通过</span>
+            {% elif not lp.unlocked %}
+            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+            {% endif %}
+          </div>
+          <span class="text-[12px] text-gray-500 font-medium">{{ lp.solved }}/{{ lp.total }}</span>
         </div>
-        <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div class="h-full bg-emerald-500 rounded-full transition-all" style="width: {% if lp.total > 0 %}{{ lp.solved / lp.total * 100 }}%{% else %}0%{% endif %}"></div>
+        {% if lp.unlocked and lp.total > 0 and lp.solved >= lp.total %}
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full" style="width: 100%"></div>
         </div>
-        {% if not lp.unlocked %}
-        <div class="text-[11px] text-gray-400 mt-1">需通过 Level {{ lp.level - 1 }} 解锁</div>
+        {% elif lp.unlocked %}
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full" style="width: {% if lp.total > 0 %}{{ lp.solved / lp.total * 100 }}%{% else %}0%{% endif %}"></div>
+        </div>
+        {% else %}
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gray-300 rounded-full" style="width: 0%"></div>
+        </div>
+        <div class="text-[11px] text-gray-400 mt-1.5">需通过 Level {{ lp.level - 1 }} 解锁</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -58,16 +102,20 @@
 
   <!-- Recent submissions -->
   <div class="bg-white rounded-xl border border-gray-100 p-5">
-    <div class="text-[15px] font-medium text-gray-900 mb-4">最近提交</div>
-    <div class="space-y-2">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-[14px] font-semibold text-gray-900">最近提交</h2>
+      <a href="/web/history" class="text-[11px] text-blue-600 hover:text-blue-700">查看全部</a>
+    </div>
+    <div class="space-y-0">
       {% for sub in recent_submissions %}
-      <div class="flex items-center gap-3 text-[12px]">
-        <span class="text-gray-400 font-mono w-16 flex-shrink-0">{{ sub.timestamp[11:19] if sub.timestamp|length > 19 else sub.timestamp }}</span>
-        <span class="text-gray-700 truncate flex-1">{{ sub.benchmark_id }}</span>
+      <div class="flex items-center gap-3 py-2.5 {{ 'border-b border-gray-50' if not loop.last else '' }}">
+        <div class="w-2 h-2 rounded-full {{ 'bg-emerald-400 ring-3 ring-emerald-50' if sub.correct else 'bg-red-400 ring-3 ring-red-50' }} flex-shrink-0"></div>
+        <span class="text-[11px] text-gray-400 font-mono w-14 flex-shrink-0">{{ sub.timestamp[11:19] if sub.timestamp|length > 19 else sub.timestamp }}</span>
+        <span class="text-[12px] text-gray-700 truncate flex-1">{{ sub.benchmark_id }}</span>
         {% if sub.correct %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-600">✓ 正确</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100">+{{ sub.points }}</span>
         {% else %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-600">✗ 错误</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-500 border border-red-100">错误</span>
         {% endif %}
       </div>
       {% endfor %}
@@ -80,20 +128,55 @@
 
 <!-- Difficulty distribution -->
 <div class="bg-white rounded-xl border border-gray-100 p-5">
-  <div class="text-[15px] font-medium text-gray-900 mb-4">难度分布</div>
-  <div class="space-y-3">
-    {% set diff_labels = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'} %}
-    {% set diff_colors = {'easy': 'bg-emerald-500', 'medium': 'bg-amber-500', 'hard': 'bg-red-500'} %}
+  <h2 class="text-[14px] font-semibold text-gray-900 mb-4">难度分布</h2>
+  <div class="grid grid-cols-3 gap-6">
     {% for ds in difficulty_stats %}
-    <div>
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-[13px] font-medium text-gray-700">{{ diff_labels.get(ds.difficulty, ds.difficulty) }}</span>
-        <span class="text-[12px] text-gray-500">{{ ds.solved }}/{{ ds.total }} &nbsp; {% if ds.total > 0 %}{{ '%.0f' | format(ds.solved / ds.total * 100) }}%{% else %}0%{% endif %}</span>
+    {% if ds.difficulty == 'easy' %}
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+        <span class="text-[12px] font-bold text-emerald-600">E</span>
       </div>
-      <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-        <div class="h-full {{ diff_colors.get(ds.difficulty, 'bg-gray-500') }} rounded-full" style="width: {% if ds.total > 0 %}{{ ds.solved / ds.total * 100 }}%{% else %}0%{% endif %}"></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[12px] font-medium text-gray-700">Easy</span>
+          <span class="text-[11px] text-gray-500">{{ ds.solved }}/{{ ds.total }} · {% if ds.total > 0 %}{{ '%.0f' | format(ds.solved / ds.total * 100) }}%{% else %}0%{% endif %}</span>
+        </div>
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full" style="width: {% if ds.total > 0 %}{{ ds.solved / ds.total * 100 }}%{% else %}0%{% endif %}"></div>
+        </div>
       </div>
     </div>
+    {% elif ds.difficulty == 'medium' %}
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+        <span class="text-[12px] font-bold text-amber-600">M</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[12px] font-medium text-gray-700">Medium</span>
+          <span class="text-[11px] text-gray-500">{{ ds.solved }}/{{ ds.total }} · {% if ds.total > 0 %}{{ '%.0f' | format(ds.solved / ds.total * 100) }}%{% else %}0%{% endif %}</span>
+        </div>
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full" style="width: {% if ds.total > 0 %}{{ ds.solved / ds.total * 100 }}%{% else %}0%{% endif %}"></div>
+        </div>
+      </div>
+    </div>
+    {% elif ds.difficulty == 'hard' %}
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+        <span class="text-[12px] font-bold text-red-600">H</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[12px] font-medium text-gray-700">Hard</span>
+          <span class="text-[11px] text-gray-500">{{ ds.solved }}/{{ ds.total }} · {% if ds.total > 0 %}{{ '%.0f' | format(ds.solved / ds.total * 100) }}%{% else %}0%{% endif %}</span>
+        </div>
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full" style="width: {% if ds.total > 0 %}{{ ds.solved / ds.total * 100 }}%{% else %}0%{% endif %}"></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     {% endfor %}
   </div>
 </div>
