@@ -3,85 +3,61 @@
 {% block content %}
 <div x-data="{
   copied: '',
-  active: 'auth',
-  copySection(id) {
-    const el = document.getElementById(id);
+  copySection(el) {
+    const section = el.closest('[data-section]');
     const ta = document.createElement('textarea');
-    ta.value = el.innerText;
+    ta.value = section.innerText;
     ta.style.position = 'fixed';
     ta.style.opacity = '0';
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    this.copied = id;
+    this.copied = section.dataset.section;
     setTimeout(() => this.copied = '', 2000);
-  },
-  scrollTo(id) {
-    this.active = id;
-    document.getElementById(id).scrollIntoView({behavior:'smooth', block:'start'});
   }
-}" class="flex gap-6 max-w-6xl mx-auto">
+}" class="max-w-5xl mx-auto divide-y divide-gray-100">
 
-  <!-- Left Sidebar Nav -->
-  <nav class="w-48 flex-shrink-0 hidden lg:block">
-    <div class="sticky top-20 space-y-1">
-      <p class="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">接口文档</p>
-      <template x-for="item in [
-        {id:'auth', label:'认证方式'},
-        {id:'sec-ctf-api', label:'CTF — REST API'},
-        {id:'sec-ctf-mcp', label:'CTF — MCP'},
-        {id:'sec-quiz-api', label:'知识评测 — REST API'},
-        {id:'sec-quiz-mcp', label:'知识评测 — MCP'},
-      ]">
-        <a @click.prevent="scrollTo(item.id)" href="#"
-           class="block px-3 py-1.5 text-[12px] rounded transition-colors cursor-pointer"
-           :class="active === item.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'"
-           x-text="item.label"></a>
-      </template>
+  <!-- Auth -->
+  <div class="px-2 py-8" data-section="auth">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[15px] font-semibold text-gray-800">认证方式</h3>
+      <button @click="copySection($el)" class="text-[11px] text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition"
+              :class="copied === 'auth' && 'text-green-600 border-green-200'" x-text="copied === 'auth' ? '已复制' : '复制本节'"></button>
     </div>
-  </nav>
+    <p class="text-[13px] text-gray-500 mb-4">在请求 Header 中添加 Bearer Token 进行身份验证。Token 可在「队伍管理」页面查看。</p>
+    <div class="bg-gray-50 rounded-xl p-5 font-mono text-[12px] text-gray-700 space-y-1">
+      <p>Authorization: Bearer &lt;YOUR_TOKEN&gt;</p>
+      <p class="text-gray-400"># 或</p>
+      <p>Agent-Token: &lt;YOUR_TOKEN&gt;</p>
+    </div>
+  </div>
 
-  <!-- Main Content -->
-  <div class="flex-1 min-w-0 space-y-6 pb-12">
-<!-- PLACEHOLDER_1 -->
+  <!-- CTF REST API -->
+  <div class="px-2 py-8" data-section="ctf-api">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[15px] font-semibold text-gray-800">CTF 做题 — REST API</h3>
+      <button @click="copySection($el)" class="text-[11px] text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition"
+              :class="copied === 'ctf-api' && 'text-green-600 border-green-200'" x-text="copied === 'ctf-api' ? '已复制' : '复制本节'"></button>
+    </div>
 
-    <!-- Auth Section -->
-    <section id="auth" class="border-l-4 border-blue-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-      <div class="flex justify-between items-center mb-3">
-        <h2 class="text-[15px] font-bold text-gray-900">认证方式</h2>
-        <button @click="copySection('auth')" class="text-[11px] px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 transition-colors"
-                :class="copied === 'auth' ? 'text-green-600 border-green-200' : 'text-gray-500'">
-          <span x-text="copied === 'auth' ? '已复制' : '复制本节'"></span>
-        </button>
+    <!-- GET /api/challenges -->
+    <div class="mb-8">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-semibold rounded">GET</span>
+        <span class="font-mono text-[13px] text-gray-700">/api/challenges</span>
+        <span class="text-[11px] text-gray-400 ml-2">获取题目列表</span>
       </div>
-      <p class="text-[12px] text-gray-600 mb-3">所有请求需在 Header 中携带 Team Token：</p>
-      <pre class="bg-gray-900 text-green-400 text-[11px] p-3 rounded-lg overflow-x-auto">Authorization: Bearer &lt;YOUR_TOKEN&gt;
-
-# 或使用自定义 Header
-Agent-Token: &lt;YOUR_TOKEN&gt;</pre>
-      <p class="text-[11px] text-gray-400 mt-2">Token 可在「队伍管理」页面查看，每个队伍有唯一 Token。</p>
-    </section>
-
-    <!-- CTF REST API -->
-    <section id="sec-ctf-api" class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-[15px] font-bold text-gray-900">CTF 做题 — REST API</h2>
-        <button @click="copySection('sec-ctf-api')" class="text-[11px] px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 transition-colors"
-                :class="copied === 'sec-ctf-api' ? 'text-green-600 border-green-200' : 'text-gray-500'">
-          <span x-text="copied === 'sec-ctf-api' ? '已复制' : '复制本节'"></span>
-        </button>
-      </div>
-
-      <div class="border-l-4 border-green-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700">GET</span>
-          <code class="text-[13px] font-mono font-semibold">/api/challenges</code>
-          <span class="text-[11px] text-gray-400 ml-auto">获取题目列表</span>
+      <div class="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border border-gray-200">
+        <div class="bg-gray-50 p-5 border-r border-gray-200">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Request</p>
+          <pre class="text-[11px] text-gray-600 font-mono whitespace-pre-wrap">curl -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  http://&lt;HOST&gt;/api/challenges</pre>
         </div>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto mt-3"><span class="text-yellow-300">curl</span> -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" http://&lt;HOST&gt;/api/challenges</pre>
-        <p class="text-[10px] text-gray-400 mt-3 mb-1">Response:</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto">{
+        <div class="bg-[#1e1e2e] p-5">
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-3">Response</p>
+<!-- SPLIT1 -->
+          <pre class="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">{
   "challenges": [{
     "title": "Web Login Bypass",
     "code": "web-login-bypass",
@@ -92,135 +68,182 @@ Agent-Token: &lt;YOUR_TOKEN&gt;</pre>
     "entrypoint": null
   }]
 }</pre>
-      </div>
-<!-- PLACEHOLDER_2 -->
-
-      <div class="border-l-4 border-yellow-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700">POST</span>
-          <code class="text-[13px] font-mono font-semibold">/api/submit</code>
-          <span class="text-[11px] text-gray-400 ml-auto">提交 Flag</span>
         </div>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto mt-3"><span class="text-yellow-300">curl</span> -X POST -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
-     -H "Content-Type: application/json" \
-     -d '{"challenge_code": "web-login-bypass", "flag": "flag{...}"}' \
-     http://&lt;HOST&gt;/api/submit</pre>
-        <p class="text-[10px] text-gray-400 mt-3 mb-1">Response:</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto">{"correct": true, "message": "恭喜！答案正确（1/1），获得100分"}</pre>
       </div>
-    </section>
+    </div>
 
-    <!-- CTF MCP -->
-    <section id="sec-ctf-mcp" class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-[15px] font-bold text-gray-900">CTF 做题 — MCP</h2>
-        <button @click="copySection('sec-ctf-mcp')" class="text-[11px] px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 transition-colors"
-                :class="copied === 'sec-ctf-mcp' ? 'text-green-600 border-green-200' : 'text-gray-500'">
-          <span x-text="copied === 'sec-ctf-mcp' ? '已复制' : '复制本节'"></span>
-        </button>
+    <!-- POST /api/submit -->
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-semibold rounded">POST</span>
+        <span class="font-mono text-[13px] text-gray-700">/api/submit</span>
+        <span class="text-[11px] text-gray-400 ml-2">提交 Flag</span>
       </div>
+      <div class="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border border-gray-200">
+        <div class="bg-gray-50 p-5 border-r border-gray-200">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Request</p>
+          <pre class="text-[11px] text-gray-600 font-mono whitespace-pre-wrap">curl -X POST \
+  -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"challenge_code":"web-login-bypass","flag":"flag{...}"}' \
+  http://&lt;HOST&gt;/api/submit</pre>
+        </div>
+        <div class="bg-[#1e1e2e] p-5">
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-3">Response</p>
+          <pre class="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">{
+  "correct": true,
+  "message": "恭喜！答案正确（1/1），获得100分"
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      <div class="border-l-4 border-purple-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-        <p class="text-[12px] text-gray-600 mb-3">
-          MCP 端点：<code class="bg-gray-100 px-1.5 py-0.5 rounded text-[11px] font-mono">http://&lt;HOST&gt;/mcp</code>
-        </p>
-        <table class="w-full text-[11px] mb-4">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-3 py-1.5 text-left font-medium text-gray-600">工具</th>
-              <th class="px-3 py-1.5 text-left font-medium text-gray-600">参数</th>
-              <th class="px-3 py-1.5 text-left font-medium text-gray-600">说明</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-50">
-            <tr><td class="px-3 py-1.5 font-mono">list_challenges</td><td class="px-3 py-1.5 text-gray-400">—</td><td class="px-3 py-1.5">获取题目列表及做题进度</td></tr>
-            <tr><td class="px-3 py-1.5 font-mono">start_challenge</td><td class="px-3 py-1.5 font-mono">code</td><td class="px-3 py-1.5">启动靶机实例</td></tr>
-            <tr><td class="px-3 py-1.5 font-mono">stop_challenge</td><td class="px-3 py-1.5 font-mono">code</td><td class="px-3 py-1.5">停止靶机实例</td></tr>
-            <tr><td class="px-3 py-1.5 font-mono">submit_flag</td><td class="px-3 py-1.5 font-mono">code, flag</td><td class="px-3 py-1.5">提交 Flag 答案</td></tr>
-            <tr><td class="px-3 py-1.5 font-mono">view_hint</td><td class="px-3 py-1.5 font-mono">code</td><td class="px-3 py-1.5">查看提示（首次扣 10% 分数）</td></tr>
-          </tbody>
-        </table>
-        <p class="text-[10px] text-gray-400 mb-1">Claude Code / Cursor 配置示例：</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto">{
+<!-- SPLIT2 -->
+
+  <!-- CTF MCP -->
+  <div class="px-2 py-8" data-section="ctf-mcp">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[15px] font-semibold text-gray-800">CTF 做题 — MCP</h3>
+      <button @click="copySection($el)" class="text-[11px] text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition"
+              :class="copied === 'ctf-mcp' && 'text-green-600 border-green-200'" x-text="copied === 'ctf-mcp' ? '已复制' : '复制本节'"></button>
+    </div>
+    <div class="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border border-gray-200">
+      <div class="bg-gray-50 p-5 border-r border-gray-200">
+        <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Available Tools</p>
+        <div class="space-y-3 text-[12px]">
+          <div><span class="font-mono text-indigo-600 font-medium">list_challenges</span><br><span class="text-gray-500 text-[11px]">获取题目列表及做题进度</span></div>
+          <div><span class="font-mono text-indigo-600 font-medium">start_challenge</span> <span class="text-gray-400 text-[10px]">(code)</span><br><span class="text-gray-500 text-[11px]">启动靶机实例</span></div>
+          <div><span class="font-mono text-indigo-600 font-medium">stop_challenge</span> <span class="text-gray-400 text-[10px]">(code)</span><br><span class="text-gray-500 text-[11px]">停止靶机实例</span></div>
+          <div><span class="font-mono text-indigo-600 font-medium">submit_flag</span> <span class="text-gray-400 text-[10px]">(code, flag)</span><br><span class="text-gray-500 text-[11px]">提交 Flag 答案</span></div>
+          <div><span class="font-mono text-indigo-600 font-medium">view_hint</span> <span class="text-gray-400 text-[10px]">(code)</span><br><span class="text-gray-500 text-[11px]">查看提示（首次扣 10% 分数）</span></div>
+        </div>
+      </div>
+      <div class="bg-[#1e1e2e] p-5">
+        <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-3">mcp.json 配置</p>
+        <pre class="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">{
   "mcpServers": {
     "benchmark": {
       "type": "streamable-http",
       "url": "http://&lt;HOST&gt;/mcp",
-      "headers": {"Authorization": "Bearer &lt;YOUR_TOKEN&gt;"}
+      "headers": {
+        "Authorization": "Bearer &lt;YOUR_TOKEN&gt;"
+      }
     }
   }
 }</pre>
       </div>
-    </section>
-<!-- PLACEHOLDER_3 -->
+    </div>
+  </div>
 
-    <!-- Quiz REST API -->
-    <section id="sec-quiz-api" class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-[15px] font-bold text-gray-900">知识评测 — REST API</h2>
-        <button @click="copySection('sec-quiz-api')" class="text-[11px] px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 transition-colors"
-                :class="copied === 'sec-quiz-api' ? 'text-green-600 border-green-200' : 'text-gray-500'">
-          <span x-text="copied === 'sec-quiz-api' ? '已复制' : '复制本节'"></span>
-        </button>
+<!-- SPLIT3 -->
+
+  <!-- Quiz REST API -->
+  <div class="px-2 py-8" data-section="quiz-api">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[15px] font-semibold text-gray-800">知识评测 — REST API</h3>
+      <button @click="copySection($el)" class="text-[11px] text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition"
+              :class="copied === 'quiz-api' && 'text-green-600 border-green-200'" x-text="copied === 'quiz-api' ? '已复制' : '复制本节'"></button>
+    </div>
+
+    <!-- GET /api/v1/quiz -->
+    <div class="mb-8">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-semibold rounded">GET</span>
+        <span class="font-mono text-[13px] text-gray-700">/api/v1/quiz</span>
+        <span class="text-[11px] text-gray-400 ml-2">获取评测列表</span>
       </div>
-
-      <div class="border-l-4 border-green-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700">GET</span>
-          <code class="text-[13px] font-mono font-semibold">/api/v1/quiz</code>
-          <span class="text-[11px] text-gray-400 ml-auto">获取评测列表</span>
+      <div class="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border border-gray-200">
+        <div class="bg-gray-50 p-5 border-r border-gray-200">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Request</p>
+          <pre class="text-[11px] text-gray-600 font-mono whitespace-pre-wrap">curl -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  http://&lt;HOST&gt;/api/v1/quiz</pre>
         </div>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto mt-3"><span class="text-yellow-300">curl</span> -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" http://&lt;HOST&gt;/api/v1/quiz</pre>
-        <p class="text-[10px] text-gray-400 mt-3 mb-1">Response:</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto">[{"id": "MMLU-CS-001", "name": "Computer Security Fundamentals", "question_count": 25, "points": 100}]</pre>
+        <div class="bg-[#1e1e2e] p-5">
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-3">Response</p>
+          <pre class="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">[{
+  "id": "MMLU-CS-001",
+  "name": "Computer Security Fundamentals",
+  "question_count": 25,
+  "points": 100
+}]</pre>
+        </div>
       </div>
+    </div>
 
-      <div class="border-l-4 border-green-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700">GET</span>
-          <code class="text-[13px] font-mono font-semibold">/api/v1/quiz/{benchmark_id}</code>
-          <span class="text-[11px] text-gray-400 ml-auto">获取题目详情</span>
+    <!-- GET /api/v1/quiz/{id} -->
+    <div class="mb-8">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-semibold rounded">GET</span>
+        <span class="font-mono text-[13px] text-gray-700">/api/v1/quiz/{benchmark_id}</span>
+        <span class="text-[11px] text-gray-400 ml-2">获取题目详情</span>
+      </div>
+      <div class="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border border-gray-200">
+        <div class="bg-gray-50 p-5 border-r border-gray-200">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Request</p>
+          <pre class="text-[11px] text-gray-600 font-mono whitespace-pre-wrap">curl -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  http://&lt;HOST&gt;/api/v1/quiz/MMLU-CS-001</pre>
         </div>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto mt-3"><span class="text-yellow-300">curl</span> -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" http://&lt;HOST&gt;/api/v1/quiz/MMLU-CS-001</pre>
-        <p class="text-[10px] text-gray-400 mt-3 mb-1">Response:</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto">{
+        <div class="bg-[#1e1e2e] p-5">
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-3">Response</p>
+          <pre class="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">{
   "benchmark_id": "MMLU-CS-001",
-  "questions": [
-    {"id": "q1", "text": "Which of the following...", "choices": ["A", "B", "C", "D"]}
-  ]
+  "questions": [{
+    "id": "q1",
+    "text": "Which of the following...",
+    "choices": ["A选项", "B选项", "C选项", "D选项"]
+  }]
 }</pre>
-      </div>
-
-      <div class="border-l-4 border-yellow-400 bg-white rounded-r-lg p-5 shadow-sm border border-gray-100">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700">POST</span>
-          <code class="text-[13px] font-mono font-semibold">/api/v1/quiz/{benchmark_id}/submit</code>
-          <span class="text-[11px] text-gray-400 ml-auto">提交答案</span>
         </div>
-        <p class="text-[11px] text-gray-500 mb-2">answers: 题目ID -> 选项索引（0-based）</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto"><span class="text-yellow-300">curl</span> -X POST -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
-     -H "Content-Type: application/json" \
-     -d '{"answers": {"q1": 2, "q2": 0, "q3": 1}}' \
-     http://&lt;HOST&gt;/api/v1/quiz/MMLU-CS-001/submit</pre>
-        <p class="text-[10px] text-gray-400 mt-3 mb-1">Response:</p>
-        <pre class="bg-gray-900 text-gray-300 text-[11px] p-3 rounded-lg overflow-x-auto">{
-  "correct": 2, "total": 3, "score": 8,
+      </div>
+    </div>
+
+    <!-- POST /api/v1/quiz/{id}/submit -->
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-semibold rounded">POST</span>
+        <span class="font-mono text-[13px] text-gray-700">/api/v1/quiz/{benchmark_id}/submit</span>
+        <span class="text-[11px] text-gray-400 ml-2">提交答案</span>
+      </div>
+      <div class="grid grid-cols-2 gap-0 rounded-xl overflow-hidden border border-gray-200">
+        <div class="bg-gray-50 p-5 border-r border-gray-200">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Request</p>
+          <pre class="text-[11px] text-gray-600 font-mono whitespace-pre-wrap">curl -X POST \
+  -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"answers":{"q1":2,"q2":0,"q3":1}}' \
+  http://&lt;HOST&gt;/api/v1/quiz/MMLU-CS-001/submit</pre>
+          <p class="text-[10px] text-gray-400 mt-2">answers: 题目ID -> 选项索引（0-based）</p>
+        </div>
+        <div class="bg-[#1e1e2e] p-5">
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-3">Response</p>
+          <pre class="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">{
+  "correct": 2,
+  "total": 3,
+  "score": 8,
   "details": [
     {"id": "q1", "correct": true},
-    {"id": "q3", "correct": false, "your_answer": 1, "correct_answer": 2}
+    {"id": "q2", "correct": true},
+    {"id": "q3", "correct": false,
+     "your_answer": 1,
+     "correct_answer": 2}
   ]
 }</pre>
+        </div>
       </div>
-    </section>
-
-    <!-- Quiz MCP -->
-    <section id="sec-quiz-mcp">
-      <h2 class="text-[15px] font-bold text-gray-900 mb-3">知识评测 — MCP</h2>
-      <div class="border-l-4 border-amber-400 bg-amber-50 rounded-r-lg p-4 border border-amber-200">
-        <p class="text-[12px] text-amber-800">即将支持。当前可通过 REST API 完成知识评测的自动化答题。</p>
-      </div>
-    </section>
-
+    </div>
   </div>
+
+  <!-- Quiz MCP -->
+  <div class="px-2 py-8" data-section="quiz-mcp">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[15px] font-semibold text-gray-800">知识评测 — MCP</h3>
+    </div>
+    <div class="flex items-center gap-3 px-5 py-4 bg-amber-50 rounded-xl border border-amber-100">
+      <svg class="w-4 h-4 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      <span class="text-amber-700 text-[12px]">即将支持 — 当前可通过 REST API 完成知识评测的自动化答题。</span>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
