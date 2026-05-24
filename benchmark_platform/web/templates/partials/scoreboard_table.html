@@ -1,39 +1,131 @@
-<div id="scoreboard-table" class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+<div id="scoreboard-table">
+{% set max_score = teams[0].combined_score if teams and tab == 'combined' else (teams[0].quiz_score if teams and tab == 'mcq' else (teams[0].solved_flags if teams else 1)) %}
+
+{% if teams | length >= 3 %}
+<!-- Podium: Top 3 -->
+<div class="grid grid-cols-3 gap-4 mb-5">
+  <!-- 2nd Place -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col items-center relative overflow-hidden order-1">
+    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200"></div>
+    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mb-3 ring-2 ring-gray-200">
+      <span class="text-lg font-bold text-gray-600">2</span>
+    </div>
+    <span class="text-[14px] font-semibold text-gray-900">{{ teams[1].name }}</span>
+    <span class="text-[11px] text-gray-400 mt-1">{% if tab != 'mcq' %}CTF {{ teams[1].solved_flags }}/{{ total_flags }}{% endif %}{% if tab == 'combined' %} · {% endif %}{% if tab != 'ctf' %}MCQ {{ teams[1].quiz_correct | default(0) }}{% endif %}</span>
+    <div class="mt-3 w-full">
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+        <span>{% if tab == 'combined' %}综合分{% elif tab == 'ctf' %}Flags{% else %}MCQ{% endif %}</span>
+        <span class="font-semibold text-gray-700">{% if tab == 'combined' %}{{ teams[1].combined_score | default(0) }}{% elif tab == 'ctf' %}{{ teams[1].solved_flags }}{% else %}{{ teams[1].quiz_correct | default(0) }}{% endif %}</span>
+      </div>
+      {% set pct = ((teams[1].combined_score if tab == 'combined' else (teams[1].quiz_score if tab == 'mcq' else teams[1].solved_flags)) / max_score * 100) | int if max_score else 0 %}
+      <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-gray-300 to-gray-400 rounded-full" style="width: {{ pct }}%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1st Place -->
+  <div class="bg-white rounded-xl border border-amber-200/60 p-5 flex flex-col items-center relative overflow-hidden shadow-sm order-2">
+    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300"></div>
+    <div class="w-14 h-14 rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 flex items-center justify-center mb-3 ring-2 ring-amber-200 shadow-md">
+      <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>
+    </div>
+    <span class="text-[15px] font-bold text-gray-900">{{ teams[0].name }}</span>
+    <span class="text-[11px] text-gray-400 mt-1">{% if tab != 'mcq' %}CTF {{ teams[0].solved_flags }}/{{ total_flags }}{% endif %}{% if tab == 'combined' %} · {% endif %}{% if tab != 'ctf' %}MCQ {{ teams[0].quiz_correct | default(0) }}{% endif %}</span>
+    <div class="mt-3 w-full">
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+        <span>{% if tab == 'combined' %}综合分{% elif tab == 'ctf' %}Flags{% else %}MCQ{% endif %}</span>
+        <span class="font-bold text-amber-600">{% if tab == 'combined' %}{{ teams[0].combined_score | default(0) }}{% elif tab == 'ctf' %}{{ teams[0].solved_flags }}{% else %}{{ teams[0].quiz_correct | default(0) }}{% endif %}</span>
+      </div>
+      <div class="w-full h-1.5 bg-amber-50 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-amber-400 to-yellow-500 rounded-full" style="width: 100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3rd Place -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5 flex flex-col items-center relative overflow-hidden order-3">
+    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-200 via-orange-300 to-orange-200"></div>
+    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-orange-200 to-orange-400 flex items-center justify-center mb-3 ring-2 ring-orange-200">
+      <span class="text-lg font-bold text-white">3</span>
+    </div>
+    <span class="text-[14px] font-semibold text-gray-900">{{ teams[2].name }}</span>
+    <span class="text-[11px] text-gray-400 mt-1">{% if tab != 'mcq' %}CTF {{ teams[2].solved_flags }}/{{ total_flags }}{% endif %}{% if tab == 'combined' %} · {% endif %}{% if tab != 'ctf' %}MCQ {{ teams[2].quiz_correct | default(0) }}{% endif %}</span>
+    <div class="mt-3 w-full">
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+        <span>{% if tab == 'combined' %}综合分{% elif tab == 'ctf' %}Flags{% else %}MCQ{% endif %}</span>
+        <span class="font-semibold text-gray-700">{% if tab == 'combined' %}{{ teams[2].combined_score | default(0) }}{% elif tab == 'ctf' %}{{ teams[2].solved_flags }}{% else %}{{ teams[2].quiz_correct | default(0) }}{% endif %}</span>
+      </div>
+      {% set pct = ((teams[2].combined_score if tab == 'combined' else (teams[2].quiz_score if tab == 'mcq' else teams[2].solved_flags)) / max_score * 100) | int if max_score else 0 %}
+      <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-orange-300 to-orange-400 rounded-full" style="width: {{ pct }}%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Table -->
+{% set table_teams = teams[3:] if teams | length >= 3 else teams %}
+{% if table_teams %}
+<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
   <table class="w-full">
-    <thead class="bg-gray-50 border-b border-gray-100">
+    <thead class="bg-gray-50/80 border-b border-gray-100">
       <tr>
-        <th class="px-4 py-3 text-left text-[11px] font-medium text-gray-500 w-12">#</th>
-        <th class="px-4 py-3 text-left text-[11px] font-medium text-gray-500">队伍</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider w-14">#</th>
+        <th class="px-5 py-3 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">队伍</th>
         {% if tab != 'mcq' %}
-        <th class="px-4 py-3 text-right text-[11px] font-medium text-gray-500">CTF Flags</th>
+        <th class="px-5 py-3 text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider">CTF Flags</th>
         {% endif %}
         {% if tab != 'ctf' %}
-        <th class="px-4 py-3 text-right text-[11px] font-medium text-gray-500">MCQ 正确</th>
+        <th class="px-5 py-3 text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider">MCQ 正确</th>
         {% endif %}
         {% if tab == 'combined' %}
-        <th class="px-4 py-3 text-right text-[11px] font-medium text-gray-500">综合分</th>
+        <th class="px-5 py-3 text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider">综合分</th>
         {% endif %}
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
-      {% for team in teams %}
-      <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3 text-[12px] text-gray-500 font-medium">{{ loop.index }}</td>
-        <td class="px-4 py-3 text-[13px] text-gray-900 font-medium">{{ team.name }}</td>
+      {% set offset = 3 if teams | length >= 3 else 0 %}
+      {% for team in table_teams %}
+      <tr class="hover:bg-gray-50/50 transition-colors">
+        <td class="px-5 py-3.5">
+          <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-[11px] font-semibold text-gray-500">{{ loop.index + offset }}</span>
+        </td>
+        <td class="px-5 py-3.5">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
+              <span class="text-[11px] font-bold text-gray-500">{{ team.name[:2] | upper }}</span>
+            </div>
+            <span class="text-[13px] font-medium text-gray-900">{{ team.name }}</span>
+          </div>
+        </td>
         {% if tab != 'mcq' %}
-        <td class="px-4 py-3 text-[12px] text-gray-700 text-right">{{ team.solved_flags }}/{{ total_flags }}</td>
+        <td class="px-5 py-3.5 text-right">
+          <div class="inline-flex items-center gap-2">
+            <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-400 rounded-full" style="width: {{ (team.solved_flags / total_flags * 100) | int }}%"></div>
+            </div>
+            <span class="text-[12px] text-gray-600 font-medium">{{ team.solved_flags }}/{{ total_flags }}</span>
+          </div>
+        </td>
         {% endif %}
         {% if tab != 'ctf' %}
-        <td class="px-4 py-3 text-[12px] text-gray-700 text-right">{{ team.quiz_correct | default(0) }}</td>
+        <td class="px-5 py-3.5 text-right text-[12px] text-gray-600 font-medium">{{ team.quiz_correct | default(0) }}</td>
         {% endif %}
         {% if tab == 'combined' %}
-        <td class="px-4 py-3 text-[12px] text-gray-900 font-semibold text-right">{{ team.combined_score | default(0) }}</td>
+        <td class="px-5 py-3.5 text-right">
+          <span class="text-[13px] font-semibold text-gray-900">{{ team.combined_score | default(0) }}</span>
+        </td>
         {% endif %}
       </tr>
       {% endfor %}
-      {% if not teams %}
-      <tr><td colspan="5" class="px-4 py-6 text-center text-[12px] text-gray-400">暂无队伍数据</td></tr>
-      {% endif %}
     </tbody>
   </table>
+</div>
+{% elif not teams %}
+<div class="bg-white rounded-xl border border-gray-100 p-8 text-center">
+  <p class="text-[12px] text-gray-400">暂无队伍数据</p>
+</div>
+{% endif %}
 </div>

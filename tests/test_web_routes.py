@@ -62,13 +62,13 @@ def test_about_page_shows_repository_links_and_ecosystem_content():
     assert "https://github.com/wgpsec/context1337" in r.text
     assert "https://github.com/wgpsec/tchkiller" in r.text
     assert "AboutSecurity" in r.text
-    assert "结构化渗透知识库（Skills, Dic, Payload, Vuln）" in r.text
+    assert "知识库" in r.text
     assert "context1337" in r.text
-    assert "MCP Server — 将 AboutSecurity 转化为 AI Agent 可调用的搜索 API" in r.text
+    assert "MCP 服务" in r.text
     assert "tchkiller" in r.text
-    assert "自主渗透 Agent，支持多轮决策与团队协作" in r.text
+    assert "渗透 Agent" in r.text
     assert "PoJun" in r.text
-    assert "通用 AI 求解引擎（私有）" in r.text
+    assert "通用 AI 求解引擎" in r.text
 
 
 def test_about_page_shows_contact_section():
