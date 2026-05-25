@@ -161,6 +161,7 @@ challenges
 
 # Runtime instance directory
 runtime/
+quiz/
 
 # 预下载
 /scripts/images
