@@ -10,7 +10,7 @@
   'quiz': ('知识评测', '网安知识基准评估'),
   'api-docs': ('AI 交互文档', 'Agent 自动化做题接口参考'),
 } %}
-{% set title, subtitle = page_titles.get(page, ('Benchmark Platform', '')) %}
+{% set title, subtitle = page_titles.get(page, (brand_name, '')) %}
 <div class="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between">
   <div>
     <h1 class="text-lg font-semibold text-gray-900">{{ title }}</h1>

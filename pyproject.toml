@@ -1,7 +1,7 @@
 [project]
 name = "benchmark-platform"
 version = "1.2.4"
-description = "Benchmark platform server for pojun evaluation — tch-compatible API"
+description = "浑象 - 开源版 | AI 时代的安全能力评测基座"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.121.2",

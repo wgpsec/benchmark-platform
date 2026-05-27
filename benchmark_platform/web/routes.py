@@ -17,6 +17,7 @@ from benchmark_platform.web.context import (
     status_context,
 )
 from benchmark_platform.db import get_team_by_token, get_or_create_default_team, get_setting
+from benchmark_platform.web.branding import get_branding
 from benchmark_platform.web.ui_visibility import get_ui_visibility
 
 _templates_dir = Path(__file__).parent / "templates"
@@ -60,6 +61,8 @@ def _render(request: Request, template: str, ctx: dict):
     ctx.setdefault("version", __version__)
     ctx.setdefault("user", getattr(request.state, "user", {}))
     for key, value in get_ui_visibility().items():
+        ctx.setdefault(key, value)
+    for key, value in get_branding().items():
         ctx.setdefault(key, value)
     team_selector = _get_teams_for_selector(_get_selected_team_id(request))
     ctx.setdefault("teams", team_selector["teams"])
@@ -136,7 +139,7 @@ def _status_context_with_teams(manager) -> dict:
 
 @web_router.get("/login")
 async def login_page(request: Request):
-    return templates.TemplateResponse(request, "pages/login.html", context={"error": None})
+    return templates.TemplateResponse(request, "pages/login.html", context={"error": None, **get_branding()})
 
 
 @web_router.post("/login")
@@ -146,13 +149,13 @@ async def login_submit(request: Request):
 
     if not token:
         return templates.TemplateResponse(
-            request, "pages/login.html", context={"error": "Please enter a token"}
+            request, "pages/login.html", context={"error": "Please enter a token", **get_branding()}
         )
 
     team = get_team_by_token(token)
     if team is None:
         return templates.TemplateResponse(
-            request, "pages/login.html", context={"error": "Invalid token"}
+            request, "pages/login.html", context={"error": "Invalid token", **get_branding()}
         )
 
     default_team = get_or_create_default_team()

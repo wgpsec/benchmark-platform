@@ -173,3 +173,6 @@ docs/
 
 # Database
 data/
+
+# Branding override (keep branding.example.json in repo)
+branding.json

@@ -19,8 +19,8 @@ from benchmark_platform.db import (
 )
 
 mcp = FastMCP(
-    name="benchmark-platform",
-    instructions="CTF challenge platform MCP server. Use tools to list challenges, start/stop instances, submit flags, and view hints.",
+    name="hunxiang",
+    instructions="浑象 (HunXiang) - Security evaluation platform MCP server. Use tools to list challenges, start/stop instances, submit flags, and view hints.",
 )
 
 # Set by server.py after initialization — avoids circular import of server module

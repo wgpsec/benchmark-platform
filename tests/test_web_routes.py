@@ -48,7 +48,7 @@ def test_about_page_returns_200_for_admin():
     r = client.get("/web/about")
     assert r.status_code == 200
     assert "关于我们" in r.text
-    assert "Benchmark Platform" in r.text
+    assert "浑象" in r.text
 
 
 def test_about_page_shows_repository_links_and_ecosystem_content():
@@ -217,7 +217,6 @@ def test_scoreboard_page_title_is_rankings():
     assert r.status_code == 200
     assert "<title>排行榜</title>" in r.text
     assert ">排行榜<" in r.text
-    assert "Benchmark Scoreboard" not in r.text
     assert "Benchmark Platform" not in r.text
 
 

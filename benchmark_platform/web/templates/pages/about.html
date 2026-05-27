@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}关于我们 — Benchmark Platform{% endblock %}
+{% block title %}关于我们 — {{ brand_name }}{% endblock %}
 {% block content %}
 <div class="space-y-6">
   <section class="bg-white border border-gray-100 rounded-xl p-5">
     <div class="max-w-3xl">
-      <p class="text-[12px] font-semibold text-rose-600 uppercase tracking-wide mb-2">Benchmark Platform</p>
+      <p class="text-[12px] font-semibold text-rose-600 uppercase tracking-wide mb-2">{{ brand_title }}</p>
       <h1 class="text-[20px] font-semibold text-gray-900 mb-3">关于我们</h1>
       <p class="text-[13px] leading-6 text-gray-600">
-        Benchmark Platform 是面向 Agentic Security Benchmark 的靶场平台，用于管理挑战、运行实例、追踪团队进度与沉淀评测数据，帮助安全研究者和 AI Agent 生态更高效地构建、验证和复现攻防任务。
+        浑象是面向 AI 时代的安全能力评测基座，用于管理挑战靶场、运行实例、追踪团队进度与沉淀评测数据，帮助安全研究者和 AI Agent 生态更高效地构建、验证和复现攻防任务。
       </p>
       <div class="mt-4 flex flex-wrap gap-2 text-[12px]">
         <span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">Dynamic Flag</span>
@@ -30,8 +30,8 @@
       <a href="https://github.com/wgpsec/benchmark-platform" target="_blank" class="block bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 hover:shadow-sm transition-all">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="text-[14px] font-semibold text-gray-900">benchmark-platform</h3>
-            <p class="text-[12px] leading-5 text-gray-500 mt-1">Agentic Security Benchmark 的 Web 管理平台与评测基础设施。</p>
+            <h3 class="text-[14px] font-semibold text-gray-900">{{ brand_title }}</h3>
+            <p class="text-[12px] leading-5 text-gray-500 mt-1">{{ brand_subtitle }} — Web 管理平台与评测基础设施。</p>
           </div>
           <span class="text-[11px] text-blue-600 whitespace-nowrap">GitHub</span>
         </div>

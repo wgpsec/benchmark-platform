@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}题目列表 — Benchmark Platform{% endblock %}
+{% block title %}题目列表 — {{ brand_name }}{% endblock %}
 {% block content %}
 <div x-data="{filter: 'all', search: '', selectedTags: []}" x-effect="applyFilter(filter, search, selectedTags)">
 

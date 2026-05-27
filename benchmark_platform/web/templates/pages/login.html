@@ -3,17 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - Benchmark Platform</title>
+  <title>登录 - {{ brand_name }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center">
   <div class="w-full max-w-sm">
     <div class="text-center mb-8">
-      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-600 to-red-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
-        <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <svg class="w-7 h-7 text-white" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <ellipse cx="24" cy="24" rx="18" ry="7"/>
+          <ellipse cx="24" cy="24" rx="18" ry="7" transform="rotate(60 24 24)"/>
+          <ellipse cx="24" cy="24" rx="18" ry="7" transform="rotate(-60 24 24)"/>
+          <circle cx="24" cy="24" r="3" fill="currentColor" stroke="none"/>
+        </svg>
       </div>
-      <h1 class="text-[20px] font-bold text-gray-900">Benchmark Platform</h1>
-      <p class="text-[13px] text-gray-500 mt-1">Agent 安全能力评估平台</p>
+      <h1 class="text-[20px] font-bold text-gray-900">{{ brand_name }}</h1>
+      <p class="text-[13px] text-gray-500 mt-1">{{ brand_subtitle }}</p>
     </div>
 
     <div class="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8">

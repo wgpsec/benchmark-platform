@@ -1,8 +1,8 @@
 [English](README.md) | 中文文档
 
-# Benchmark Platform
+# 浑象 - 开源版 (Benchmark Platform)
 
-CTF 靶场竞赛平台，用于安全能力评估。基于 Docker Compose 动态管理靶机实例，提供 Web UI 和 API 两种交互方式。
+AI 时代的安全能力评测基座。基于 Docker Compose 动态管理靶机实例，提供 Web UI、REST API 和 MCP Server 三种交互方式，同时服务人员考核和 AI Agent 评测。
 
 ## 功能
 
@@ -281,7 +281,7 @@ XBEN-001-24/
 
 ## WgpSec Agentic Ecosystem
 
-benchmark-platform 是 **WgpSec Agentic Ecosystem** 的评估层 — 衡量 AI Agent 在真实攻防场景中的表现。
+浑象（benchmark-platform）是 **WgpSec Agentic Ecosystem** 的评估层 — 衡量 AI Agent 在真实攻防场景中的表现。
 
 ```
 ┌───────────────────── WgpSec Agentic Ecosystem ─────────────────────┐

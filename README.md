@@ -1,8 +1,8 @@
 [中文文档](README.zh-CN.md) | English
 
-# Benchmark Platform
+# 浑象 - 开源版 (Benchmark Platform)
 
-A CTF challenge platform for security capability evaluation. Dynamically manages challenge instances via Docker Compose, with both a Web UI and REST API interface.
+A CTF challenge platform for security capability evaluation — the open-source evaluation infrastructure for AI agents and security teams. Dynamically manages challenge instances via Docker Compose, with Web UI, REST API and MCP Server interfaces.
 
 ## Features
 
