@@ -301,7 +301,7 @@ XBEN-001-24/
 | [AboutSecurity](https://github.com/wgpsec/AboutSecurity) | 结构化渗透知识库（Skills, Dic, Payload, Vuln） |
 | [context1337](https://github.com/wgpsec/context1337) | MCP Server — 将 AboutSecurity 转化为 AI Agent 可调用的搜索 API |
 | [tchkiller](https://github.com/wgpsec/tchkiller) | 自主渗透 Agent，支持多轮决策与团队协作 |
-| [benchmark-platform](https://github.com/wgpsec/benchmark-platform) | CTF 靶场平台，评估 Agent 攻防能力 |
+| [benchmark-platform](https://github.com/wgpsec/benchmark-platform) | 浑象 CTF 靶场平台，评估 Agent 攻防能力 |
 | [benchmark-challenges](https://github.com/wgpsec/benchmark-challenges) | 靶场数据仓库 — 通过 GitHub Releases 打包分发 |
 | PoJun | 通用 AI 求解引擎（私有） |
 
